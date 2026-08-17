@@ -135,7 +135,11 @@ def _string_constants(path: Path) -> dict[str, str]:
     return values
 
 
-def _validate_licensing_config(version: str, errors: list[str]) -> None:
+def _validate_licensing_config(
+    version: str,
+    errors: list[str],
+    expected_public_key_file: Path | None,
+) -> None:
     const_path = ROOT / f"custom_components/{DOMAIN}/const.py"
     config_path = ROOT / f"custom_components/{DOMAIN}/license_config.py"
     try:
@@ -177,9 +181,27 @@ def _validate_licensing_config(version: str, errors: list[str]) -> None:
         ed25519_spki_prefix = bytes.fromhex("302a300506032b6570032100")
         if len(public_der) != 44 or not public_der.startswith(ed25519_spki_prefix):
             errors.append("LICENSE_PUBLIC_KEY_B64 must contain an Ed25519 public key")
+        if expected_public_key_file is not None:
+            try:
+                expected_public_key = "".join(
+                    expected_public_key_file.read_text(encoding="utf-8").split()
+                )
+                expected_der = base64.b64decode(expected_public_key, validate=True)
+            except (OSError, UnicodeDecodeError, binascii.Error) as err:
+                errors.append(f"Unable to read expected license public key: {err}")
+            else:
+                if public_der != expected_der:
+                    errors.append(
+                        "LICENSE_PUBLIC_KEY_B64 does not match --public-key-b64-file"
+                    )
 
 
-def validate(*, allow_template: bool, tag: str | None) -> list[str]:
+def validate(
+    *,
+    allow_template: bool,
+    tag: str | None,
+    expected_public_key_file: Path | None = None,
+) -> list[str]:
     """Return validation errors."""
     errors: list[str] = []
 
@@ -242,7 +264,7 @@ def validate(*, allow_template: bool, tag: str | None) -> list[str]:
         if version and f"[{version}]" not in changelog:
             errors.append(f"CHANGELOG.md does not contain [{version}]")
         if version:
-            _validate_licensing_config(version, errors)
+            _validate_licensing_config(version, errors, expected_public_key_file)
 
     if hacs_path.is_file():
         try:
@@ -338,9 +360,18 @@ def main() -> int:
     parser.add_argument(
         "--tag", help="Validate a release tag against manifest version."
     )
+    parser.add_argument(
+        "--public-key-b64-file",
+        type=Path,
+        help="Require the embedded license key to match this public key file.",
+    )
     args = parser.parse_args()
 
-    errors = validate(allow_template=args.allow_template, tag=args.tag)
+    errors = validate(
+        allow_template=args.allow_template,
+        tag=args.tag,
+        expected_public_key_file=args.public_key_b64_file,
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

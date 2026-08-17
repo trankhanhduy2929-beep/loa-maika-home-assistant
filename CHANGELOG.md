@@ -2,6 +2,17 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.6.3] - 2026-08-17
+
+### Fixed
+
+- Đồng bộ lại Ed25519 public key nhúng trong integration với cặp khóa production
+  đang được Worker dùng để ký lease.
+- Sửa lỗi mọi license key đều báo `invalid_license_response` sau khi Worker đã
+  dùng cặp khóa mới nhưng source GitHub vẫn giữ public key cũ.
+- Không thay đổi dữ liệu khách hàng, license key, installation hoặc web Vercel;
+  người dùng chỉ cần cập nhật custom integration lên bản này.
+
 ## [1.6.2] - 2026-08-17
 
 ### Fixed

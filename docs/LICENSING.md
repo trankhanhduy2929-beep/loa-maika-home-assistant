@@ -86,12 +86,25 @@ Sau khi deploy Worker, có thể giữ trường URL trong config flow hoặc gh
 
 ```bash
 python3 scripts/configure_licensing.py \
-  --server-url https://YOUR-WORKER.workers.dev
+  --server-url https://YOUR-WORKER.workers.dev \
+  --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
 ```
 
 Không thay public key nếu chưa có kế hoạch rotation. Nếu mất Ed25519 private
 key hiện tại, server không thể cấp lease mới mà các bản integration đã phát
 hành chấp nhận.
+
+Trước mỗi release thương mại, truyền cùng file public key vào validator/build:
+
+```bash
+python3 scripts/validate_repository.py --tag vX.Y.Z \
+  --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
+```
+
+Nếu mọi license cũ và mới cùng báo `invalid_license_response`, kiểm tra public
+key nhúng trong `license_config.py` trước. Lỗi này thường có nghĩa Worker đang
+ký lease bằng private key không khớp public key của integration; rotate license
+key khách hàng không thể sửa lỗi lệch cặp khóa ký.
 
 ## Giới hạn chống sao chép
 

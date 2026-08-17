@@ -65,6 +65,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", help="Release tag, for example v1.6.0")
     parser.add_argument("--output", default="dist")
+    parser.add_argument(
+        "--public-key-b64-file",
+        type=Path,
+        help="Require the embedded license key to match this public key file.",
+    )
     args = parser.parse_args()
 
     manifest = json.loads(
@@ -75,16 +80,17 @@ def main() -> int:
     if tag.removeprefix("v") != version:
         raise SystemExit(f"Tag {tag} does not match manifest version {version}")
 
-    subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "scripts/validate_repository.py"),
-            "--tag",
-            tag,
-        ],
-        cwd=ROOT,
-        check=True,
-    )
+    validate_command = [
+        sys.executable,
+        str(ROOT / "scripts/validate_repository.py"),
+        "--tag",
+        tag,
+    ]
+    if args.public_key_b64_file:
+        validate_command.extend(
+            ("--public-key-b64-file", str(args.public_key_b64_file.resolve()))
+        )
+    subprocess.run(validate_command, cwd=ROOT, check=True)
 
     output = ROOT / args.output
     output.mkdir(parents=True, exist_ok=True)

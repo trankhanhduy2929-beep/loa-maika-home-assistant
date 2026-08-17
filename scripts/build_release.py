@@ -57,6 +57,11 @@ def main() -> int:
     parser.add_argument("--tag", help="Release tag, for example v1.6.0")
     parser.add_argument("--output", default="dist")
     parser.add_argument(
+        "--public-key-b64-file",
+        type=Path,
+        help="Require the embedded license key to match this public key file.",
+    )
+    parser.add_argument(
         "--allow-template",
         action="store_true",
         help="Allow packaged GitHub metadata placeholders.",
@@ -68,6 +73,10 @@ def main() -> int:
         validate_command.append("--allow-template")
     if args.tag:
         validate_command.extend(("--tag", args.tag))
+    if args.public_key_b64_file:
+        validate_command.extend(
+            ("--public-key-b64-file", str(args.public_key_b64_file.resolve()))
+        )
     subprocess.run(validate_command, cwd=ROOT, check=True)
 
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))

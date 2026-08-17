@@ -39,7 +39,8 @@ nhập thủ công:
 
 ```bash
 python3 scripts/configure_licensing.py \
-  --server-url https://YOUR-WORKER.workers.dev
+  --server-url https://YOUR-WORKER.workers.dev \
+  --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
 ```
 
 Nếu chưa chạy lệnh này, config flow vẫn hoạt động nhưng khách phải tự nhập URL
@@ -52,8 +53,10 @@ python3 -m pip install ruff==0.16.3
 ruff check .
 ruff format --check .
 python3 scripts/validate_repository.py
-python3 scripts/build_release.py --tag v1.6.2
-python3 scripts/package_source.py --tag v1.6.2
+python3 scripts/build_release.py --tag v1.6.3 \
+  --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
+python3 scripts/package_source.py --tag v1.6.3 \
+  --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
 ```
 
 Artifact được tạo trong `dist/`:
@@ -96,27 +99,27 @@ bước cấu hình này.
 
 ## 7. Tạo release
 
-Đảm bảo version trong `custom_components/maika/manifest.json` là `1.6.2`, sau đó:
+Đảm bảo version trong `custom_components/maika/manifest.json` là `1.6.3`, sau đó:
 
 ```bash
-git tag v1.6.2
-git push origin v1.6.2
+git tag v1.6.3
+git push origin v1.6.3
 ```
 
 Workflow `release.yml` kiểm tra tag/version, tạo GitHub Release và upload hai ZIP cùng checksum.
 
 Không di chuyển hoặc ghi đè tag `v1.6.0` vì release đó đã được công bố. Đưa bản
-vá CI/Windows lên `main`, chờ workflow Validate xanh rồi tạo tag `v1.6.2` từ
+vá CI/Windows lên `main`, chờ workflow Validate xanh rồi tạo tag `v1.6.3` từ
 commit mới.
 
 Chỉ khi một tag mới chạy thất bại trước khi GitHub Release được tạo thì mới xóa
 tag lỗi và tạo lại từ commit đã sửa:
 
 ```bash
-git tag -d v1.6.2
-git push origin :refs/tags/v1.6.2
-git tag v1.6.2
-git push origin v1.6.2
+git tag -d v1.6.3
+git push origin :refs/tags/v1.6.3
+git tag v1.6.3
+git push origin v1.6.3
 ```
 
 ## 8. Cài qua HACS
