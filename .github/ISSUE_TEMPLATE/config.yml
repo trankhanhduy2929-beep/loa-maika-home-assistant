@@ -1,6 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Báo cáo bảo mật riêng tư
-    url: https://github.com/trankhanhduy2929-beep/loa-maika-home-assistant/security/advisories/new
-    about: Không đăng lỗ hổng hoặc credential trong public issue.
-
