@@ -1,0 +1,197 @@
+{
+  "title": "Loa MAIKA",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kích hoạt MAIKA Speaker",
+        "description": "Mã cài đặt: {activation_code}. Nhập URL máy chủ kích hoạt do người bán cung cấp và license key của bạn. Easy Mode tự gắn Home Assistant đầu tiên dùng key. Chỉ hash tạo từ Home Assistant instance ID được gửi đi; tài khoản MAIKA không bao giờ được gửi tới máy chủ kích hoạt.",
+        "data": {
+          "license_server_url": "URL máy chủ kích hoạt",
+          "license_key": "License key"
+        }
+      },
+      "activation_pending": {
+        "title": "Đang chờ duyệt",
+        "description": "Server này đang dùng chế độ duyệt tay. Mã cài đặt: {activation_code}. Gửi mã cho người bán, sau đó bấm Gửi khi đã được duyệt."
+      },
+      "account": {
+        "title": "Kết nối tài khoản MAIKA",
+        "description": "Nhập số điện thoại hoặc email/Gmail đã đăng ký với MAIKA. Đăng nhập email cần mật khẩu tài khoản MAIKA; tài khoản chỉ dùng nút Đăng nhập bằng Google nhưng chưa đặt mật khẩu MAIKA chưa được hỗ trợ. Credential chỉ gửi tới cloud MAIKA, không gửi tới máy chủ kích hoạt.",
+        "data": {
+          "phone_number": "Số điện thoại hoặc email/Gmail",
+          "password": "Mật khẩu"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Kết nối lại MAIKA",
+        "description": "Nhập thông tin hiện tại của tài khoản MAIKA.",
+        "data": {
+          "phone_number": "Số điện thoại hoặc email/Gmail",
+          "password": "Mật khẩu"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Không thể kết nối tới cloud MAIKA.",
+      "cannot_connect_license": "Không thể kết nối tới máy chủ kích hoạt.",
+      "invalid_license": "License key không hợp lệ.",
+      "invalid_license_key": "Hãy nhập license key hợp lệ.",
+      "invalid_license_response": "Máy chủ kích hoạt trả về giấy phép không hợp lệ hoặc không có chữ ký đúng.",
+      "invalid_server_url": "Hãy nhập URL HTTPS máy chủ kích hoạt bằng tên miền hợp lệ.",
+      "invalid_auth": "Số điện thoại, email hoặc mật khẩu không đúng.",
+      "license_activation_limit": "License này đã đạt giới hạn số Home Assistant được kích hoạt.",
+      "license_deactivated": "Bản cài đặt này đã được hủy kích hoạt.",
+      "license_expired": "License đã hết hạn.",
+      "license_inactive": "License đang bị khóa.",
+      "license_pending": "Bản cài đặt vẫn đang chờ người bán duyệt.",
+      "license_rejected": "Yêu cầu kích hoạt đã bị từ chối.",
+      "license_revoked": "Bản cài đặt này đã bị thu hồi.",
+      "unknown": "Lỗi không xác định. Hãy kiểm tra log Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Tài khoản MAIKA này đã được cấu hình.",
+      "reauth_failed": "Không còn config entry MAIKA.",
+      "reauth_successful": "Đã cập nhật thông tin đăng nhập MAIKA.",
+      "unique_id_mismatch": "Thông tin đăng nhập thuộc một tài khoản MAIKA khác."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tùy chọn MAIKA",
+        "menu_options": {
+          "license": "License và kích hoạt",
+          "features": "Tính năng loa"
+        }
+      },
+      "license": {
+        "title": "License và kích hoạt",
+        "description": "Mã cài đặt: {activation_code}. Trạng thái hiện tại: {license_status}. Để trống license key để làm mới bản kích hoạt hiện tại, hoặc nhập key mới để thay thế.",
+        "data": {
+          "license_server_url": "URL máy chủ kích hoạt",
+          "license_key": "License key mới (không bắt buộc)"
+        }
+      },
+      "license_pending": {
+        "title": "Đang chờ duyệt",
+        "description": "Server này đang dùng chế độ duyệt tay. Mã cài đặt: {activation_code}. Gửi mã cho người bán, sau đó bấm Gửi khi đã được duyệt."
+      },
+      "features": {
+        "title": "Tùy chọn MAIKA",
+        "description": "Các tính năng thử nghiệm mặc định tắt. Khi bật sensor câu lệnh, nội dung loa nhận dạng sẽ được lưu trong state Home Assistant và có thể vào lịch sử Recorder. Rule khớp chính xác nhưng không phân biệt dấu, chỉ được bật, tắt hoặc đảo trạng thái một entity. Có thể điền URL MP3 HTTP(S) để chỉ phát âm báo sau khi rule Home Assistant khớp và service hoàn tất thành công; để trống URL là tắt phản hồi. Nếu config entry chỉ có một loa MAIKA thì loa được chọn tự động; câu không khớp hoặc điều khiển lỗi tuyệt đối không gửi lệnh phát.",
+        "data": {
+          "scan_interval": "Chu kỳ cập nhật (giây)",
+          "enable_experimental_cloud_cast": "Bật cast âm thanh cloud thử nghiệm",
+          "enable_voice_command_sensor": "Bật sensor câu lệnh mới nhất và rule điều khiển",
+          "voice_command_rules": "Mỗi dòng: câu lệnh | entity_id | turn_on/turn_off/toggle",
+          "voice_success_audio_url": "URL MP3 báo thành công (để trống là tắt)",
+          "voice_success_media_player_entity_id": "Loa MAIKA phát âm báo thành công"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect_license": "Không thể kết nối tới máy chủ kích hoạt.",
+      "invalid_license": "License key không hợp lệ.",
+      "invalid_license_key": "Hãy nhập license key hợp lệ.",
+      "invalid_license_response": "Máy chủ kích hoạt trả về giấy phép không hợp lệ hoặc không có chữ ký đúng.",
+      "invalid_server_url": "Hãy nhập URL HTTPS máy chủ kích hoạt bằng tên miền hợp lệ.",
+      "invalid_voice_command_rules": "Rule câu lệnh không hợp lệ: {rule_error}",
+      "license_activation_limit": "License này đã đạt giới hạn số Home Assistant được kích hoạt.",
+      "license_deactivated": "Bản cài đặt này đã được hủy kích hoạt.",
+      "license_expired": "License đã hết hạn.",
+      "license_inactive": "License đang bị khóa.",
+      "license_key_required": "Hãy nhập license key để kích hoạt bản cài đặt này.",
+      "license_pending": "Bản cài đặt vẫn đang chờ người bán duyệt.",
+      "license_rejected": "Yêu cầu kích hoạt đã bị từ chối.",
+      "license_revoked": "Bản cài đặt này đã bị thu hồi.",
+      "voice_success_audio_requires_voice_sensor": "Hãy bật sensor câu lệnh mới nhất và rule điều khiển trước.",
+      "voice_success_audio_requires_cloud_cast": "Hãy bật cast âm thanh cloud MAIKA thử nghiệm trước.",
+      "voice_success_audio_url_invalid": "Hãy nhập URL âm thanh HTTP(S) hợp lệ, không có khoảng trắng hoặc thông tin đăng nhập trong URL.",
+      "voice_success_audio_media_player_required": "Hãy chọn loa MAIKA khi config entry có nhiều hơn một loa.",
+      "voice_success_audio_media_player_invalid": "Hãy chọn media player MAIKA thuộc đúng config entry này."
+    }
+  },
+  "exceptions": {
+    "license_unavailable": {
+      "message": "License MAIKA chưa dùng được ({license_error}). Mã cài đặt: {activation_code}. Mở tùy chọn integration để kích hoạt Home Assistant này."
+    },
+    "cloud_cast_disabled": {
+      "message": "Cloud cast MAIKA thử nghiệm đang tắt trong tùy chọn integration."
+    },
+    "cloud_cast_failed": {
+      "message": "Cloud MAIKA không chấp nhận yêu cầu cast âm thanh."
+    },
+    "cloud_cast_invalid_url": {
+      "message": "Cloud cast MAIKA cần URL HTTP(S) hợp lệ, không chứa tên đăng nhập hoặc mật khẩu trong URL."
+    },
+    "cloud_cast_unsupported_media": {
+      "message": "Cloud cast MAIKA hỗ trợ audio MP3/MPEG, MP4/AAC hoặc URL music/audio chung, không hỗ trợ {media_type}."
+    },
+    "cloud_cast_unsupported_mode": {
+      "message": "Cloud cast MAIKA chưa hỗ trợ enqueue=add hoặc enqueue=next."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "online": {"name": "Trực tuyến"},
+      "wifi_connected": {"name": "Đã kết nối Wi-Fi"},
+      "available_to_call": {"name": "Sẵn sàng nhận cuộc gọi"},
+      "favorite": {"name": "Yêu thích"},
+      "device_active": {"name": "Thiết bị đang hoạt động"},
+      "warranty_active": {"name": "Còn bảo hành"}
+    },
+    "button": {
+      "restart": {"name": "Khởi động lại"},
+      "refresh_status": {"name": "Cập nhật trạng thái"}
+    },
+    "select": {
+      "wakeword_sensitivity": {
+        "name": "Độ nhạy từ đánh thức",
+        "state": {"low": "Thấp", "medium": "Trung bình", "high": "Cao"}
+      },
+      "wakeword_response": {
+        "name": "Phản hồi từ đánh thức",
+        "state": {
+          "wakeword_response_silent": "Im lặng",
+          "wakeword_response_ringtone": "Nhạc báo",
+          "wakeword_response_default": "Mặc định"
+        }
+      },
+      "tts_voice": {
+        "name": "Giọng đọc",
+        "state": {
+          "vn_north": "Giọng Bắc",
+          "vn_south": "Giọng Nam"
+        }
+      }
+    },
+    "sensor": {
+      "volume": {"name": "Âm lượng"},
+      "firmware_version": {"name": "Phiên bản firmware"},
+      "firmware_update_status": {"name": "Trạng thái cập nhật firmware"},
+      "model": {"name": "Mẫu loa"},
+      "serial_number": {"name": "Số sê-ri"},
+      "wifi_ssid": {"name": "Tên Wi-Fi"},
+      "activated_at": {"name": "Ngày kích hoạt"},
+      "warranty_expire_date": {"name": "Ngày hết bảo hành"},
+      "room": {"name": "Phòng"},
+      "default_language": {"name": "Ngôn ngữ mặc định"},
+      "last_voice_command": {"name": "Câu lệnh giọng nói mới nhất"},
+      "playback_status": {
+        "name": "Trạng thái phát",
+        "state": {
+          "start": "Đang phát",
+          "resume": "Đang phát",
+          "paused": "Tạm dừng",
+          "finished": "Đã kết thúc"
+        }
+      }
+    },
+    "switch": {"microphone_mute": {"name": "Tắt micro"}},
+    "text": {
+      "speaker_name": {"name": "Tên loa"},
+      "calling_name": {"name": "Tên gọi"},
+      "address": {"name": "Địa chỉ"}
+    }
+  }
+}

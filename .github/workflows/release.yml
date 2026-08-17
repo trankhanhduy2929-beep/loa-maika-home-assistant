@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Validate tag and build archives
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          root = Path("custom_components/maika")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          version = str(manifest["version"])
+          tag = os.environ["RELEASE_TAG"]
+          if tag.removeprefix("v") != version:
+              raise SystemExit(f"Tag {tag} does not match manifest version {version}")
+
+          files = sorted(
+              path
+              for path in root.rglob("*")
+              if path.is_file()
+              and path.suffix != ".pyc"
+              and "__pycache__" not in path.parts
+          )
+
+          def write_archive(output: Path, manual: bool) -> None:
+              with zipfile.ZipFile(
+                  output,
+                  "w",
+                  compression=zipfile.ZIP_DEFLATED,
+                  compresslevel=9,
+              ) as archive:
+                  for source in files:
+                      relative = source.relative_to(root).as_posix()
+                      name = f"custom_components/maika/{relative}" if manual else relative
+                      archive.write(source, name)
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as file_handle:
+                  for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          output = Path("dist")
+          output.mkdir()
+          hacs = output / "maika.zip"
+          manual = output / "maika-manual.zip"
+          write_archive(hacs, False)
+          write_archive(manual, True)
+          (output / "SHA256SUMS.txt").write_text(
+              f"{sha256(hacs)}  {hacs.name}\n{sha256(manual)}  {manual.name}\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          name: MAIKA Speaker ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/maika.zip
+            dist/maika-manual.zip
+            dist/SHA256SUMS.txt
