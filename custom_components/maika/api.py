@@ -24,6 +24,7 @@ from .const import (
     REST_UPDATE_FIELDS,
     USERS_BASE_URL,
 )
+from .phone import is_email_login_identifier, normalize_login_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class MaikaApiClient:
         session_id: str,
     ) -> None:
         self._session = session
-        self._phone_number = phone_number
+        self._login_identifier = normalize_login_identifier(phone_number)
         self._password = password
         self._client_id = client_id
         self._session_id = session_id
@@ -109,13 +110,23 @@ class MaikaApiClient:
 
     async def async_login(self) -> dict[str, Any]:
         """Authenticate using the same endpoint as the Android app."""
+        if is_email_login_identifier(self._login_identifier):
+            login_path = "/v1/auth/login"
+            login_payload = {
+                "device_id": self._client_id,
+                "email": self._login_identifier,
+                "password": self._password,
+            }
+        else:
+            login_path = "/v1/auth/otp/login"
+            login_payload = {
+                "phone_number": self._login_identifier,
+                "password": self._password,
+            }
         try:
             async with self._session.post(
-                f"{USERS_BASE_URL}/v1/auth/otp/login",
-                json={
-                    "phone_number": self._phone_number,
-                    "password": self._password,
-                },
+                f"{USERS_BASE_URL}{login_path}",
+                json=login_payload,
                 headers=self._rest_headers(include_authorization=False),
                 timeout=REQUEST_TIMEOUT,
             ) as response:

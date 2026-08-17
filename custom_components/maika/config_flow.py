@@ -55,6 +55,7 @@ from .license import (
 from .license_config import DEFAULT_LICENSE_SERVER_URL
 from .license_store import MaikaLicenseStore, MaikaStoredLicense
 from .media_url import is_valid_http_media_url
+from .phone import normalize_login_identifier
 from .voice_rules import VoiceCommandRulesError, parse_voice_command_rules
 
 _LOGGER = logging.getLogger(__name__)
@@ -167,7 +168,7 @@ async def _async_cached_license_state(
 class MaikaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a MAIKA config flow."""
 
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self) -> None:
         self._pending_license: MaikaStoredLicense | None = None
@@ -286,11 +287,13 @@ class MaikaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_account(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Create an entry from MAIKA phone and password credentials."""
+        """Create an entry from MAIKA account credentials."""
         errors: dict[str, str] = {}
         if user_input is not None:
             normalized = {
-                CONF_PHONE_NUMBER: str(user_input[CONF_PHONE_NUMBER]).strip(),
+                CONF_PHONE_NUMBER: normalize_login_identifier(
+                    str(user_input[CONF_PHONE_NUMBER])
+                ),
                 CONF_PASSWORD: str(user_input[CONF_PASSWORD]),
                 CONF_CLIENT_ID: str(uuid4()),
                 CONF_SESSION_ID: str(uuid4()),
@@ -314,7 +317,7 @@ class MaikaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_PHONE_NUMBER): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEL)
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
                     vol.Required(CONF_PASSWORD): selector.TextSelector(
                         selector.TextSelectorConfig(
@@ -342,7 +345,9 @@ class MaikaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             updated_data = {
                 **entry.data,
-                CONF_PHONE_NUMBER: str(user_input[CONF_PHONE_NUMBER]).strip(),
+                CONF_PHONE_NUMBER: normalize_login_identifier(
+                    str(user_input[CONF_PHONE_NUMBER])
+                ),
                 CONF_PASSWORD: str(user_input[CONF_PASSWORD]),
             }
             try:
@@ -371,7 +376,7 @@ class MaikaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PHONE_NUMBER,
                         default=entry.data.get(CONF_PHONE_NUMBER, ""),
                     ): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEL)
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
                     vol.Required(CONF_PASSWORD): selector.TextSelector(
                         selector.TextSelectorConfig(

@@ -38,6 +38,8 @@ Tất cả kết nối trong integration dùng HTTPS thông qua shared `aiohttp`
 
 ### Login
 
+#### Số điện thoại
+
 ```http
 POST https://users.iviet.com/v1/auth/otp/login
 Content-Type: application/json
@@ -51,6 +53,28 @@ Body:
   "password": "<password>"
 }
 ```
+
+#### Email/Gmail với mật khẩu MAIKA
+
+```http
+POST https://users.iviet.com/v1/auth/login
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "device_id": "<client-id>",
+  "email": "<email>",
+  "password": "<maika-password>"
+}
+```
+
+APK còn có nút Google Sign-In dùng Google ID token gửi tới
+`/auth/social/login`. Đây là OAuth social login, không phải email/mật khẩu và
+không thể thay bằng mật khẩu Gmail. Integration hiện hỗ trợ email/Gmail khi tài
+khoản đã có mật khẩu MAIKA.
 
 Response thành công chứa `access_token`, `refresh_token`, user `id` và `expire_time`. APK 3.2.3 không cho thấy một refresh endpoint đủ tin cậy để dùng độc lập. Integration do đó:
 

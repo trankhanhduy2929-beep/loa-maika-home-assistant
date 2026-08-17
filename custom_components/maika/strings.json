@@ -16,9 +16,9 @@
       },
       "account": {
         "title": "Connect a MAIKA account",
-        "description": "Home Assistant stores the phone number and password in the config entry so it can sign in again. MAIKA credentials are sent only to the MAIKA cloud, never to the activation server.",
+        "description": "Enter a phone number or an email/Gmail address registered with MAIKA. Email login requires the MAIKA account password; Google Sign-In without a MAIKA password is not supported. Credentials are sent only to the MAIKA cloud, never to the activation server.",
         "data": {
-          "phone_number": "Phone number",
+          "phone_number": "Phone number or email/Gmail",
           "password": "Password"
         }
       },
@@ -26,7 +26,7 @@
         "title": "Reconnect MAIKA",
         "description": "Enter the current MAIKA account credentials.",
         "data": {
-          "phone_number": "Phone number",
+          "phone_number": "Phone number or email/Gmail",
           "password": "Password"
         }
       }
@@ -38,7 +38,7 @@
       "invalid_license_key": "Enter a valid license key.",
       "invalid_license_response": "The activation server returned an invalid or unsigned license.",
       "invalid_server_url": "Enter a valid HTTPS activation server URL using a hostname.",
-      "invalid_auth": "Invalid phone number or password.",
+      "invalid_auth": "Invalid phone number, email, or password.",
       "license_activation_limit": "This license has reached its installation limit.",
       "license_deactivated": "This installation was deactivated.",
       "license_expired": "This license has expired.",

@@ -60,7 +60,13 @@ Sau đó restart Home Assistant.
    chuyển thẳng sang bước tài khoản MAIKA.
 5. Chỉ khi người bán bật chế độ duyệt tay, gửi mã cài đặt hiển thị trên màn
    hình rồi bấm kiểm tra lại sau khi được duyệt.
-6. Nhập số điện thoại và mật khẩu tài khoản MAIKA.
+6. Nhập số điện thoại hoặc email/Gmail cùng mật khẩu tài khoản MAIKA. Số điện
+   thoại có thể ở dạng nội địa `084...` hoặc quốc tế `+8484...`; integration sẽ
+   tự chuẩn hóa trước khi đăng nhập.
+
+Email/Gmail phải có mật khẩu tài khoản MAIKA. Tài khoản chỉ được tạo bằng nút
+**Đăng nhập bằng Google** nhưng chưa đặt mật khẩu MAIKA chưa thể dùng trực tiếp,
+vì luồng đó cần Google ID token OAuth chứ không nhận mật khẩu Gmail.
 
 Home Assistant lưu credential trong config entry để đăng nhập lại. Integration chỉ giữ access token trong bộ nhớ và không dùng/lưu refresh token.
 

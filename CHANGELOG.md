@@ -2,6 +2,21 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.6.2] - 2026-08-17
+
+### Fixed
+
+- Thêm đăng nhập bằng email/Gmail và mật khẩu tài khoản MAIKA qua endpoint
+  `/v1/auth/login` đúng như APK; form tự nhận biết email khi giá trị có dấu `@`.
+- Giữ nguyên đăng nhập số điện thoại qua `/v1/auth/otp/login`, không làm thay đổi
+  config entry hoặc quy trình reauthentication hiện có.
+- Chấp nhận số điện thoại Việt Nam ở dạng nội địa `084...` và tự chuyển sang
+  dạng MAIKA cloud yêu cầu là `+8484...` khi đăng nhập.
+- Chuẩn hóa thêm các dạng phổ biến như `84...`, `0084...` và số có khoảng
+  trắng, dấu chấm, dấu gạch ngang hoặc dấu ngoặc.
+- Tự chuyển số điện thoại trong config entry cũ sang dạng quốc tế khi nâng cấp,
+  nên người dùng không cần xóa rồi thêm lại integration.
+
 ## [1.6.1] - 2026-08-17
 
 ### Fixed

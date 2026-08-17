@@ -16,9 +16,9 @@
       },
       "account": {
         "title": "Kết nối tài khoản MAIKA",
-        "description": "Home Assistant lưu số điện thoại và mật khẩu trong config entry để có thể tự đăng nhập lại. Tài khoản MAIKA chỉ được gửi tới cloud MAIKA, không gửi tới máy chủ kích hoạt.",
+        "description": "Nhập số điện thoại hoặc email/Gmail đã đăng ký với MAIKA. Đăng nhập email cần mật khẩu tài khoản MAIKA; tài khoản chỉ dùng nút Đăng nhập bằng Google nhưng chưa đặt mật khẩu MAIKA chưa được hỗ trợ. Credential chỉ gửi tới cloud MAIKA, không gửi tới máy chủ kích hoạt.",
         "data": {
-          "phone_number": "Số điện thoại",
+          "phone_number": "Số điện thoại hoặc email/Gmail",
           "password": "Mật khẩu"
         }
       },
@@ -26,7 +26,7 @@
         "title": "Kết nối lại MAIKA",
         "description": "Nhập thông tin hiện tại của tài khoản MAIKA.",
         "data": {
-          "phone_number": "Số điện thoại",
+          "phone_number": "Số điện thoại hoặc email/Gmail",
           "password": "Mật khẩu"
         }
       }
@@ -38,7 +38,7 @@
       "invalid_license_key": "Hãy nhập license key hợp lệ.",
       "invalid_license_response": "Máy chủ kích hoạt trả về giấy phép không hợp lệ hoặc không có chữ ký đúng.",
       "invalid_server_url": "Hãy nhập URL HTTPS máy chủ kích hoạt bằng tên miền hợp lệ.",
-      "invalid_auth": "Số điện thoại hoặc mật khẩu không đúng.",
+      "invalid_auth": "Số điện thoại, email hoặc mật khẩu không đúng.",
       "license_activation_limit": "License này đã đạt giới hạn số Home Assistant được kích hoạt.",
       "license_deactivated": "Bản cài đặt này đã được hủy kích hoạt.",
       "license_expired": "License đã hết hạn.",

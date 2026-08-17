@@ -19,6 +19,7 @@ from .const import (
 )
 from .coordinator import MaikaDataUpdateCoordinator
 from .license_manager import MaikaLicenseManager, MaikaLicenseUnavailableError
+from .phone import normalize_login_identifier
 from .runtime import MaikaRuntimeData
 
 PLATFORMS = [
@@ -96,8 +97,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bo
 
 async def async_migrate_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bool:
     """Migrate config entries created before activation support."""
-    if entry.version < 2:
-        hass.config_entries.async_update_entry(entry, version=2)
+    if entry.version < 3:
+        data = dict(entry.data)
+        phone_number = data.get(CONF_PHONE_NUMBER)
+        if phone_number is not None:
+            data[CONF_PHONE_NUMBER] = normalize_login_identifier(str(phone_number))
+        hass.config_entries.async_update_entry(entry, data=data, version=3)
     return True
 
 
