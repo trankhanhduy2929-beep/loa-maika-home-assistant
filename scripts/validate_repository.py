@@ -294,6 +294,14 @@ def validate(*, allow_template: bool, tag: str | None) -> list[str]:
     if forbidden:
         errors.append(f"Forbidden generated/sensitive files: {forbidden}")
 
+    crlf_python = [
+        path.relative_to(ROOT)
+        for path in ROOT.rglob("*.py")
+        if path.is_file() and b"\r\n" in path.read_bytes()
+    ]
+    if crlf_python:
+        errors.append(f"Python source must use LF line endings: {crlf_python}")
+
     private_key_markers = (
         "-----BEGIN " + "PRIVATE KEY-----",
         "-----BEGIN OPENSSH " + "PRIVATE KEY-----",

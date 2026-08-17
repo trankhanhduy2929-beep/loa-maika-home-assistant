@@ -75,7 +75,7 @@ def main() -> int:
         if relative == "README.md":
             updated = TEMPLATE_NOTICE.sub("\n", updated)
         if updated != text:
-            path.write_text(updated, encoding="utf-8")
+            path.write_bytes(updated.encode("utf-8"))
             changed += 1
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

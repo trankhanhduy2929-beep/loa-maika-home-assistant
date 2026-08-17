@@ -70,15 +70,13 @@ def main() -> int:
             args.public_key_b64_file.read_text(encoding="utf-8")
         )
 
-    CONFIG_PATH.write_text(
-        (
-            '"""Build-time licensing configuration for MAIKA."""\n\n'
-            "from __future__ import annotations\n\n"
-            f"DEFAULT_LICENSE_SERVER_URL = {json.dumps(server_url)}\n"
-            f"LICENSE_PUBLIC_KEY_B64 = {json.dumps(public_key)}\n"
-        ),
-        encoding="utf-8",
+    content = (
+        '"""Build-time licensing configuration for MAIKA."""\n\n'
+        "from __future__ import annotations\n\n"
+        f"DEFAULT_LICENSE_SERVER_URL = {json.dumps(server_url)}\n"
+        f"LICENSE_PUBLIC_KEY_B64 = {json.dumps(public_key)}\n"
     )
+    CONFIG_PATH.write_bytes(content.encode("utf-8"))
     print(f"Configured activation server: {server_url}")
     return 0
 

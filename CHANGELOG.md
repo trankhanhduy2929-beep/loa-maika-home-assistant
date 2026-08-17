@@ -2,6 +2,15 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.6.1] - 2026-08-17
+
+### Fixed
+
+- Ghi `license_config.py` bằng UTF-8 với xuống dòng LF cố định trên Windows để
+  `ruff format --check .` không còn báo file cần format sau Easy Mode.
+- Validator chặn Python source dùng CRLF trước khi tạo source ZIP hoặc release.
+- Trình cấu hình repository chuẩn hóa file đã chỉnh sửa về LF.
+
 ## [1.6.0] - 2026-08-17
 
 ### Added
