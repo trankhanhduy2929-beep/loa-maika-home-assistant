@@ -25,7 +25,6 @@ from .const import (
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_SCAN_INTERVAL,
     CONF_VOICE_COMMAND_RULES,
-    CONF_VOICE_SUCCESS_AUDIO_URL,
     CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_VOICE_COMMAND_RULES,
@@ -37,6 +36,10 @@ from .voice_rules import (
     VoiceCommandRulesError,
     normalize_voice_phrase,
     parse_voice_command_rules,
+)
+from .voice_success_audio import (
+    has_voice_success_audio,
+    resolve_voice_success_audio_url,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -485,18 +488,14 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._publish_last_voice_command()
 
     def _voice_success_audio_enabled(self) -> bool:
-        return bool(
-            str(self.entry.options.get(CONF_VOICE_SUCCESS_AUDIO_URL, "")).strip()
-        )
+        return has_voice_success_audio(self.entry.options)
 
     async def _async_play_voice_success_audio(self) -> tuple[str, str | None]:
         """Cast a configured MP3 only after a HASS voice action succeeds."""
         if not self.entry.options.get(CONF_ENABLE_CLOUD_CAST, False):
             return "failed", "cloud_cast_disabled"
 
-        audio_url = str(
-            self.entry.options.get(CONF_VOICE_SUCCESS_AUDIO_URL, "")
-        ).strip()
+        audio_url = resolve_voice_success_audio_url(self.entry.options)
         if not audio_url:
             return "failed", "audio_url_not_configured"
         if not is_valid_http_media_url(audio_url):

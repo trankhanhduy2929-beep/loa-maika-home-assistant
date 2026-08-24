@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import MaikaDataUpdateCoordinator
+from .license_config import LICENSE_PORTAL_URL
 from .license_manager import MaikaLicenseManager, MaikaLicenseUnavailableError
 from .phone import normalize_login_identifier
 from .runtime import MaikaRuntimeData
@@ -49,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> boo
             translation_placeholders={
                 "activation_code": err.activation_code,
                 "license_error": err.code,
+                "portal_url": LICENSE_PORTAL_URL or "—",
             },
         ) from err
 
@@ -125,13 +127,18 @@ def _show_license_notification(
     hass: HomeAssistant, err: MaikaLicenseUnavailableError
 ) -> None:
     """Show safe activation instructions without exposing license secrets."""
+    portal_message = (
+        f" Chọn gói hoặc xem key tại {LICENSE_PORTAL_URL}."
+        if LICENSE_PORTAL_URL
+        else ""
+    )
     persistent_notification.async_create(
         hass,
         (
-            "MAIKA Speaker chưa có giấy phép hợp lệ. Mở Cài đặt > Thiết bị & "
-            "dịch vụ > MAIKA > Cấu hình, nhập máy chủ kích hoạt và license key. "
-            f"Mã cài đặt: {err.activation_code}. Trạng thái: {err.code}."
+            "MAIKA chưa kích hoạt. Mở Cài đặt > Thiết bị & dịch vụ > MAIKA > "
+            f"Cấu hình. Mã máy: {err.activation_code}. Trạng thái: {err.code}."
+            f"{portal_message}"
         ),
-        title="Kích hoạt MAIKA Speaker",
+        title="Kích hoạt MAIKA",
         notification_id=_LICENSE_NOTIFICATION_ID,
     )

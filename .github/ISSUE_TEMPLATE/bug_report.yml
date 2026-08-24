@@ -1,0 +1,60 @@
+name: Báo lỗi
+description: Báo lỗi của integration MAIKA Speaker
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Không đăng credential, token, SIP password, serial, SSID, địa chỉ, backup hoặc diagnostic chưa redact.
+  - type: input
+    id: integration_version
+    attributes:
+      label: Phiên bản integration
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: home_assistant_version
+    attributes:
+      label: Phiên bản Home Assistant
+      placeholder: 2026.8.1
+    validations:
+      required: true
+  - type: input
+    id: speaker
+    attributes:
+      label: Model và firmware loa
+      description: Không nhập serial.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Mô tả lỗi
+      description: Điều gì xảy ra và bạn mong đợi điều gì?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Các bước tái hiện
+      placeholder: |
+        1. Mở...
+        2. Chọn...
+        3. Quan sát...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log đã redact
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Xác nhận
+      options:
+        - label: Tôi đã kiểm tra issue trùng.
+          required: true
+        - label: Tôi đã xóa credential, token và dữ liệu nhận dạng khỏi nội dung đính kèm.
+          required: true
+

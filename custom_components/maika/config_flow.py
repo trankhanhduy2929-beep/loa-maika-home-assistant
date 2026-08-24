@@ -31,6 +31,7 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_SESSION_ID,
     CONF_VOICE_COMMAND_RULES,
+    CONF_VOICE_SUCCESS_AUDIO_SOURCE,
     CONF_VOICE_SUCCESS_AUDIO_URL,
     CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID,
     DEFAULT_SCAN_INTERVAL,
@@ -38,6 +39,10 @@ from .const import (
     DOMAIN,
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
+    VOICE_SUCCESS_AUDIO_SOURCE_BUNDLED,
+    VOICE_SUCCESS_AUDIO_SOURCE_CUSTOM,
+    VOICE_SUCCESS_AUDIO_SOURCE_DISABLED,
+    VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS,
 )
 from .license import (
     LICENSE_STATUS_ACTIVE,
@@ -52,11 +57,16 @@ from .license import (
     async_get_installation_identity,
     normalize_license_server_url,
 )
-from .license_config import DEFAULT_LICENSE_SERVER_URL
+from .license_config import (
+    BUNDLED_VOICE_SUCCESS_AUDIO_URL,
+    DEFAULT_LICENSE_SERVER_URL,
+    LICENSE_PORTAL_URL,
+)
 from .license_store import MaikaLicenseStore, MaikaStoredLicense
 from .media_url import is_valid_http_media_url
 from .phone import normalize_login_identifier
 from .voice_rules import VoiceCommandRulesError, parse_voice_command_rules
+from .voice_success_audio import resolve_voice_success_audio_source
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -236,7 +246,10 @@ class MaikaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(schema),
             errors=errors,
-            description_placeholders={"activation_code": identity.activation_code},
+            description_placeholders={
+                "activation_code": identity.activation_code,
+                "portal_url": LICENSE_PORTAL_URL or "—",
+            },
         )
 
     async def async_step_activation_pending(
@@ -494,6 +507,7 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={
                 "activation_code": identity.activation_code,
                 "license_status": status,
+                "portal_url": LICENSE_PORTAL_URL or "—",
             },
         )
 
@@ -577,6 +591,8 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
             normalized[CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID] = (
                 selected_media_player
             )
+            audio_source = resolve_voice_success_audio_source(normalized)
+            normalized[CONF_VOICE_SUCCESS_AUDIO_SOURCE] = audio_source
             audio_url = str(normalized.get(CONF_VOICE_SUCCESS_AUDIO_URL, "")).strip()
             normalized[CONF_VOICE_SUCCESS_AUDIO_URL] = audio_url
 
@@ -588,16 +604,26 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_VOICE_COMMAND_RULES] = "invalid_voice_command_rules"
                 description_placeholders["rule_error"] = str(err)
 
-            if audio_url:
+            if audio_source != VOICE_SUCCESS_AUDIO_SOURCE_DISABLED:
                 if not normalized.get(CONF_ENABLE_VOICE_COMMAND_SENSOR, False):
-                    errors[CONF_VOICE_SUCCESS_AUDIO_URL] = (
+                    errors[CONF_VOICE_SUCCESS_AUDIO_SOURCE] = (
                         "voice_success_audio_requires_voice_sensor"
                     )
                 elif not normalized.get(CONF_ENABLE_CLOUD_CAST, False):
-                    errors[CONF_VOICE_SUCCESS_AUDIO_URL] = (
+                    errors[CONF_VOICE_SUCCESS_AUDIO_SOURCE] = (
                         "voice_success_audio_requires_cloud_cast"
                     )
-                elif not is_valid_http_media_url(audio_url):
+
+                if (
+                    audio_source == VOICE_SUCCESS_AUDIO_SOURCE_BUNDLED
+                    and not BUNDLED_VOICE_SUCCESS_AUDIO_URL
+                ):
+                    errors[CONF_VOICE_SUCCESS_AUDIO_SOURCE] = (
+                        "voice_success_audio_bundled_unavailable"
+                    )
+                elif audio_source == VOICE_SUCCESS_AUDIO_SOURCE_CUSTOM and not (
+                    audio_url and is_valid_http_media_url(audio_url)
+                ):
                     errors[CONF_VOICE_SUCCESS_AUDIO_URL] = (
                         "voice_success_audio_url_invalid"
                     )
@@ -667,6 +693,16 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
                 ),
             ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
             vol.Optional(
+                CONF_VOICE_SUCCESS_AUDIO_SOURCE,
+                default=resolve_voice_success_audio_source(values),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="voice_success_audio_source",
+                )
+            ),
+            vol.Optional(
                 CONF_VOICE_SUCCESS_AUDIO_URL,
                 default=values.get(CONF_VOICE_SUCCESS_AUDIO_URL, ""),
             ): selector.TextSelector(
@@ -685,5 +721,8 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
             step_id="features",
             data_schema=vol.Schema(schema),
             errors=errors,
-            description_placeholders=description_placeholders,
+            description_placeholders={
+                **description_placeholders,
+                "portal_url": LICENSE_PORTAL_URL or "—",
+            },
         )
