@@ -390,7 +390,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         normalized = normalize_voice_phrase(raw_speech)
         rule = self._voice_command_rules.get(normalized)
         entity_state = self.hass.states.get(rule.entity_id) if rule else None
-        service = f"{rule.entity_id.partition('.')[0]}.{rule.action}" if rule else None
+        service = rule.service if rule else None
         success_audio_enabled = rule is not None and self._voice_success_audio_enabled()
         self._voice_command_sequence += 1
         sequence = self._voice_command_sequence
@@ -404,6 +404,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             "target_entity_id": rule.entity_id if rule else None,
             "action": rule.action if rule else None,
             "service": service,
+            "service_data": dict(rule.service_data) if rule else None,
             "entity_state_before": entity_state.state if entity_state else None,
             "entity_state_after": None,
             "executed": False,
@@ -438,7 +439,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         message_id: str | None,
         server_message_id: str | None,
     ) -> None:
-        """Execute one allow-listed generic Home Assistant entity action."""
+        """Execute one allow-listed Home Assistant entity action."""
         executed = False
         error: str | None = None
         success_audio_enabled = self._voice_success_audio_enabled()
@@ -483,10 +484,12 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 )
                 await asyncio.sleep(0)
             try:
+                service_data = dict(rule.service_data)
+                service_data[ATTR_ENTITY_ID] = rule.entity_id
                 await self.hass.services.async_call(
                     service_domain,
                     rule.action,
-                    {ATTR_ENTITY_ID: rule.entity_id},
+                    service_data,
                     blocking=True,
                     context=Context(),
                 )

@@ -7,6 +7,7 @@ import argparse
 import ast
 import base64
 import binascii
+import importlib.util
 import ipaddress
 import json
 import re
@@ -41,6 +42,7 @@ REQUIRED_FILES = (
     "docs/ENTITIES.md",
     "docs/LICENSING.md",
     "docs/SECURITY_NOTES.md",
+    "docs/VOICE_COMMANDS.md",
     "LICENSE",
     "NOTICE.md",
     "README.md",
@@ -55,6 +57,7 @@ REQUIRED_FILES = (
     "custom_components/maika/license_manager.py",
     "custom_components/maika/license_store.py",
     "custom_components/maika/voice_success_audio.py",
+    "custom_components/maika/voice_rules.py",
     "custom_components/maika/brand/icon.png",
     "custom_components/maika/manifest.json",
     "custom_components/maika/strings.json",
@@ -300,6 +303,83 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
             errors.append(f"Invalid voice audio timing translations in {relative}")
 
 
+def _validate_voice_rules(errors: list[str]) -> None:
+    """Smoke-test the standalone safe voice-rule parser."""
+    path = ROOT / f"custom_components/{DOMAIN}/voice_rules.py"
+    coordinator_path = ROOT / f"custom_components/{DOMAIN}/coordinator.py"
+    parser_source = path.read_text(encoding="utf-8")
+    coordinator_source = coordinator_path.read_text(encoding="utf-8")
+    for marker in (
+        "_VOICE_SERVICE_SPECS",
+        "_RESERVED_SERVICE_DATA_KEYS",
+        "MAX_SERVICE_DATA_LENGTH",
+        "MappingProxyType",
+    ):
+        if marker not in parser_source:
+            errors.append(f"Voice rule parser is missing safeguard {marker}")
+    for marker in (
+        "service_data = dict(rule.service_data)",
+        "service_data[ATTR_ENTITY_ID] = rule.entity_id",
+    ):
+        if marker not in coordinator_source:
+            errors.append(f"Voice rule coordinator is missing safeguard {marker}")
+
+    module_name = "_maika_voice_rules_validation"
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        errors.append("Unable to load voice_rules.py for validation")
+        return
+    module = importlib.util.module_from_spec(spec)
+    previous_module = sys.modules.get(module_name)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+        rules = module.parse_voice_command_rules(
+            "\n".join(
+                (
+                    "bật đèn | light.den | turn_on",
+                    'đèn 70 | light.den | turn_on | {"brightness_pct":70}',
+                    'mở rèm nửa | cover.rem | set_cover_position | {"position":50}',
+                    'điều hòa 26 | climate.may_lanh | set_temperature | {"temperature":26}',
+                    'quạt 60 | fan.quat | set_percentage | {"percentage":60}',
+                    "chạy cảnh ngủ | scene.di_ngu | turn_on",
+                    "bấm chuông | button.chuong | press",
+                )
+            )
+        )
+        if len(rules) != 7:
+            errors.append("Voice rule parser did not preserve valid rules")
+        elif (
+            rules[0].service != "light.turn_on"
+            or dict(rules[1].service_data) != {"brightness_pct": 70}
+            or dict(rules[2].service_data) != {"position": 50}
+        ):
+            errors.append("Voice rule parser returned unexpected service data")
+
+        rejected_rules = (
+            'x | light.a | turn_on | {"entity_id":"light.b"}',
+            'x | fan.a | set_percentage | {"percentage":101}',
+            "x | homeassistant.a | restart",
+            "x | climate.a | set_temperature",
+            'x | light.a | turn_on | {"brightness_pct":{"nested":1}}',
+            "x | lock.a | unlock",
+            'x | light.a | turn_on | {"brightness_pct":1,"brightness_pct":2}',
+        )
+        for rule_text in rejected_rules:
+            try:
+                module.parse_voice_command_rules(rule_text)
+            except module.VoiceCommandRulesError:
+                continue
+            errors.append(f"Unsafe voice rule was accepted: {rule_text}")
+    except Exception as err:
+        errors.append(f"Voice rule validation failed: {err}")
+    finally:
+        if previous_module is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
+
+
 def validate(
     *,
     allow_template: bool,
@@ -371,6 +451,7 @@ def validate(
         if version:
             _validate_licensing_config(version, errors, expected_public_key_file)
             _validate_voice_success_audio(errors)
+            _validate_voice_rules(errors)
 
     if hacs_path.is_file():
         try:

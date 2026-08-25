@@ -23,6 +23,8 @@ jobs:
         run: python scripts/validate_repository.py --tag "${GITHUB_REF_NAME}"
       - name: Build release archives
         run: python scripts/build_release.py --tag "${GITHUB_REF_NAME}"
+      - name: Build source archive
+        run: python scripts/package_source.py --tag "${GITHUB_REF_NAME}"
       - name: Create GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
@@ -36,3 +38,5 @@ jobs:
             dist/maika-v*-hacs.zip
             dist/maika-v*-manual.zip
             dist/SHA256SUMS.txt
+            dist/loa-maika-home-assistant-v*-github-source.zip
+            dist/loa-maika-home-assistant-v*-github-source.zip.sha256

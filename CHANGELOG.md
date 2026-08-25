@@ -2,6 +2,31 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.8.0] - 2026-08-25
+
+### Added
+
+- Mở rộng voice rule từ bật/tắt/toggle sang đèn có độ sáng/màu, quạt, rèm,
+  điều hòa, media player, scene, script, automation, button, robot hút bụi,
+  máy tạo ẩm, bình nước nóng, camera, valve, máy cắt cỏ và các helper phổ biến.
+- Thêm cột JSON tùy chọn: `câu lệnh | entity_id | action | {"field":value}`;
+  toàn bộ rule ba cột cũ vẫn hoạt động.
+- Sensor câu lệnh hiển thị service data đã lọc để kiểm tra lệnh có tham số.
+
+### Security
+
+- Chỉ cho phép domain, action và field nằm trong allowlist cố định; kiểm tra kiểu,
+  khoảng giá trị, số rule, kích thước dòng và kích thước JSON trước khi lưu.
+- Chặn JSON ghi đè entity/target, credential, token, context, variables, object
+  lồng nhau và service hệ thống/raw command.
+- Không expose mở khóa hoặc alarm control panel; coordinator luôn ép target từ
+  entity ID trong rule sau khi ghép service data.
+
+### Changed
+
+- Giữ nguyên chế độ âm MP3 ưu tiên của `1.7.2`, license signing key, activation
+  server, PayOS và dữ liệu/key khách hàng hiện có.
+
 ## [1.7.2] - 2026-08-25
 
 ### Added

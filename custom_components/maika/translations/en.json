@@ -78,12 +78,12 @@
       },
       "features": {
         "title": "MAIKA options",
-        "description": "Rules use: phrase | entity_id | action. Priority mode sends the MP3 as soon as a valid rule matches and reuses the MAIKA conversation ID to cover the default reply. After-success mode waits for Home Assistant and is slower. Portal: {portal_url}.",
+        "description": "Rule: phrase | entity_id | action | optional JSON. Use JSON for brightness, temperature, fan percentage or cover position. Priority mode sends the MP3 early to cover the default reply. Portal: {portal_url}.",
         "data": {
           "scan_interval": "Polling interval (seconds)",
           "enable_experimental_cloud_cast": "Enable experimental cloud audio cast",
           "enable_voice_command_sensor": "Enable latest voice command sensor and rules",
-          "voice_command_rules": "Rules, one per line: phrase | entity_id | turn_on/turn_off/toggle",
+          "voice_command_rules": "One rule per line: phrase | entity_id | action | optional JSON",
           "voice_success_audio_source": "Success audio source",
           "voice_success_audio_timing": "Success audio timing",
           "voice_success_audio_url": "Custom success MP3 URL",

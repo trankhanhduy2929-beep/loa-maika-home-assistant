@@ -82,24 +82,80 @@ Frame cloud chưa cung cấp serial nguồn đủ tin cậy, vì vậy người 
 
 ```text
 câu lệnh | entity_id | action
+câu lệnh | entity_id | action | {"tham_so": gia_tri}
 ```
 
-Ví dụ:
+Cú pháp ba cột của các bản cũ vẫn hoạt động. Cột JSON thứ tư chỉ cần khi action
+có tham số như độ sáng, nhiệt độ, phần trăm quạt, vị trí rèm hoặc âm lượng.
+
+Ví dụ phổ biến:
 
 ```text
 # Có thể dùng dòng chú thích bắt đầu bằng dấu #
 bật đèn phòng khách | light.den_phong_khach | turn_on
-tắt đèn phòng khách | light.den_phong_khach | turn_off
-đổi trạng thái quạt | fan.quat_phong_khach | toggle
+bật đèn 70 phần trăm | light.den_phong_khach | turn_on | {"brightness_pct":70}
+đèn màu đỏ | light.den_phong_khach | turn_on | {"rgb_color":[255,0,0]}
+mở rèm một nửa | cover.rem_phong_khach | set_cover_position | {"position":50}
+đặt điều hòa 26 độ | climate.may_lanh | set_temperature | {"temperature":26}
+quạt mức 60 | fan.quat_phong_khach | set_percentage | {"percentage":60}
+tivi âm lượng 30 | media_player.tivi | volume_set | {"volume_level":0.3}
+chạy cảnh đi ngủ | scene.di_ngu | turn_on
+bấm chuông | button.chuong | press
+robot về sạc | vacuum.robot | return_to_base
+chọn chế độ eco | select.che_do | select_option | {"option":"eco"}
 ```
 
-Action chỉ được là:
+Action có thể viết ngắn như `turn_on` hoặc đầy đủ như `light.turn_on`; nếu viết
+đầy đủ, domain phải trùng với domain của entity. Integration luôn tự ép target về
+`entity_id` trong rule.
 
-- `turn_on`
-- `turn_off`
-- `toggle`
+## Thiết bị và action hỗ trợ
 
-Integration lấy domain từ entity đã tồn tại và gọi trực tiếp service tương ứng, ví dụ `switch.turn_on`, nhưng action vẫn bị giới hạn trong allowlist. Không có cú pháp nhập service tùy ý, truyền service data tùy ý hoặc press button.
+| Domain | Action được phép |
+|---|---|
+| `light` | `turn_on`, `turn_off`, `toggle`; độ sáng, transition, flash, effect, nhiệt màu, RGB/RGBW/RGBWW, HS, XY |
+| `switch`, `input_boolean` | `turn_on`, `turn_off`, `toggle` |
+| `camera` | `turn_on`, `turn_off`, bật/tắt phát hiện chuyển động |
+| `remote` | `turn_on`, `turn_off`, `toggle`; tham số `activity` tùy chọn |
+| `fan` | bật/tắt/toggle, tăng/giảm tốc độ, phần trăm, preset, hướng quay, oscillation |
+| `cover` | mở/đóng/dừng/toggle, vị trí rèm, mở/đóng/dừng/toggle tilt, vị trí tilt |
+| `valve` | mở/đóng/dừng/toggle, đặt vị trí |
+| `climate` | bật/tắt/toggle, nhiệt độ, HVAC mode, preset, độ ẩm, fan mode, swing mode |
+| `humidifier` | bật/tắt/toggle, độ ẩm, mode |
+| `water_heater` | bật/tắt, nhiệt độ, away mode, operation mode |
+| `media_player` | bật/tắt/toggle, play/pause/stop, bài trước/sau, âm lượng, mute, seek, source, sound mode, shuffle, repeat, clear playlist |
+| `scene` | `turn_on`, transition tùy chọn |
+| `script` | `turn_on`, `turn_off`, `toggle` |
+| `automation` | `trigger`, `turn_on`, `turn_off`, `toggle` |
+| `button`, `input_button` | `press` |
+| `vacuum` | `start`, `pause`, `stop`, `return_to_base`, `clean_spot`, `locate`, tốc độ quạt |
+| `lawn_mower` | `start_mowing`, `pause`, `dock` |
+| `number`, `input_number` | đặt giá trị; `input_number` có thêm tăng/giảm |
+| `select`, `input_select` | chọn option, đầu/cuối, tiếp theo/trước đó |
+| `counter` | tăng, giảm, reset, đặt giá trị |
+| `timer` | start, pause, cancel, finish, change; duration dùng `HH:MM:SS` |
+| `text`, `input_text` | đặt chuỗi bằng `set_value` |
+| `siren` | bật/tắt/toggle; tone, duration và volume tùy chọn |
+| `lock` | chỉ `lock`; không cho mở khóa bằng voice rule |
+
+Tên action và field phải đúng schema Home Assistant. Ví dụ:
+
+```text
+quạt quay | fan.quat | oscillate | {"oscillating":true}
+điều hòa chế độ lạnh | climate.may_lanh | set_hvac_mode | {"hvac_mode":"cool"}
+tắt tiếng tivi | media_player.tivi | volume_mute | {"is_volume_muted":true}
+hẹn giờ 5 phút | timer.hen_gio | start | {"duration":"00:05:00"}
+```
+
+Mỗi giá trị được kiểm tra kiểu và khoảng trước khi lưu. JSON chỉ là object phẳng;
+chỉ mảng màu ngắn được chấp nhận, object lồng nhau và `null` bị từ chối. Tối đa
+200 rule; mỗi JSON tối đa 2.048 ký tự và 12 field.
+
+Không thể truyền `entity_id`, target, device/area/floor, context, variables,
+credential, password hoặc token trong JSON. Các service hệ thống, restart Home
+Assistant, update/install, factory reset, raw command, mở khóa và alarm control
+panel không nằm trong allowlist. Với logic ngoài allowlist, hãy gọi một `script`
+hoặc `automation` do chính quản trị viên Home Assistant tạo.
 
 ## Quy tắc khớp câu
 
@@ -145,8 +201,9 @@ Nên dùng `turn_on` hoặc `turn_off` khi có thể. `toggle` vẫn an toàn tr
 | `matched` | Có rule khớp hay không |
 | `matched_phrase` | Câu đã cấu hình trong rule |
 | `target_entity_id` | Entity đích |
-| `action` | `turn_on`, `turn_off` hoặc `toggle` |
+| `action` | Action allowlist đã khớp, ví dụ `set_temperature` |
 | `service` | Service thực tế, ví dụ `switch.turn_on` |
+| `service_data` | Tham số JSON đã lọc; không chứa target/entity ID |
 | `entity_state_before` | State entity trước khi gọi service |
 | `entity_state_after` | State quan sát được ngay sau khi service hoàn tất |
 | `executed` | Service đã hoàn tất thành công |
@@ -194,7 +251,9 @@ Mở **Developer Tools → States**, chọn entity **Câu lệnh giọng nói m�
 
 ## Dùng sensor trong automation riêng
 
-Rule tích hợp chỉ dành cho bật/tắt/toggle. Với logic khác, có thể dùng state hoặc thuộc tính `normalized` của sensor trong automation Home Assistant do chính người quản trị tạo.
+Với logic phức tạp hơn allowlist, có thể dùng state hoặc thuộc tính `normalized`
+của sensor trong automation Home Assistant do chính người quản trị tạo. Một lựa
+chọn gọn hơn là tạo script HASS an toàn rồi dùng rule `script.ten_script | turn_on`.
 
 Ví dụ kiểm tra state trực tiếp:
 

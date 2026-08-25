@@ -78,12 +78,12 @@
       },
       "features": {
         "title": "Tùy chọn MAIKA",
-        "description": "Rule dùng dạng: câu lệnh | entity_id | action. Chế độ Ưu tiên gửi MP3 ngay khi rule hợp lệ và dùng cùng mã hội thoại để che câu trả lời mặc định. Chế độ Sau khi HASS thành công chính xác hơn nhưng chậm hơn. Portal: {portal_url}.",
+        "description": "Rule: câu lệnh | entity_id | action | JSON tùy chọn. Dùng JSON cho độ sáng, nhiệt độ, phần trăm quạt hoặc vị trí rèm. Chế độ Ưu tiên gửi MP3 sớm để che câu mặc định. Portal: {portal_url}.",
         "data": {
           "scan_interval": "Chu kỳ cập nhật (giây)",
           "enable_experimental_cloud_cast": "Bật cast âm thanh cloud thử nghiệm",
           "enable_voice_command_sensor": "Bật sensor câu lệnh mới nhất và rule điều khiển",
-          "voice_command_rules": "Mỗi dòng: câu lệnh | entity_id | turn_on/turn_off/toggle",
+          "voice_command_rules": "Mỗi dòng: câu lệnh | entity_id | action | JSON tùy chọn",
           "voice_success_audio_source": "Nguồn âm báo thành công",
           "voice_success_audio_timing": "Thời điểm phát âm báo",
           "voice_success_audio_url": "URL MP3 thành công tùy chỉnh",

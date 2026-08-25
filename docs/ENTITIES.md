@@ -74,7 +74,7 @@ Sensor volume được giữ song song với thuộc tính `media_player.volume_
 
 | Key | State | Thuộc tính chính | Nguồn |
 |---|---|---|---|
-| `last_voice_command` | Câu nói mới nhất, tối đa 255 ký tự | `received_at`, `normalized`, `matched`, `matched_phrase`, `target_entity_id`, `action`, `executed`, `result`, `error` | `/connect` → `speakerConversationResponse.rawSpeech` |
+| `last_voice_command` | Câu nói mới nhất, tối đa 255 ký tự | `received_at`, `normalized`, `matched`, `matched_phrase`, `target_entity_id`, `action`, `service`, `service_data`, `executed`, `result`, `error` | `/connect` → `speakerConversationResponse.rawSpeech` |
 
 Sensor chỉ được tạo khi option `enable_voice_command_sensor` bật. Frame hội thoại hiện chưa có serial loa đủ tin cậy, vì vậy sensor dùng unique ID theo config entry và không gắn vào một device loa cụ thể.
 

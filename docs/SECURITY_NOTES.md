@@ -90,8 +90,10 @@ Sensor/rule giọng nói không xử lý âm thanh local: âm thanh/text đã đ
 - Event stream có giới hạn buffer 1 MiB và backoff reconnect.
 - Pending future bị cancel khi unload.
 - Duplicate speech bị chặn trong 5 phút.
-- Sensor/rule câu lệnh giọng nói mặc định tắt; rule chỉ được gọi generic `turn_on`, `turn_off`, `toggle` và không chấp nhận arbitrary service.
-- Âm báo MP3 chỉ chạy sau service HASS thành công; không can thiệp câu không khớp hoặc lệnh native MAIKA và không có command hủy hội thoại chưa được xác minh.
+- Sensor/rule câu lệnh giọng nói mặc định tắt; domain, action và từng field JSON đều qua allowlist cố định, có kiểm tra kiểu/range và giới hạn kích thước.
+- JSON rule không thể ghi đè entity/target, truyền credential, object lồng nhau hoặc gọi service hệ thống/raw command; mở khóa và alarm control panel không được expose.
+- Coordinator luôn ép `entity_id` từ rule sau khi tạo service data, nên payload không thể đổi target lúc chạy.
+- Âm báo MP3 ưu tiên chỉ chạy khi rule vượt qua kiểm tra entity/service; chế độ sau-thành-công chỉ phát khi service HASS thành công. Không có command hủy hội thoại chưa được xác minh.
 - Diagnostics redact nội dung rule và toàn bộ bản ghi câu lệnh mới nhất.
 - Diagnostic chủ động redact credential, device ID, SSID, profile, metadata và lịch sử playback phổ biến.
 - Entry không kết nối cloud MAIKA trước khi activation lease hợp lệ.
@@ -125,5 +127,5 @@ Chỉ nâng cấp protocol sau khi kiểm thử read-only hoặc same-value trư
 - Dùng HTTPS/reverse proxy đúng cách khi truy cập HA từ Internet.
 - Theo dõi log lỗi xác thực nhưng không bật network body logging chứa header/token.
 - Kiểm tra automation dùng nút restart để tránh vòng lặp.
-- Ưu tiên `turn_on`/`turn_off` thay vì `toggle`, và exclude sensor câu lệnh khỏi Recorder nếu không muốn lưu lịch sử câu nói.
+- Ưu tiên action xác định như `turn_on`, `turn_off`, `set_percentage` thay vì `toggle`; exclude sensor câu lệnh khỏi Recorder nếu không muốn lưu lịch sử câu nói.
 - Reload integration sau khi thêm/xóa loa trong tài khoản.

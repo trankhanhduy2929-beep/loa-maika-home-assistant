@@ -58,9 +58,9 @@ python3 -m pip install ruff==0.16.3
 ruff check .
 ruff format --check .
 python3 scripts/validate_repository.py
-python3 scripts/build_release.py --tag v1.7.2 \
+python3 scripts/build_release.py --tag v1.8.0 \
   --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
-python3 scripts/package_source.py --tag v1.7.2 \
+python3 scripts/package_source.py --tag v1.8.0 \
   --public-key-b64-file /DUONG_DAN/SIGNING_PUBLIC_KEY_B64.txt
 ```
 
@@ -71,6 +71,8 @@ Artifact được tạo trong `dist/`:
 - `maika-vX.Y.Z-hacs.zip`: bản sao ZIP HACS có tên kèm version để bàn giao.
 - `maika-vX.Y.Z-manual.zip`: bản sao ZIP thủ công có tên kèm version.
 - `SHA256SUMS.txt`: checksum của toàn bộ ZIP HACS và ZIP cài thủ công.
+- `loa-maika-home-assistant-vX.Y.Z-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-vX.Y.Z-github-source.zip.sha256`: checksum source ZIP.
 
 ## 5. Đồng bộ repository GitHub hiện có
 
@@ -106,27 +108,28 @@ bước cấu hình này.
 
 ## 7. Tạo release
 
-Đảm bảo version trong `custom_components/maika/manifest.json` là `1.7.2`, sau đó:
+Đảm bảo version trong `custom_components/maika/manifest.json` là `1.8.0`, sau đó:
 
 ```bash
-git tag v1.7.2
-git push origin v1.7.2
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
-Workflow `release.yml` kiểm tra tag/version, tạo GitHub Release và upload hai ZIP cùng checksum.
+Workflow `release.yml` kiểm tra tag/version, tạo GitHub Release và upload các ZIP
+HACS, manual, source cùng checksum.
 
 Không di chuyển hoặc ghi đè tag `v1.6.0` vì release đó đã được công bố. Đưa bản
-vá CI/Windows lên `main`, chờ workflow Validate xanh rồi tạo tag `v1.7.2` từ
+vá CI/Windows lên `main`, chờ workflow Validate xanh rồi tạo tag `v1.8.0` từ
 commit mới.
 
 Chỉ khi một tag mới chạy thất bại trước khi GitHub Release được tạo thì mới xóa
 tag lỗi và tạo lại từ commit đã sửa:
 
 ```bash
-git tag -d v1.7.2
-git push origin :refs/tags/v1.7.2
-git tag v1.7.2
-git push origin v1.7.2
+git tag -d v1.8.0
+git push origin :refs/tags/v1.8.0
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
 ## 8. Cài qua HACS

@@ -269,6 +269,7 @@ class MaikaLastVoiceCommandSensor(
             "target_entity_id": command.get("target_entity_id"),
             "action": command.get("action"),
             "service": command.get("service"),
+            "service_data": command.get("service_data"),
             "entity_state_before": command.get("entity_state_before"),
             "entity_state_after": command.get("entity_state_after"),
             "executed": bool(command.get("executed")),

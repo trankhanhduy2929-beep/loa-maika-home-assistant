@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản phát hành hiện tại: **v1.7.2**.
+Bản phát hành hiện tại: **v1.8.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -42,7 +42,8 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Đổi tên loa, tên gọi và địa chỉ.
 - Theo dõi online, Wi-Fi, firmware, bảo hành, playback và các thông tin chẩn đoán.
 - Restart an toàn; không expose factory reset.
-- Sensor câu nói mới nhất và rule toàn câu để bật/tắt/toggle entity Home Assistant, mặc định tắt.
+- Sensor câu nói mới nhất và rule toàn câu để điều khiển đèn, quạt, rèm, điều
+  hòa, media, scene, script, robot hút bụi và helper Home Assistant, mặc định tắt.
 
 ## Cài bằng HACS
 
@@ -64,12 +65,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.7.2
+## File phát hành v1.8.0
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.7.2-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.7.2-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.8.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.8.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
+- `loa-maika-home-assistant-v1.8.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
@@ -101,18 +103,26 @@ phép chạy offline thêm tối đa bảy ngày khi server tạm mất kết n�
 Trong **Devices & services → MAIKA Speaker → Configure**:
 
 1. Bật **Sensor câu lệnh mới nhất và rule điều khiển**.
-2. Nhập mỗi rule trên một dòng theo dạng `câu lệnh | entity_id | action`.
+2. Nhập mỗi rule theo dạng `câu lệnh | entity_id | action`; thêm cột JSON thứ tư
+   khi cần độ sáng, nhiệt độ, phần trăm quạt, vị trí rèm hoặc âm lượng.
 3. Lưu để integration reload.
 
 Ví dụ:
 
 ```text
 bật đèn phòng khách | light.den_phong_khach | turn_on
-tắt đèn phòng khách | light.den_phong_khach | turn_off
-đổi trạng thái quạt | fan.quat_phong_khach | toggle
+bật đèn 70 phần trăm | light.den_phong_khach | turn_on | {"brightness_pct":70}
+mở rèm một nửa | cover.rem_phong_khach | set_cover_position | {"position":50}
+đặt điều hòa 26 độ | climate.may_lanh | set_temperature | {"temperature":26}
+quạt mức 60 | fan.quat_phong_khach | set_percentage | {"percentage":60}
+chạy cảnh đi ngủ | scene.di_ngu | turn_on
 ```
 
-Chỉ hỗ trợ `turn_on`, `turn_off`, `toggle`. Câu nói phải khớp toàn bộ sau khi bỏ hoa/thường, dấu tiếng Việt, khoảng trắng thừa và dấu câu; câu có thêm từ sẽ không chạy. Sensor là entity cấp tài khoản vì frame cloud hiện không cung cấp serial loa đáng tin cậy. Nội dung sensor có thể được Recorder lưu vào lịch sử; xem [Câu lệnh giọng nói](docs/VOICE_COMMANDS.md).
+Rule hỗ trợ nhiều domain phổ biến với allowlist action/field riêng; cú pháp ba cột
+cũ vẫn giữ nguyên. JSON không thể đổi target hoặc gọi service hệ thống. Câu nói
+phải khớp toàn bộ sau khi bỏ hoa/thường, dấu tiếng Việt, khoảng trắng thừa và
+dấu câu; câu có thêm từ sẽ không chạy. Xem bảng action và ví dụ đầy đủ tại
+[Câu lệnh giọng nói](docs/VOICE_COMMANDS.md).
 
 Nếu thiết bị không chạy, mở entity **Câu lệnh giọng nói mới nhất** trong Developer Tools → States. `stream_connected` phải là `true`, `voice_subscription_status` phải là `subscribed`, `voice_subscription_count` phải bằng `voice_subscription_target_count` và `stream_frame_count` phải tăng sau khi reload. Sau khi nói, `last_stream_frame_type` cần thành `speakerConversationResponse`; khi rule khớp, `result` phải là `executed`. Integration báo rõ `entity_not_found`, `entity_unavailable` hoặc `service_not_supported` thay vì báo thành công giả.
 
