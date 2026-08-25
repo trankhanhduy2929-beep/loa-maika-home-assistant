@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản phát hành hiện tại: **v1.7.1**.
+Bản phát hành hiện tại: **v1.7.2**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -34,8 +34,8 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Tạo **27 entity cho mỗi loa**.
 - Điều khiển volume, mute âm lượng đầu ra, play/pause, next/previous.
 - Cast MP3/MPEG và MP4/AAC từ URL, media source hoặc TTS Home Assistant tới loa qua cloud MAIKA (thử nghiệm, mặc định tắt).
-- Có thể phát âm báo chỉ sau khi rule giọng nói Home Assistant chạy thành công;
-  chọn MP3 MAIKA tích hợp trên portal hoặc giữ URL MP3 riêng như các bản cũ.
+- Có thể phát MP3 MAIKA tích hợp hoặc URL MP3 riêng theo chế độ ưu tiên để che
+  câu trả lời mặc định của loa, hoặc chỉ phát sau khi HASS thành công.
 - Duyệt các nguồn audio Home Assistant trực tiếp từ giao diện media player.
 - Tắt hoặc bật lại micro vật lý.
 - Cấu hình độ nhạy wake word, phản hồi wake word và giọng TTS.
@@ -64,11 +64,11 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.7.1
+## File phát hành v1.7.2
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.7.1-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.7.1-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.7.2-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.7.2-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
 
 ## Cấu hình
@@ -116,7 +116,7 @@ Chỉ hỗ trợ `turn_on`, `turn_off`, `toggle`. Câu nói phải khớp toàn 
 
 Nếu thiết bị không chạy, mở entity **Câu lệnh giọng nói mới nhất** trong Developer Tools → States. `stream_connected` phải là `true`, `voice_subscription_status` phải là `subscribed`, `voice_subscription_count` phải bằng `voice_subscription_target_count` và `stream_frame_count` phải tăng sau khi reload. Sau khi nói, `last_stream_frame_type` cần thành `speakerConversationResponse`; khi rule khớp, `result` phải là `executed`. Integration báo rõ `entity_not_found`, `entity_unavailable` hoặc `service_not_supported` thay vì báo thành công giả.
 
-### Âm báo MP3 chỉ khi HASS thành công
+### Âm phản hồi custom không bị chèn xuống dưới
 
 Từ bản `1.5.0`, có thể phát một file MP3 ngắn để thay thế best-effort câu báo sai của MAIKA:
 
@@ -128,9 +128,17 @@ Từ bản `1.5.0`, có thể phát một file MP3 ngắn để thay thế best-
 4. Chỉ khi chọn URL tùy chỉnh mới cần điền **URL MP3 thành công tùy chỉnh**.
 5. Nếu config entry có nhiều loa, chọn loa phát âm báo. Với đúng một loa,
    integration tự chọn.
-6. Lưu để integration reload.
+6. Tại **Thời điểm phát âm báo**, giữ **Ưu tiên: che giọng mặc định** (mặc định).
+   Chế độ này gửi MP3 ngay khi rule hợp lệ và dùng lại mã hội thoại của câu nói.
+   Nếu muốn giữ hành vi cũ, chọn **Sau khi HASS thành công**.
+7. Lưu để integration reload.
 
-Integration không gửi `Pause`. Chỉ sau khi service như `switch.turn_on` hoàn tất không lỗi, integration mới gửi cast `AudioPlayer/Play` với URL đã nhập và `audio/mpeg`. Câu không khớp rule, rule lỗi, entity unavailable và lệnh điều khiển thiết bị native của MAIKA không nhận lệnh audio từ tính năng này, vì vậy MAIKA vẫn nói và điều khiển bình thường. Protocol không có lệnh hủy hội thoại native nên việc thay câu “không có thiết bị” chỉ là best-effort; đôi khi có thể nghe một phần phản hồi MAIKA trước âm báo.
+Ở chế độ **Ưu tiên**, clip được gửi trước/khi service HASS đang chạy để giảm hiện
+tượng câu mặc định phát trước. Nếu service HASS lỗi, clip đang phát có thể đã bắt
+đầu; sensor sẽ ghi `played_before_failure`. APK MAIKA 3.2.3 không có command hủy
+TTS/conversation riêng, nên không thể cam kết tắt tuyệt đối giọng mặc định. Chế
+độ **Sau khi HASS thành công** chỉ gửi `AudioPlayer/Play` sau khi service hoàn tất
+không lỗi.
 
 Từ bản `1.5.1`, đường phản hồi tự động gửi cast trực tiếp qua MAIKA client ngay sau khi action HASS thành công, bỏ một vòng service media player và bước refresh đồng bộ để giảm độ trễ. Để giảm thời gian tải file, nên dùng clip MP3 rất ngắn và URL LAN trực tiếp như `http://<IP_HASS>:8123/local/NHACCHUONG/demo.mp3` nếu loa truy cập được Home Assistant; URL DuckDNS/reverse proxy HTTPS thường chậm hơn do DNS, TLS và hairpin Internet.
 

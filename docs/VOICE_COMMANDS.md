@@ -27,9 +27,11 @@ Câu mới nhất được đưa vào sensor `last_voice_command`. Frame hiện 
 
 Tính năng mặc định tắt. Khi bật, state sensor và attributes có thể được Home Assistant Recorder lưu vào lịch sử.
 
-## Âm báo MP3 sau khi điều khiển thành công
+## Âm phản hồi MP3 cho rule HASS
 
-Từ bản `1.5.0`, integration có thể cast một file MP3 cố định tới loa MAIKA sau khi rule HASS chạy thành công. Bản `1.7.0` thêm file MAIKA MP3 có sẵn trên portal:
+Từ bản `1.7.2`, integration mặc định gửi MP3 theo chế độ ưu tiên ngay khi rule
+đã vượt qua kiểm tra entity/service. Bản `1.7.0` đã thêm file MAIKA MP3 có sẵn
+trên portal:
 
 1. Bật **Cast âm thanh cloud thử nghiệm**.
 2. Bật sensor/rule câu lệnh.
@@ -40,6 +42,8 @@ Từ bản `1.5.0`, integration có thể cast một file MP3 cố định tới
    các bản cũ.
 5. Nếu config entry có nhiều loa, chọn media player MAIKA cần phát. Với đúng
    một loa, integration tự chọn và ẩn trường chọn loa.
+6. Chọn **Ưu tiên: che giọng mặc định** hoặc **Sau khi HASS thành công** tại
+   trường **Thời điểm phát âm báo**.
 
 Luồng xử lý được giới hạn như sau:
 
@@ -47,18 +51,26 @@ Luồng xử lý được giới hạn như sau:
 câu nói không khớp rule
 └── không gửi Pause, Play hoặc lệnh audio; MAIKA xử lý bình thường
 
-câu nói khớp nhưng entity/service lỗi
-└── không gửi Pause, Play hoặc lệnh audio; MAIKA xử lý bình thường
+câu nói khớp nhưng kiểm tra entity/service lỗi
+└── không gửi Play; MAIKA xử lý bình thường
 
-câu nói khớp và service HASS hoàn tất thành công
-└── resolve MP3 tích hợp hoặc URL tùy chỉnh
-    └── gửi trực tiếp MAIKA cloud cast Play với URL đó và audio/mpeg
-    └── loa tải file và thay phản hồi native theo best-effort
+chế độ ưu tiên và rule hợp lệ
+├── gửi trực tiếp MAIKA cloud cast Play với cùng mã hội thoại
+└── chạy service HASS song song và ghi kết quả thật vào sensor
+
+chế độ sau-thành-công
+└── chỉ gửi Play sau khi service HASS hoàn tất không lỗi
 ```
 
-Do APK/protocol chưa có lệnh hủy riêng cho phản hồi hội thoại, integration không thể đảm bảo clip luôn phát trước âm báo “không có thiết bị”. Tùy mạng và cloud, người dùng vẫn có thể nghe một phần phản hồi MAIKA trước khi file MP3 thay thế nó.
+Do APK/protocol chưa có lệnh hủy riêng cho phản hồi hội thoại, integration không
+thể đảm bảo tắt tuyệt đối âm báo “không có thiết bị”. Tùy mạng và cloud, người
+dùng vẫn có thể nghe một phần phản hồi MAIKA trước khi file MP3 thay thế nó.
+Nếu service HASS lỗi sau khi cast ưu tiên đã hoàn tất, sensor ghi
+`played_before_failure`.
 
-Bản `1.5.1` gửi cast trực tiếp qua MAIKA client ngay sau khi service HASS hoàn tất, không gọi vòng qua service media player và không chờ refresh playback. Phần không thể loại bỏ là thời gian service HASS thực sự điều khiển thiết bị, độ trễ cloud MAIKA và thời gian loa tải URL MP3.
+Bản `1.5.1` đã bỏ vòng service media player. Bản `1.7.2` tiếp tục bỏ thời gian
+chờ service HASS khỏi đường cast ưu tiên và tái sử dụng mã hội thoại của frame
+`speakerConversationResponse`.
 
 Cấu hình cũ chỉ có `voice_success_audio_url` vẫn hoạt động và được tự hiểu là
 nguồn tùy chỉnh. Integration không tải hoặc lưu nội dung MP3 trong Home
@@ -173,9 +185,10 @@ Mở **Developer Tools → States**, chọn entity **Câu lệnh giọng nói m�
 11. `error: entity_unavailable`: sửa kết nối integration tạo entity đích.
 12. `error: service_not_supported`: entity đó không hỗ trợ action đã cấu hình.
 13. `result: executed`: service đã chạy; so sánh `entity_state_before` và `entity_state_after` để kiểm tra state quan sát được.
-14. `success_audio_status: pending`: HASS đã điều khiển xong và đang gọi `media_player.play_media`.
+14. `success_audio_status: pending`: rule đang xử lý; ở chế độ ưu tiên, cast có thể đã được gửi song song với service HASS.
 15. `success_audio_status: failed`: đọc `success_audio_error`; kiểm tra URL MP3, loa MAIKA, trạng thái available và tùy chọn cloud cast.
 16. `success_audio_status: played`: lời gọi play/cast đã hoàn tất không lỗi; đây không phải telemetry xác nhận loa vật lý đã phát thành tiếng.
+17. `success_audio_status: played_before_failure`: clip ưu tiên đã được gửi trước khi service HASS trả lỗi.
 
 Để ra lệnh, nói wake word rồi nói đúng câu bên trái rule, ví dụ: **“Maika, bật đèn phòng khách”**. Phần wake word thường không nằm trong `rawSpeech`; nếu sensor hiển thị câu khác, dùng chính state/`normalized` thực tế để sửa rule.
 

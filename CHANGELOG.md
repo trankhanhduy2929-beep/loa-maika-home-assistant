@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.7.2] - 2026-08-25
+
+### Added
+
+- Thêm chế độ **Ưu tiên: che giọng mặc định** cho âm phản hồi rule HASS.
+- Thêm lựa chọn **Sau khi HASS thành công** để giữ hành vi cũ.
+
+### Fixed
+
+- Gửi clip custom sớm hơn khi rule hợp lệ để giảm câu “không thể điều khiển”
+  phát trước.
+- Tái sử dụng `dialogRequestId`, `messageId` và `serverMessageId` của hội thoại
+  khi gửi `AudioPlayer/Play`, giúp cloud/loa ưu tiên thay nội dung đang phát.
+- Không thay đổi license key, activation server, PayOS hoặc dữ liệu người dùng.
+
+### Limitations
+
+- APK MAIKA 3.2.3 không có command hủy TTS/conversation riêng; chế độ ưu tiên
+  chỉ che/cắt phản hồi mặc định theo best-effort.
+
 ## [1.7.1] - 2026-08-24
 
 ### Changed

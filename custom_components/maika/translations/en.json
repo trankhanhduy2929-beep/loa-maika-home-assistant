@@ -78,13 +78,14 @@
       },
       "features": {
         "title": "MAIKA options",
-        "description": "Experimental features are off by default. Enabling the voice command sensor stores recognized phrases in Home Assistant state and may record them in history. Rules use exact accent-insensitive matching and can only turn on, turn off or toggle one entity. Choose disabled, the bundled MAIKA MP3 hosted by the license portal, or a custom HTTP(S) MP3 URL. Audio is sent only after a matched Home Assistant action completes successfully. Portal: {portal_url}. If this entry has one MAIKA speaker it is selected automatically; unmatched or failed commands never send playback commands.",
+        "description": "Rules use: phrase | entity_id | action. Priority mode sends the MP3 as soon as a valid rule matches and reuses the MAIKA conversation ID to cover the default reply. After-success mode waits for Home Assistant and is slower. Portal: {portal_url}.",
         "data": {
           "scan_interval": "Polling interval (seconds)",
           "enable_experimental_cloud_cast": "Enable experimental cloud audio cast",
           "enable_voice_command_sensor": "Enable latest voice command sensor and rules",
           "voice_command_rules": "Rules, one per line: phrase | entity_id | turn_on/turn_off/toggle",
           "voice_success_audio_source": "Success audio source",
+          "voice_success_audio_timing": "Success audio timing",
           "voice_success_audio_url": "Custom success MP3 URL",
           "voice_success_media_player_entity_id": "MAIKA speaker for success audio"
         }
@@ -139,6 +140,12 @@
         "disabled": "Disabled",
         "bundled": "Bundled MAIKA MP3",
         "custom": "Custom MP3 URL"
+      }
+    },
+    "voice_success_audio_timing": {
+      "options": {
+        "priority": "Priority: cover MAIKA reply",
+        "after_success": "After Home Assistant succeeds"
       }
     }
   },

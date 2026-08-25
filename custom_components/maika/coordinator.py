@@ -29,6 +29,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_VOICE_COMMAND_RULES,
     DOMAIN,
+    VOICE_SUCCESS_AUDIO_TIMING_PRIORITY,
 )
 from .media_url import is_valid_http_media_url
 from .voice_rules import (
@@ -39,6 +40,7 @@ from .voice_rules import (
 )
 from .voice_success_audio import (
     has_voice_success_audio,
+    resolve_voice_success_audio_timing,
     resolve_voice_success_audio_url,
 )
 
@@ -240,14 +242,18 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         source_session = (
             str(source_session_value) if source_session_value is not None else None
         )
-        message_id_value = (
-            header.get("messageId")
-            or header.get("message_id")
-            or header.get("dialogRequestId")
-            or header.get("dialog_request_id")
+        dialog_request_id = self._safe_stream_value(
+            header.get("dialogRequestId") or header.get("dialog_request_id")
+        )
+        conversation_message_id = self._safe_stream_value(
+            header.get("messageId") or header.get("message_id")
+        )
+        server_message_id = self._safe_stream_value(
+            header.get("serverMessageId") or header.get("server_message_id")
         )
         message_id = str(
-            message_id_value
+            conversation_message_id
+            or dialog_request_id
             or f"{source_session or 'unknown'}:{normalize_voice_phrase(raw_speech)}"
         )
         now = time.monotonic()
@@ -265,6 +271,9 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             raw_speech,
             source_session=source_session,
             message_id=message_id,
+            dialog_request_id=dialog_request_id,
+            conversation_message_id=conversation_message_id,
+            server_message_id=server_message_id,
         )
 
     async def _async_ensure_voice_subscriptions(
@@ -373,12 +382,16 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         *,
         source_session: str | None,
         message_id: str,
+        dialog_request_id: str | None,
+        conversation_message_id: str | None,
+        server_message_id: str | None,
     ) -> None:
         """Store the latest phrase and start its matching safe rule."""
         normalized = normalize_voice_phrase(raw_speech)
         rule = self._voice_command_rules.get(normalized)
         entity_state = self.hass.states.get(rule.entity_id) if rule else None
         service = f"{rule.entity_id.partition('.')[0]}.{rule.action}" if rule else None
+        success_audio_enabled = rule is not None and self._voice_success_audio_enabled()
         self._voice_command_sequence += 1
         sequence = self._voice_command_sequence
         self._last_voice_command = {
@@ -395,7 +408,10 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             "entity_state_after": None,
             "executed": False,
             "error": None,
-            "success_audio_status": None,
+            "success_audio_timing": (
+                self._voice_success_audio_timing() if success_audio_enabled else None
+            ),
+            "success_audio_status": "pending" if success_audio_enabled else None,
             "success_audio_error": None,
         }
         self._publish_last_voice_command()
@@ -403,16 +419,32 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         if rule is not None:
             self.entry.async_create_background_task(
                 self.hass,
-                self._async_execute_voice_rule(rule, sequence=sequence),
+                self._async_execute_voice_rule(
+                    rule,
+                    sequence=sequence,
+                    dialog_request_id=dialog_request_id,
+                    message_id=conversation_message_id,
+                    server_message_id=server_message_id,
+                ),
                 "MAIKA voice command action",
             )
 
     async def _async_execute_voice_rule(
-        self, rule: VoiceCommandRule, *, sequence: int
+        self,
+        rule: VoiceCommandRule,
+        *,
+        sequence: int,
+        dialog_request_id: str | None,
+        message_id: str | None,
+        server_message_id: str | None,
     ) -> None:
         """Execute one allow-listed generic Home Assistant entity action."""
         executed = False
         error: str | None = None
+        success_audio_enabled = self._voice_success_audio_enabled()
+        success_audio_timing = self._voice_success_audio_timing()
+        priority_audio_task: asyncio.Task[tuple[str, str | None]] | None = None
+        priority_audio_cancelled = False
         service_domain = rule.entity_id.partition(".")[0]
         entity_state = self.hass.states.get(rule.entity_id)
 
@@ -436,6 +468,20 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 rule.action,
             )
         else:
+            if (
+                success_audio_enabled
+                and success_audio_timing == VOICE_SUCCESS_AUDIO_TIMING_PRIORITY
+            ):
+                priority_audio_task = self.entry.async_create_background_task(
+                    self.hass,
+                    self._async_play_voice_success_audio(
+                        dialog_request_id=dialog_request_id,
+                        message_id=message_id,
+                        server_message_id=server_message_id,
+                    ),
+                    "MAIKA priority voice success audio",
+                )
+                await asyncio.sleep(0)
             try:
                 await self.hass.services.async_call(
                     service_domain,
@@ -454,6 +500,14 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
                     err,
                 )
 
+        if (
+            not executed
+            and priority_audio_task is not None
+            and not priority_audio_task.done()
+        ):
+            priority_audio_task.cancel()
+            priority_audio_cancelled = True
+
         if sequence != self._voice_command_sequence or self._last_voice_command is None:
             return
         entity_state_after = self.hass.states.get(rule.entity_id)
@@ -465,19 +519,37 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             "executed": executed,
             "error": error,
             "success_audio_status": (
-                "pending" if executed and self._voice_success_audio_enabled() else None
+                "pending"
+                if priority_audio_task is not None
+                or (executed and success_audio_enabled)
+                else None
             ),
             "success_audio_error": None,
         }
         self._publish_last_voice_command()
 
-        if not executed or not self._voice_success_audio_enabled():
+        if priority_audio_task is not None:
+            try:
+                success_audio_status, success_audio_error = await priority_audio_task
+            except asyncio.CancelledError:
+                if not priority_audio_cancelled:
+                    raise
+                success_audio_status = "cancelled"
+                success_audio_error = "home_assistant_action_failed"
+            if not executed and success_audio_status == "played":
+                success_audio_status = "played_before_failure"
+        elif executed and success_audio_enabled:
+            (
+                success_audio_status,
+                success_audio_error,
+            ) = await self._async_play_voice_success_audio(
+                dialog_request_id=dialog_request_id,
+                message_id=message_id,
+                server_message_id=server_message_id,
+            )
+        else:
             return
 
-        (
-            success_audio_status,
-            success_audio_error,
-        ) = await self._async_play_voice_success_audio()
         if sequence != self._voice_command_sequence or self._last_voice_command is None:
             return
         self._last_voice_command = {
@@ -490,8 +562,17 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
     def _voice_success_audio_enabled(self) -> bool:
         return has_voice_success_audio(self.entry.options)
 
-    async def _async_play_voice_success_audio(self) -> tuple[str, str | None]:
-        """Cast a configured MP3 only after a HASS voice action succeeds."""
+    def _voice_success_audio_timing(self) -> str:
+        return resolve_voice_success_audio_timing(self.entry.options)
+
+    async def _async_play_voice_success_audio(
+        self,
+        *,
+        dialog_request_id: str | None,
+        message_id: str | None,
+        server_message_id: str | None,
+    ) -> tuple[str, str | None]:
+        """Cast the configured MP3 with the originating conversation context."""
         if not self.entry.options.get(CONF_ENABLE_CLOUD_CAST, False):
             return "failed", "cloud_cast_disabled"
 
@@ -539,6 +620,9 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 audio_url,
                 title="Home Assistant",
                 stream_format="AUDIO_MPEG",
+                dialog_request_id=dialog_request_id,
+                message_id=message_id,
+                server_message_id=server_message_id,
             )
         except MaikaApiError as err:
             error_type = type(err).__name__

@@ -112,15 +112,29 @@ data:
 
 TTS hoạt động với provider tạo MP3/MPEG hoặc MP4/AAC nếu URL cuối cùng có thể được loa truy cập. Home Assistant gọi media player với `announce=true`; integration chấp nhận cờ này nhưng protocol cast MAIKA chỉ có lệnh `Play`, nên clip TTS thay thế nội dung đang phát và không tự phát lại nội dung trước đó.
 
-### Âm báo thành công sau rule HASS
+### Âm phản hồi custom sau rule HASS
 
-Tùy chọn URL MP3 không cố hủy hội thoại trước khi biết kết quả điều khiển. Integration gọi service entity với `blocking=true`; chỉ khi lời gọi hoàn tất không exception mới gửi trực tiếp `CommandHandOver/AudioPlayer/Play` tới đúng serial loa với URL đã cấu hình và MIME cố định `audio/mpeg`. Nếu rule không khớp hoặc service HASS lỗi, không có `Pause`, `Play` hay command audio nào được gửi, nên thiết bị native của MAIKA tiếp tục hoạt động bình thường.
+Tùy chọn **Thời điểm phát âm báo** có hai chế độ. **Ưu tiên: che giọng mặc định**
+gửi `CommandHandOver/AudioPlayer/Play` ngay sau khi rule vượt qua kiểm tra entity
+và service, đồng thời truyền lại `dialogRequestId`, `messageId` và
+`serverMessageId` của conversation response. Service HASS vẫn chạy và kết quả thật
+được ghi vào sensor. Cách này giảm đáng kể việc câu mặc định phát trước clip.
+
+**Sau khi HASS thành công** giữ luồng cũ: integration gọi service entity với
+`blocking=true`; chỉ khi lời gọi hoàn tất không exception mới gửi cast tới serial
+loa với URL đã cấu hình và MIME `audio/mpeg`. Nếu rule không khớp hoặc service HASS
+lỗi, chế độ này không gửi command audio.
 
 Để trống URL là tắt phản hồi. Nếu config entry chỉ có một media player MAIKA, loa được chọn tự động; khi có nhiều loa, người dùng chọn một loa cố định. URL có thể là `/local/*.mp3` qua địa chỉ HTTP(S) đầy đủ của Home Assistant, miễn là loa truy cập được địa chỉ đó.
 
 Để phản hồi nhanh nhất, dùng file MP3 mono rất ngắn, dung lượng nhỏ, không redirect và ưu tiên URL LAN trực tiếp `http://<IP_HASS>:8123/local/...` nếu loa cùng mạng. URL HTTPS qua DuckDNS/reverse proxy có thêm DNS, TLS và có thể hairpin qua Internet nên thường bắt đầu phát chậm hơn.
 
-APK 3.2.3 không cung cấp command hủy riêng cho câu trả lời conversation. `AudioPlayer/Play` trong `SystemControl/CommandHandOver` chỉ có thể thay nội dung đang phát theo best-effort. Vì vậy tính năng có thể che hoặc cắt câu “không có thiết bị”, nhưng không đảm bảo không nghe thấy phần đầu của câu đó.
+APK 3.2.3 không cung cấp command hủy riêng cho câu trả lời conversation.
+`AudioPlayer/Play` trong `SystemControl/CommandHandOver` chỉ có thể thay nội dung
+đang phát theo best-effort. Vì vậy chế độ ưu tiên có thể che hoặc cắt câu “không có
+thiết bị”, nhưng không đảm bảo tắt tuyệt đối phần đầu của câu đó. Nếu HASS lỗi sau
+khi clip ưu tiên đã bắt đầu, sensor ghi
+`success_audio_status: played_before_failure`.
 
 ## Điều kiện mạng
 

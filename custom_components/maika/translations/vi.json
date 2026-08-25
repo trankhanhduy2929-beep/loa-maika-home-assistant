@@ -78,13 +78,14 @@
       },
       "features": {
         "title": "Tùy chọn MAIKA",
-        "description": "Các tính năng thử nghiệm mặc định tắt. Khi bật sensor câu lệnh, nội dung loa nhận dạng sẽ được lưu trong state Home Assistant và có thể vào lịch sử Recorder. Rule khớp chính xác nhưng không phân biệt dấu, chỉ được bật, tắt hoặc đảo trạng thái một entity. Chọn tắt, dùng MP3 MAIKA tích hợp sẵn trên portal, hoặc dùng URL MP3 HTTP(S) tùy chỉnh. Âm thanh chỉ được gửi sau khi rule Home Assistant khớp và service hoàn tất thành công. Portal: {portal_url}. Nếu config entry chỉ có một loa MAIKA thì loa được chọn tự động; câu không khớp hoặc điều khiển lỗi tuyệt đối không gửi lệnh phát.",
+        "description": "Rule dùng dạng: câu lệnh | entity_id | action. Chế độ Ưu tiên gửi MP3 ngay khi rule hợp lệ và dùng cùng mã hội thoại để che câu trả lời mặc định. Chế độ Sau khi HASS thành công chính xác hơn nhưng chậm hơn. Portal: {portal_url}.",
         "data": {
           "scan_interval": "Chu kỳ cập nhật (giây)",
           "enable_experimental_cloud_cast": "Bật cast âm thanh cloud thử nghiệm",
           "enable_voice_command_sensor": "Bật sensor câu lệnh mới nhất và rule điều khiển",
           "voice_command_rules": "Mỗi dòng: câu lệnh | entity_id | turn_on/turn_off/toggle",
           "voice_success_audio_source": "Nguồn âm báo thành công",
+          "voice_success_audio_timing": "Thời điểm phát âm báo",
           "voice_success_audio_url": "URL MP3 thành công tùy chỉnh",
           "voice_success_media_player_entity_id": "Loa MAIKA phát âm báo thành công"
         }
@@ -139,6 +140,12 @@
         "disabled": "Tắt",
         "bundled": "MP3 MAIKA tích hợp",
         "custom": "URL MP3 tùy chỉnh"
+      }
+    },
+    "voice_success_audio_timing": {
+      "options": {
+        "priority": "Ưu tiên: che giọng mặc định",
+        "after_success": "Sau khi HASS thành công"
       }
     }
   },

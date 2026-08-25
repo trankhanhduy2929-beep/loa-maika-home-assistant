@@ -219,7 +219,7 @@ def _validate_licensing_config(
 
 
 def _validate_voice_success_audio(errors: list[str]) -> None:
-    """Validate bundled/custom audio source wiring and translations."""
+    """Validate success audio source/timing wiring and translations."""
     const_values = _string_constants(ROOT / f"custom_components/{DOMAIN}/const.py")
     expected_sources = {
         const_values.get("VOICE_SUCCESS_AUDIO_SOURCE_DISABLED"),
@@ -228,6 +228,12 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
     }
     if expected_sources != {"disabled", "bundled", "custom"}:
         errors.append("Voice success audio source constants are invalid")
+    expected_timings = {
+        const_values.get("VOICE_SUCCESS_AUDIO_TIMING_AFTER_SUCCESS"),
+        const_values.get("VOICE_SUCCESS_AUDIO_TIMING_PRIORITY"),
+    }
+    if expected_timings != {"after_success", "priority"}:
+        errors.append("Voice success audio timing constants are invalid")
 
     resolver = (ROOT / f"custom_components/{DOMAIN}/voice_success_audio.py").read_text(
         encoding="utf-8"
@@ -235,6 +241,8 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
     for marker in (
         "BUNDLED_VOICE_SUCCESS_AUDIO_URL",
         "CONF_VOICE_SUCCESS_AUDIO_URL",
+        "CONF_VOICE_SUCCESS_AUDIO_TIMING",
+        "resolve_voice_success_audio_timing",
         "pre-1.7",
     ):
         if marker not in resolver:
@@ -248,13 +256,27 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
     )
     for marker in (
         "CONF_VOICE_SUCCESS_AUDIO_SOURCE",
+        "CONF_VOICE_SUCCESS_AUDIO_TIMING",
         "voice_success_audio_source",
+        "voice_success_audio_timing",
         "BUNDLED_VOICE_SUCCESS_AUDIO_URL",
     ):
         if marker not in config_flow:
             errors.append(f"Config flow is missing voice audio marker {marker}")
     if "resolve_voice_success_audio_url" not in coordinator:
         errors.append("Coordinator must resolve bundled/custom success audio")
+    for marker in (
+        "resolve_voice_success_audio_timing",
+        "dialog_request_id=dialog_request_id",
+        "MAIKA priority voice success audio",
+    ):
+        if marker not in coordinator:
+            errors.append(f"Coordinator is missing priority audio marker {marker}")
+
+    api = (ROOT / f"custom_components/{DOMAIN}/api.py").read_text(encoding="utf-8")
+    for marker in ("server_message_id", 'event_header["serverMessageId"]'):
+        if marker not in api:
+            errors.append(f"MAIKA cast API is missing conversation marker {marker}")
 
     for relative in (
         f"custom_components/{DOMAIN}/strings.json",
@@ -269,6 +291,13 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
         )
         if set(options) != {"disabled", "bundled", "custom"}:
             errors.append(f"Invalid voice audio selector translations in {relative}")
+        timing_options = (
+            data.get("selector", {})
+            .get("voice_success_audio_timing", {})
+            .get("options", {})
+        )
+        if set(timing_options) != {"after_success", "priority"}:
+            errors.append(f"Invalid voice audio timing translations in {relative}")
 
 
 def validate(

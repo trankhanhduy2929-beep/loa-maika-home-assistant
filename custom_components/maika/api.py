@@ -260,6 +260,9 @@ class MaikaApiClient:
         media_type: str = "audio",
         stream_format: str = "AUDIO_MPEG",
         offset_milliseconds: int = 0,
+        dialog_request_id: str | None = None,
+        message_id: str | None = None,
+        server_message_id: str | None = None,
     ) -> None:
         """Hand an audio URL from the app client to one physical speaker."""
         media_card = {
@@ -269,6 +272,14 @@ class MaikaApiClient:
         }
         if title:
             media_card["title"] = title
+        event_header = {
+            "dialogRequestId": dialog_request_id or str(uuid4()),
+            "messageId": message_id or f"messageId-{uuid4()}",
+            "name": "Play",
+            "namespace": "AudioPlayer",
+        }
+        if server_message_id:
+            event_header["serverMessageId"] = server_message_id
 
         await self._async_send_stream_meta(
             {
@@ -281,12 +292,7 @@ class MaikaApiClient:
                     "payload": {
                         "fromDeviceId": self._client_id,
                         "messageInfo": {
-                            "eventHeader": {
-                                "dialogRequestId": str(uuid4()),
-                                "messageId": f"messageId-{uuid4()}",
-                                "name": "Play",
-                                "namespace": "AudioPlayer",
-                            },
+                            "eventHeader": event_header,
                             "mediaCard": media_card,
                             "mediaOffset": max(0, offset_milliseconds),
                         },

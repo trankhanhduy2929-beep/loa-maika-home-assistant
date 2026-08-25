@@ -32,6 +32,7 @@ from .const import (
     CONF_SESSION_ID,
     CONF_VOICE_COMMAND_RULES,
     CONF_VOICE_SUCCESS_AUDIO_SOURCE,
+    CONF_VOICE_SUCCESS_AUDIO_TIMING,
     CONF_VOICE_SUCCESS_AUDIO_URL,
     CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID,
     DEFAULT_SCAN_INTERVAL,
@@ -43,6 +44,7 @@ from .const import (
     VOICE_SUCCESS_AUDIO_SOURCE_CUSTOM,
     VOICE_SUCCESS_AUDIO_SOURCE_DISABLED,
     VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS,
+    VOICE_SUCCESS_AUDIO_TIMING_OPTIONS,
 )
 from .license import (
     LICENSE_STATUS_ACTIVE,
@@ -66,7 +68,10 @@ from .license_store import MaikaLicenseStore, MaikaStoredLicense
 from .media_url import is_valid_http_media_url
 from .phone import normalize_login_identifier
 from .voice_rules import VoiceCommandRulesError, parse_voice_command_rules
-from .voice_success_audio import resolve_voice_success_audio_source
+from .voice_success_audio import (
+    resolve_voice_success_audio_source,
+    resolve_voice_success_audio_timing,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -593,6 +598,9 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
             )
             audio_source = resolve_voice_success_audio_source(normalized)
             normalized[CONF_VOICE_SUCCESS_AUDIO_SOURCE] = audio_source
+            normalized[CONF_VOICE_SUCCESS_AUDIO_TIMING] = (
+                resolve_voice_success_audio_timing(normalized)
+            )
             audio_url = str(normalized.get(CONF_VOICE_SUCCESS_AUDIO_URL, "")).strip()
             normalized[CONF_VOICE_SUCCESS_AUDIO_URL] = audio_url
 
@@ -700,6 +708,16 @@ class MaikaOptionsFlow(config_entries.OptionsFlow):
                     options=list(VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                     translation_key="voice_success_audio_source",
+                )
+            ),
+            vol.Optional(
+                CONF_VOICE_SUCCESS_AUDIO_TIMING,
+                default=resolve_voice_success_audio_timing(values),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(VOICE_SUCCESS_AUDIO_TIMING_OPTIONS),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="voice_success_audio_timing",
                 )
             ),
             vol.Optional(
