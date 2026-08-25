@@ -7,12 +7,12 @@ import argparse
 import ast
 import base64
 import binascii
-import importlib.util
 import ipaddress
 import json
 import re
 import struct
 import sys
+import types
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -325,15 +325,12 @@ def _validate_voice_rules(errors: list[str]) -> None:
             errors.append(f"Voice rule coordinator is missing safeguard {marker}")
 
     module_name = "_maika_voice_rules_validation"
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        errors.append("Unable to load voice_rules.py for validation")
-        return
-    module = importlib.util.module_from_spec(spec)
+    module = types.ModuleType(module_name)
+    module.__file__ = str(path)
     previous_module = sys.modules.get(module_name)
     sys.modules[module_name] = module
     try:
-        spec.loader.exec_module(module)
+        exec(compile(parser_source, str(path), "exec"), module.__dict__)
         rules = module.parse_voice_command_rules(
             "\n".join(
                 (
