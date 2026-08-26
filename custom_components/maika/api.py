@@ -17,9 +17,11 @@ import aiohttp
 from .const import (
     APP_DEVICE_TYPE,
     APP_LANGUAGE,
+    APP_ORGANIZATION_CODE,
     APP_TIMEZONE,
     APP_VERSION,
     CHATBOT_BASE_URL,
+    DEVICE_DISCOVERY_FIELDS,
     DEVICE_INFO_FIELDS,
     REST_UPDATE_FIELDS,
     USERS_BASE_URL,
@@ -40,6 +42,46 @@ _FRAME_START = "$START_JSON"
 _FRAME_END = "$END_JSON"
 _MAX_STREAM_BUFFER = 1024 * 1024
 _STREAM_WRAPPER_KEYS = ("directive", "event", "message", "response", "data")
+_DEVICE_DISCOVERY_TIMEOUT = 12.0
+_SPEAKER_TYPES = frozenset({"speaker", "maika"})
+_DEVICE_ID_KEYS = (
+    "device_id",
+    "deviceId",
+    "deviceID",
+    "serial_number",
+    "serialNumber",
+    "serial",
+)
+_STREAM_DEVICE_FIELDS = frozenset(
+    {
+        "id",
+        "device_id",
+        "name",
+        "calling_name",
+        "address",
+        "manufacturer",
+        "model",
+        "room",
+        "status",
+        "firmware_version",
+        "firmware_update_status",
+        "online",
+        "available_to_call",
+        "is_favorite",
+        "wifi",
+        "wakeword_response_type",
+        "wakeword_sensitivity_level",
+        "tts_voice",
+        "current_playback",
+        "volume",
+        "latest_playlist",
+        "mute",
+        "default_language",
+        "activated_at",
+        "warranty_expire_date",
+        "warranty_expire_time",
+    }
+)
 
 
 class MaikaApiError(Exception):
@@ -52,6 +94,15 @@ class MaikaAuthenticationError(MaikaApiError):
 
 class MaikaConnectionError(MaikaApiError):
     """Communication with the MAIKA cloud failed."""
+
+    def __init__(self, message: str, *, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+    @property
+    def is_server_error(self) -> bool:
+        """Return whether the cloud returned an HTTP 5xx response."""
+        return self.status is not None and 500 <= self.status < 600
 
 
 class MaikaApiClient:
@@ -82,6 +133,9 @@ class MaikaApiClient:
         self._listener_task: asyncio.Task[Any] | None = None
         self._event_callback: Callable[[dict[str, Any]], None] | None = None
         self._device_info_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
+        self._device_discovery_waiters: list[asyncio.Future[dict[str, Any]]] = []
+        self._device_discovery_lock = asyncio.Lock()
+        self._discovered_devices: dict[str, dict[str, Any]] = {}
         self.live_device_info: dict[str, dict[str, Any]] = {}
         self._voice_cache: list[dict[str, Any]] | None = None
 
@@ -136,7 +190,8 @@ class MaikaApiClient:
                 if response.status >= 400:
                     await response.read()
                     raise MaikaConnectionError(
-                        f"MAIKA login returned HTTP {response.status}"
+                        f"MAIKA login returned HTTP {response.status}",
+                        status=response.status,
                     )
                 payload = await self._read_json(response)
         except (aiohttp.ClientError, TimeoutError) as err:
@@ -163,21 +218,222 @@ class MaikaApiClient:
 
     async def async_list_devices(self) -> list[dict[str, Any]]:
         """Return all MAIKA speakers registered to the account."""
-        response = await self._async_request_json(
-            "GET",
-            f"{USERS_BASE_URL}/v1/user-device",
-            params={"page": 1, "limit": 100},
+        try:
+            response = await self._async_request_json(
+                "GET",
+                f"{USERS_BASE_URL}/v1/user-device",
+                params={
+                    "type": "speaker",
+                    "page": 1,
+                    "limit": 100,
+                    "organization_code": APP_ORGANIZATION_CODE,
+                },
+            )
+        except MaikaConnectionError as err:
+            if not err.is_server_error:
+                raise
+            _LOGGER.warning(
+                "MAIKA REST device list is unavailable; using stream discovery"
+            )
+            return await self.async_discover_devices()
+
+        items = self._extract_device_items(response)
+        if items is None:
+            _LOGGER.warning(
+                "MAIKA REST device list has an unsupported shape; using stream discovery"
+            )
+            return await self.async_discover_devices()
+        devices: list[dict[str, Any]] = []
+        for item in items:
+            if not self._is_speaker_record(item):
+                continue
+            normalized = self._normalize_device_record(item)
+            if normalized is not None:
+                self._cache_discovered_device(normalized)
+                devices.append(dict(self._discovered_devices[normalized["device_id"]]))
+        return devices
+
+    async def async_discover_devices(
+        self, timeout_seconds: float = _DEVICE_DISCOVERY_TIMEOUT
+    ) -> list[dict[str, Any]]:
+        """Discover a default speaker through the cloud event stream."""
+        await self._async_ensure_authenticated()
+        async with self._device_discovery_lock:
+            if self._has_complete_discovered_device():
+                return self._copy_discovered_devices()
+
+            try:
+                await asyncio.wait_for(self._connected.wait(), timeout=timeout_seconds)
+            except TimeoutError as err:
+                raise MaikaConnectionError("MAIKA stream discovery timed out") from err
+
+            if self._has_complete_discovered_device():
+                return self._copy_discovered_devices()
+
+            try:
+                await self._async_request_device_discovery(timeout_seconds)
+            except MaikaConnectionError:
+                if not self._discovered_devices:
+                    raise
+
+            if self._discovered_devices:
+                return self._copy_discovered_devices()
+            raise MaikaConnectionError("MAIKA stream returned no speaker")
+
+    async def _async_request_device_discovery(self, timeout_seconds: float) -> None:
+        """Request default speaker details and wait for its stream response."""
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._device_discovery_waiters.append(future)
+        try:
+            await self.async_send_command(
+                "GetDeviceInfo",
+                "ClientInformation",
+                {"fields": DEVICE_DISCOVERY_FIELDS},
+            )
+            try:
+                await asyncio.wait_for(future, timeout=timeout_seconds)
+            except TimeoutError as err:
+                raise MaikaConnectionError(
+                    "MAIKA stream did not return a speaker"
+                ) from err
+        finally:
+            if future in self._device_discovery_waiters:
+                self._device_discovery_waiters.remove(future)
+
+    @classmethod
+    def _extract_device_items(
+        cls, response: dict[str, Any]
+    ) -> list[dict[str, Any]] | None:
+        """Extract device rows from the response shapes used by MAIKA."""
+        pending: list[Any] = [response]
+        seen: set[int] = set()
+        while pending:
+            candidate = pending.pop(0)
+            if not isinstance(candidate, (dict, list)):
+                continue
+            candidate_id = id(candidate)
+            if candidate_id in seen:
+                continue
+            seen.add(candidate_id)
+            if isinstance(candidate, list):
+                return [item for item in candidate if isinstance(item, dict)]
+            for key in ("data", "devices", "items", "list", "results"):
+                nested = candidate.get(key)
+                if isinstance(nested, (dict, list)):
+                    pending.append(nested)
+        return None
+
+    @staticmethod
+    def _is_speaker_record(record: dict[str, Any]) -> bool:
+        """Return whether one API row represents a MAIKA speaker."""
+        device_type = record.get("type") or record.get("device_type")
+        if device_type is None:
+            return True
+        return str(device_type).strip().casefold() in _SPEAKER_TYPES
+
+    @classmethod
+    def _normalize_device_record(
+        cls, record: dict[str, Any], *, assume_online: bool = False
+    ) -> dict[str, Any] | None:
+        """Normalize REST and stream device fields to integration names."""
+        aliases = {
+            "deviceId": "device_id",
+            "deviceID": "device_id",
+            "serialNumber": "device_id",
+            "serial_number": "device_id",
+            "serial": "device_id",
+            "internalId": "id",
+            "internal_id": "id",
+            "isOnline": "online",
+            "is_online": "online",
+            "callingName": "calling_name",
+            "defaultLanguage": "default_language",
+            "firmwareVersion": "firmware_version",
+            "firmwareUpdateStatus": "firmware_update_status",
+            "availableToCall": "available_to_call",
+            "isFavorite": "is_favorite",
+            "isFavourite": "is_favorite",
+            "wakeWordResponseType": "wakeword_response_type",
+            "wakeWordSensitivityLevel": "wakeword_sensitivity_level",
+            "ttsVoice": "tts_voice",
+            "currentPlayback": "current_playback",
+            "latestPlaylist": "latest_playlist",
+            "warrantyExpireDate": "warranty_expire_date",
+            "warrantyExpireTime": "warranty_expire_time",
+            "activatedAt": "activated_at",
+        }
+        normalized: dict[str, Any] = {}
+        for key, value in record.items():
+            canonical_key = aliases.get(str(key), str(key))
+            if canonical_key in _STREAM_DEVICE_FIELDS:
+                normalized[canonical_key] = value
+
+        serial_number = normalized.get("device_id")
+        if serial_number is None:
+            return None
+        serial_text = str(serial_number).strip()
+        if not serial_text:
+            return None
+        normalized["device_id"] = serial_text
+        if "id" in normalized:
+            try:
+                normalized["id"] = int(normalized["id"])
+            except (TypeError, ValueError):
+                pass
+        for key in ("online", "available_to_call", "is_favorite", "mute"):
+            if key in normalized:
+                boolean = cls._coerce_bool(normalized[key])
+                if boolean is not None:
+                    normalized[key] = boolean
+        if "online" not in normalized and assume_online:
+            normalized["online"] = True
+        return normalized
+
+    @staticmethod
+    def _coerce_bool(value: Any) -> bool | None:
+        """Convert MAIKA boolean-like values without treating ``"false"`` as true."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int) and value in (0, 1):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().casefold()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off"}:
+                return False
+        return None
+
+    def _cache_discovered_device(self, device: dict[str, Any]) -> None:
+        """Merge one normalized speaker record into the discovery cache."""
+        serial_number = device.get("device_id")
+        if not isinstance(serial_number, str) or not serial_number:
+            return
+        current = self._discovered_devices.get(serial_number, {})
+        self._discovered_devices[serial_number] = {
+            **current,
+            **{key: value for key, value in device.items() if value is not None},
+        }
+
+    def _copy_discovered_devices(self) -> list[dict[str, Any]]:
+        """Return defensive copies of cached discovered speakers."""
+        return [dict(device) for device in self._discovered_devices.values()]
+
+    def _has_complete_discovered_device(self) -> bool:
+        """Return whether discovery has received a usable internal speaker ID."""
+        return any(
+            self._has_usable_internal_id(device)
+            for device in self._discovered_devices.values()
         )
-        data = response.get("data") if isinstance(response, dict) else None
-        if not isinstance(data, list):
-            raise MaikaConnectionError("Invalid device list response")
-        return [
-            item
-            for item in data
-            if isinstance(item, dict)
-            and item.get("device_id")
-            and item.get("type", "speaker") == "speaker"
-        ]
+
+    @staticmethod
+    def _has_usable_internal_id(device: dict[str, Any]) -> bool:
+        """Return whether REST settings can address the discovered speaker."""
+        internal_id = device.get("id")
+        if isinstance(internal_id, int):
+            return True
+        return isinstance(internal_id, str) and bool(internal_id.strip())
 
     async def async_get_device(self, internal_id: int) -> dict[str, Any]:
         """Return detailed information for one speaker."""
@@ -495,6 +751,10 @@ class MaikaApiClient:
                 if not future.done():
                     future.cancel()
         self._device_info_waiters.clear()
+        for future in self._device_discovery_waiters:
+            if not future.done():
+                future.cancel()
+        self._device_discovery_waiters.clear()
         if self._listener_task is not None and not self._listener_task.done():
             self._listener_task.cancel()
             try:
@@ -538,7 +798,8 @@ class MaikaApiClient:
                 if response.status >= 400:
                     await response.read()
                     raise MaikaConnectionError(
-                        f"MAIKA API returned HTTP {response.status}"
+                        f"MAIKA API returned HTTP {response.status}",
+                        status=response.status,
                     )
                 payload = await self._read_json(response)
         except MaikaApiError:
@@ -550,7 +811,14 @@ class MaikaApiClient:
             raise MaikaConnectionError("MAIKA API returned invalid JSON")
         code = payload.get("code")
         if code not in (None, 0, 200):
-            raise MaikaConnectionError(f"MAIKA API returned code {code}")
+            try:
+                status = int(code)
+            except (TypeError, ValueError):
+                status = None
+            raise MaikaConnectionError(
+                f"MAIKA API returned code {code}",
+                status=status,
+            )
         return payload
 
     async def _async_ensure_authenticated(self) -> None:
@@ -661,15 +929,33 @@ class MaikaApiClient:
         if (
             isinstance(header, dict)
             and isinstance(payload, dict)
-            and header.get("name") == "DeviceInfo"
-            and header.get("namespace") == "ClientInformation"
+            and str(header.get("name", "")).casefold() == "deviceinfo"
+            and str(header.get("namespace", "")).casefold() == "clientinformation"
         ):
-            serial_number = payload.get("deviceId") or payload.get("device_id")
-            if isinstance(serial_number, str) and serial_number:
-                self.live_device_info[serial_number] = payload
+            device_payload = self._extract_device_payload(payload)
+            normalized = self._normalize_device_record(
+                device_payload, assume_online=True
+            )
+            if normalized is not None:
+                serial_number = normalized["device_id"]
+                current_live = self.live_device_info.get(serial_number, {})
+                merged_live = {**current_live, **normalized}
+                self.live_device_info[serial_number] = merged_live
+                self._cache_discovered_device(normalized)
                 for future in self._device_info_waiters.pop(serial_number, []):
                     if not future.done():
-                        future.set_result(payload)
+                        future.set_result(merged_live)
+                discovered = self._discovered_devices[serial_number]
+                if self._has_usable_internal_id(discovered):
+                    waiters = self._device_discovery_waiters
+                    self._device_discovery_waiters = []
+                    for future in waiters:
+                        if not future.done():
+                            future.set_result(dict(discovered))
+                normalized_frame = {
+                    **normalized_frame,
+                    "payload": normalized,
+                }
 
         self._dispatch_stream_frame(normalized_frame)
 
@@ -680,6 +966,29 @@ class MaikaApiClient:
                 self._event_callback(frame)
             except Exception:
                 _LOGGER.exception("Unable to handle a MAIKA cloud stream frame")
+
+    @staticmethod
+    def _extract_device_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        """Find a device object inside common MAIKA response wrappers."""
+        pending: list[Any] = [payload]
+        seen: set[int] = set()
+        while pending:
+            candidate = pending.pop(0)
+            if not isinstance(candidate, dict):
+                continue
+            candidate_id = id(candidate)
+            if candidate_id in seen:
+                continue
+            seen.add(candidate_id)
+            if any(key in candidate for key in _DEVICE_ID_KEYS):
+                return candidate
+            for key in ("device", "deviceInfo", "device_info", "speaker", "data"):
+                nested = candidate.get(key)
+                if isinstance(nested, dict):
+                    pending.append(nested)
+                elif isinstance(nested, list):
+                    pending.extend(item for item in nested if isinstance(item, dict))
+        return payload
 
     @staticmethod
     def _is_connect_frame(frame: dict[str, Any]) -> bool:

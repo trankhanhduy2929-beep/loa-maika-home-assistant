@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 DOMAIN = "maika"
-INTEGRATION_VERSION = "1.8.0"
+INTEGRATION_VERSION = "1.8.1"
 
 APP_VERSION = "3.2.3"
 APP_DEVICE_TYPE = "android"
 APP_LANGUAGE = "vi-VN"
 APP_TIMEZONE = "Asia/Ho_Chi_Minh"
+APP_ORGANIZATION_CODE = "MAIKA"
 
 USERS_BASE_URL = "https://users.iviet.com"
 CHATBOT_BASE_URL = "https://chatbot.iviet.com"
@@ -57,6 +58,12 @@ WAKEWORD_RESPONSE_OPTIONS = [
 ]
 
 DEVICE_INFO_FIELDS = "current_playback,volume,latest_playlist,device_id,mute"
+DEVICE_DISCOVERY_FIELDS = (
+    "id,device_id,name,calling_name,address,manufacturer,model,status,"
+    "firmware_version,online,available_to_call,is_favorite,wifi,"
+    "wakeword_response_type,wakeword_sensitivity_level,tts_voice,"
+    "current_playback,volume,latest_playlist,mute"
+)
 
 REST_UPDATE_FIELDS = {
     "address",

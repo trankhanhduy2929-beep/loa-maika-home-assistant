@@ -94,7 +94,7 @@ Response thành công chứa `access_token`, `refresh_token`, user `id` và `exp
 
 | Method | Endpoint | Trạng thái |
 |---|---|---|
-| `GET` | `/v1/user-device?page=1&limit=100` | Đã xác minh live |
+| `GET` | `/v1/user-device?type=speaker&page=1&limit=100&organization_code=MAIKA` | Đã xác minh live; một số tài khoản có thể trả 5xx |
 | `GET` | `/v1/user-device/{id}` | Đã xác minh live |
 | `PUT` | `/v1/user-device/{id}` | Đã xác minh live với cùng giá trị hiện tại |
 | `GET` | `/v1/user/tts_speaker_voices` | Đã xác minh live |
@@ -199,6 +199,13 @@ current_playback,volume,latest_playlist,device_id,mute
 ```
 
 Cloud trả directive `ClientInformation/DeviceInfo`; integration merge dữ liệu này với REST detail để có volume, mute và playback gần thời gian thực.
+
+Từ bản `1.8.1`, nếu REST danh sách loa trả 5xx hoặc response sai cấu trúc,
+integration gửi `GetDeviceInfo` không kèm `deviceId` để cloud trả loa mặc định.
+Payload discovery được chuẩn hóa từ camelCase/snake_case, cache theo serial và
+đặt `online=true` khi chính loa đã phản hồi. Nhờ đó tài khoản vẫn tạo được loa
+dù API `users.iviet.com` tạm lỗi; REST detail và danh sách giọng lỗi chỉ làm mất
+một số metadata/tùy chọn, không chặn các command stream an toàn.
 
 ### `speakerConversationResponse`
 

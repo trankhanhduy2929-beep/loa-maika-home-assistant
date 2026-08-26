@@ -112,7 +112,6 @@ async def _async_validate_input(
         str(data.get(CONF_SESSION_ID) or uuid4()),
     )
     account = await client.async_login()
-    await client.async_list_devices()
     title = str(account.get("full_name") or account.get("calling_name") or "MAIKA")
     return {"title": title, "unique_id": str(account["id"])}
 

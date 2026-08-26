@@ -2,6 +2,25 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.8.1] - 2026-08-26
+
+### Fixed
+
+- Sửa lỗi tài khoản MAIKA đăng nhập thành công nhưng integration báo không tìm
+  thấy loa khi REST `/v1/user-device` của cloud trả HTTP 5xx hoặc response sai
+  cấu trúc.
+- Thêm fallback tìm loa mặc định qua `/connect` và
+  `ClientInformation/GetDeviceInfo`; chuẩn hóa cả field camelCase/snake_case,
+  tự đánh dấu online khi loa đã phản hồi và giữ cache cho các lần poll sau.
+- Bước thêm tài khoản chỉ xác thực đăng nhập, không còn thất bại vì API danh
+  sách loa tạm lỗi trước khi listener cloud được khởi động.
+- Hủy sạch waiter discovery khi unload để không còn task chờ treo.
+
+### Changed
+
+- Gửi thêm `organization_code=MAIKA` theo request chính thức của ứng dụng và
+  giữ nguyên license, activation server, PayOS, key cùng thiết bị HASS hiện có.
+
 ## [1.8.0] - 2026-08-25
 
 ### Added
