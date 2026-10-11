@@ -4,8 +4,23 @@ Từ bản `1.9.0`, tích hợp MAIKA tự đăng ký một mục **MAIKA** tron
 Assistant. Từ `1.9.1`, panel dùng giao diện dashboard dạng sections; từ `1.9.2`,
 panel hỗ trợ nhiều loa trong cùng tài khoản; từ `1.9.3`, panel ghép thực thể theo
 `unique_id` nên tên loa đặt kiểu nào (`wifi_relay`, `amply_ke_sach`,…) cũng không
-read nhầm thực thể. Layout: lưới 4 cột trên máy tính, tự co về 2 cột trên tablet
-và 1 cột trên điện thoại.
+đọc nhầm thực thể. Bản `1.9.4` dùng lưới 4 cột khi panel rộng hơn 1100px,
+2 cột từ 621–1100px và 1 cột khi rộng tối đa 620px. Bố cục tính theo vùng
+panel còn lại, không chỉ theo màn hình, nên vẫn phù hợp khi mở sidebar HA.
+
+## Giao diện sáng / tối và điều hướng
+
+- Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
+  sáng/tối của Home Assistant; lựa chọn được nhớ riêng trong trình duyệt.
+  Nếu trình duyệt chặn lưu trữ, vẫn đổi được cho phiên đang mở.
+- Chạm **Tổng quan / Trạng thái / Trợ lý / Tên & vị trí / Thiết bị / Bản quyền /
+  Cấu hình / Công cụ** để tới đúng mục. Vuốt ngang thanh mục trên điện thoại.
+- Nút menu ở góc trên mở sidebar HA khi màn hình hẹp. Thanh công cụ bám trên
+  đầu khi cuộn; trên màn hình thấp (điện thoại ngang) thanh này cuộn cùng nội dung.
+- Animation nhẹ cho thẻ, trạng thái phát nhạc và nút; tự tắt theo cài đặt
+  **Giảm chuyển động** của thiết bị và tạm dừng khi tab không hiển thị.
+- Các nút/ô nhập có nhãn hỗ trợ trình đọc màn hình, focus bàn phím rõ và vùng
+  chạm lớn. Không cần cài Mushroom hoặc card-mod.
 
 ## Bố cục
 
@@ -44,7 +59,22 @@ chung cho mọi loa.
   xoá máy và không cần xoá key cũ.
 - **Lưu cấu hình**: chỉnh các trường rồi bấm **Lưu cấu hình**; tích hợp tự tải
   lại để áp dụng. Các trường đang gõ không bị mất khi dữ liệu loa cập nhật.
+- **Cấu hình nâng cao**: mở **Nâng cao · âm báo & rule giọng nói** để chọn
+  media player phát âm báo hoặc sửa rule. Chọn nguồn **URL MP3 tuỳ chỉnh** để
+  hiện ô nhập URL; thu gọn không xoá cấu hình đã lưu.
+- **Đổi loa**: cấu hình và key chưa lưu vẫn giữ khi chuyển loa cùng tài khoản;
+  ô cast và tên/vị trí tách theo loa. Chuyển tài khoản khác sẽ bỏ bản nháp.
 - **Tải lại integration**: bấm nút trong mục Cấu hình nếu cần nạp lại thủ công.
+- **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
+  lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.
+
+## Cập nhật từ bản cũ
+
+Cập nhật custom integration lên `1.9.4`, khởi động lại Home Assistant rồi tải
+lại trang/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
+Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
+không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các
+kích thước 320–1920px; cần kiểm tra thêm trên loa và ứng dụng HA thực tế.
 
 ## Bảo mật
 

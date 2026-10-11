@@ -43,6 +43,19 @@ const OPTION_KEYS = {
 };
 
 const UNKNOWN = new Set(["unknown", "unavailable", "none", "", "None", "null"]);
+const THEME_STORE_KEY = "maika.panel.theme";
+const THEME_MODES = ["auto", "light", "dark"];
+const THEME_MODE_LABELS = {auto: "Tự động", light: "Sáng", dark: "Tối"};
+const SECTIONS = [
+  {id: "overview", label: "Tổng quan"},
+  {id: "status", label: "Trạng thái"},
+  {id: "assistant", label: "Trợ lý"},
+  {id: "identity", label: "Tên & vị trí"},
+  {id: "info", label: "Thiết bị"},
+  {id: "license", label: "Bản quyền"},
+  {id: "settings", label: "Cấu hình"},
+  {id: "tools", label: "Công cụ"},
+];
 
 function fmtTime(value) {
   if (!value) return "—";
@@ -127,6 +140,9 @@ const ICONS = {
   serial: "M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z",
   calendar: "M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2zm12 8v10H5V10z",
   update: "M12 4V1L8 5l4 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8",
+  sun: "M11 1h2v3h-2zm0 19h2v3h-2zM1 11h3v2H1zm19 0h3v2h-3zM4.2 2.8l2.1 2.1-1.4 1.4L2.8 4.2zm14.9 14.9 2.1 2.1-1.4 1.4-2.1-2.1zM2.8 19.8l2.1-2.1 1.4 1.4-2.1 2.1zM17.7 4.9l2.1-2.1 1.4 1.4-2.1 2.1zM12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12",
+  moon: "M20.9 13.2A8 8 0 0 1 10.8 3.1 9 9 0 1 0 20.9 13.2",
+  menu: "M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z",
 };
 
 class MaikaPanel extends HTMLElement {
@@ -137,25 +153,69 @@ class MaikaPanel extends HTMLElement {
     this._snapshot = null;
     this._activeIndex = 0;
     this._deviceSerial = "";
+    this._themeMode = "auto";
+    this._activeSection = "overview";
     this._busy = false;
     this._message = null;
     this._draft = {};
     this._loaded = false;
+    this._loading = false;
+    this._renderFrame = null;
     this._lastSignature = "";
     this._onClick = this._onClick.bind(this);
     this._onInput = this._onInput.bind(this);
     this._onChange = this._onChange.bind(this);
     this._onSubmit = this._onSubmit.bind(this);
+    this._onThemeChange = () => this._applyTheme();
+    this._onStorage = (event) => {
+      if (event.key === THEME_STORE_KEY || event.key === null) {
+        this._themeMode = this._storedThemeMode();
+        this._applyTheme();
+      }
+    };
+    this._onVisibility = () => { this.toggleAttribute("data-paused", document.hidden); };
+  }
+
+  connectedCallback() {
+    this._colorQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+    this._colorQuery?.addEventListener("change", this._onThemeChange);
+    window.addEventListener("storage", this._onStorage);
+    document.addEventListener("visibilitychange", this._onVisibility);
+    this._onVisibility();
+    if (this._stage) {
+      this._themeMode = this._storedThemeMode();
+      this._applyTheme();
+      this._observeSections();
+      this._maybeUpdate();
+    }
+  }
+
+  disconnectedCallback() {
+    this._colorQuery?.removeEventListener("change", this._onThemeChange);
+    window.removeEventListener("storage", this._onStorage);
+    document.removeEventListener("visibilitychange", this._onVisibility);
+    this._sectionObserver?.disconnect();
+    this._toolbarObserver?.disconnect();
+    if (this._renderFrame !== null) cancelAnimationFrame(this._renderFrame);
+    this._renderFrame = null;
   }
 
   set hass(value) {
     this._hass = value;
     if (!this._loaded) {
       this._loaded = true;
+      this._themeMode = this._storedThemeMode();
       this._root();
+      this._applyTheme();
       this._load();
-    } else if (this._snapshot) {
-      this._maybeUpdate();
+    } else {
+      this._applyTheme();
+      if (this._snapshot && this.isConnected && this._renderFrame === null) {
+        this._renderFrame = requestAnimationFrame(() => {
+          this._renderFrame = null;
+          this._maybeUpdate();
+        });
+      }
     }
   }
 
@@ -164,8 +224,9 @@ class MaikaPanel extends HTMLElement {
   }
 
   set narrow(value) {
+    if (this._narrow === value) return;
     this._narrow = value;
-    if (this._snapshot) this._render();
+    if (this._snapshot) this._maybeUpdate();
   }
 
   set panel(value) {
@@ -175,169 +236,502 @@ class MaikaPanel extends HTMLElement {
     }
   }
 
+  _storedThemeMode() {
+    try {
+      const stored = window.localStorage.getItem(THEME_STORE_KEY);
+      return THEME_MODES.includes(stored) ? stored : "auto";
+    } catch (err) {
+      return "auto";
+    }
+  }
+
+  _persistThemeMode() {
+    try {
+      window.localStorage.setItem(THEME_STORE_KEY, this._themeMode);
+    } catch {}
+  }
+
+  _themeLuminance(value) {
+    const color = String(value || "").trim().toLowerCase();
+    if (!color) return null;
+    const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/);
+    if (hex) {
+      let digits = hex[1];
+      if (digits.length === 3 || digits.length === 4) digits = digits.split("").map((digit) => digit + digit).join("");
+      const channels = [0, 2, 4].map((index) => parseInt(digits.slice(index, index + 2), 16));
+      return (0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]) / 255;
+    }
+    const hsl = color.match(/hsla?\(([^)]*)\)/);
+    if (hsl) {
+      const numbers = hsl[1].match(/[-\d.]+(?:%|deg)?/g) || [];
+      const lightness = numbers[2];
+      return lightness ? Number(lightness.slice(0, -1)) / 100 : null;
+    }
+    const numbers = color.match(/[\d.]+/g);
+    if (numbers && numbers.length >= 3) {
+      return (0.2126 * Number(numbers[0]) + 0.7152 * Number(numbers[1]) + 0.0722 * Number(numbers[2])) / 255;
+    }
+    return null;
+  }
+
+  _resolveTheme() {
+    if (this._themeMode !== "auto") return this._themeMode;
+    if (typeof this._hass?.themes?.darkMode === "boolean") {
+      return this._hass.themes.darkMode ? "dark" : "light";
+    }
+    const styles = getComputedStyle(this);
+    const candidates = [
+      styles.getPropertyValue("--card-background-color"),
+      styles.getPropertyValue("--primary-background-color"),
+      styles.getPropertyValue("--paper-card-background-color"),
+    ];
+    for (const candidate of candidates) {
+      const luminance = this._themeLuminance(candidate);
+      if (luminance !== null) return luminance > 0.6 ? "light" : "dark";
+    }
+    return this._colorQuery?.matches === false ? "light" : "dark";
+  }
+
+  _applyTheme() {
+    const resolved = this._resolveTheme();
+    if (this.dataset.theme !== resolved) this.dataset.theme = resolved;
+    this.dataset.themeMode = this._themeMode;
+    const select = this.shadowRoot.querySelector('[data-action="theme"]');
+    if (select) select.value = this._themeMode;
+  }
+
+  _setTheme(mode) {
+    if (!THEME_MODES.includes(mode)) return;
+    this._themeMode = mode;
+    this._persistThemeMode();
+    this._applyTheme();
+  }
+
   _style() {
     const style = document.createElement("style");
     style.textContent = `
-      :host { display: block; min-height: 100vh; background: var(--primary-background-color, #060d18); color: var(--primary-text-color, #eaf4ff); }
-      * { box-sizing: border-box; }
-      .stage {
-        max-width: 1480px; margin: 0 auto; padding: 16px 14px 80px;
-        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-        grid-auto-flow: dense; grid-auto-rows: min-content;
-        gap: 14px; align-content: start;
+      :host {
+        --bg: #0b1220;
+        --surface: #141f31;
+        --surface-2: rgba(140, 195, 255, .07);
+        --surface-3: rgba(140, 195, 255, .12);
+        --line: rgba(130, 195, 255, .16);
+        --text: #eaf4ff;
+        --muted: #a3b5cb;
+        --accent: #31d8c4;
+        --accent-2: #8f7dff;
+        --accent-ink: #04231f;
+        --ok: #3ee39b;
+        --bad: #ff7c8a;
+        --blue: #5cc0ff;
+        --purple: #8f7dff;
+        --amber: #ffc775;
+        --pink: #ff9ec4;
+        --cyan: #6fe6f0;
+        --shadow: 0 8px 28px rgba(3, 10, 20, .18);
+        --shadow-hover: 0 12px 32px rgba(3, 10, 20, .28);
+        --radius: 26px;
+        --radius-sm: 16px;
+        --gap: 14px;
+        --pad: 18px;
+        --toolbar-offset: 150px;
+
+        display: block;
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: auto;
+        container-type: inline-size;
+        overscroll-behavior-y: contain;
+        font-family: var(--ha-font-family-body, system-ui, -apple-system, "Segoe UI", sans-serif);
+        line-height: 1.5;
+        color: var(--text);
+        color-scheme: dark;
+        background: var(--bg);
+        transition: background-color .3s ease, color .3s ease;
       }
+      :host([data-theme="light"]) {
+        --bg: #f0f4f9;
+        --surface: #ffffff;
+        --surface-2: rgba(24, 62, 104, .06);
+        --surface-3: rgba(24, 62, 104, .12);
+        --line: rgba(24, 62, 104, .14);
+        --text: #172b46;
+        --muted: #53677f;
+        --accent: #007e73;
+        --accent-2: #6b57e6;
+        --accent-ink: #ffffff;
+        --ok: #06734f;
+        --bad: #b82642;
+        --blue: #1466ac;
+        --purple: #6b57e6;
+        --amber: #805009;
+        --pink: #a12d68;
+        --cyan: #08687a;
+        --shadow: 0 10px 26px rgba(20, 50, 90, .1);
+        --shadow-hover: 0 16px 34px rgba(20, 50, 90, .16);
+        color-scheme: light;
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+      button, a, select { touch-action: manipulation; }
+      button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 3px solid var(--accent); outline-offset: 3px;
+      }
+      button:disabled { opacity: .55; cursor: wait; }
+      [data-sec] { scroll-margin-top: var(--toolbar-offset); }
+
+      .stage {
+        max-width: 1560px;
+        min-width: 0;
+        min-height: 100%;
+        background: var(--bg);
+        margin: 0 auto;
+        padding: calc(14px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-left, 0px))
+          calc(40px + env(safe-area-inset-bottom, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-auto-rows: min-content;
+        gap: var(--gap);
+        align-content: start;
+      }
+      .span1 { grid-column: span 1; }
       .span2 { grid-column: span 2; }
       .span3 { grid-column: span 3; }
-      @media (max-width: 1240px) { .stage { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-      @media (max-width: 940px) { .stage { grid-template-columns: repeat(2, minmax(0, 1fr)); } .span3 { grid-column: span 2; } }
-      @media (max-width: 640px) { .stage { grid-template-columns: 1fr; gap: 12px; padding: 12px 10px 90px; } .span2, .span3 { grid-column: span 1; } }
+      .span4 { grid-column: 1 / -1; }
+      @container (max-width: 1100px) { .stage { grid-template-columns: repeat(2, minmax(0, 1fr)); } .span3 { grid-column: span 2; } }
+      @container (max-width: 620px) {
+        .stage { grid-template-columns: 1fr; --gap: 11px; --pad: 15px; --radius: 22px; --radius-sm: 14px; }
+        .span1, .span2, .span3 { grid-column: span 1; }
+      }
+      @container (max-width: 380px) { .stage { --pad: 12px; } }
 
       .card {
-        --accent: #31d8c4; --accent2: #8f7dff;
-        position: relative; background: var(--card-background-color, #101a2b);
-        border: 1px solid rgba(120, 190, 255, .14); border-radius: 26px; padding: 16px;
-        box-shadow: 0 12px 32px rgba(3, 10, 20, .3);
-        animation: rise .44s cubic-bezier(.22, .9, .3, 1) both; animation-delay: var(--d, 0ms);
+        min-width: 0;
+        overflow-wrap: anywhere;
+        position: relative;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: var(--pad);
+        box-shadow: var(--shadow);
+        animation: rise .42s cubic-bezier(.22, .9, .3, 1) both;
+        animation-delay: var(--d, 0ms);
+        transition: box-shadow .25s ease, border-color .25s ease, background-color .3s ease;
       }
-      .card:hover { box-shadow: 0 16px 40px rgba(3, 10, 20, .38); }
-      .titlecard { background: none; border: none; box-shadow: none; padding: 2px 4px 0; }
+      .card:hover { box-shadow: var(--shadow-hover); }
+      .card:focus-within { border-color: var(--accent); }
+
+      .toolbar {
+        position: sticky;
+        top: env(safe-area-inset-top, 0px);
+        z-index: 5;
+        padding: 10px 12px;
+        border-radius: 20px;
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        background: var(--surface);
+        background: color-mix(in srgb, var(--surface) 82%, transparent);
+        animation: none;
+      }
+      .toolbar-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; min-width: 0; flex: 1; }
+      .brand .mark {
+        width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; flex: none;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+      }
+      .brand .mark svg { width: 18px; height: 18px; fill: currentColor; }
+      .brand .txt { min-width: 0; }
+      .brand b { display: block; font-size: .92rem; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .brand small { display: block; font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .iconbtn {
+        width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--line); flex: none;
+        background: var(--surface-2); color: var(--text); display: grid; place-items: center; cursor: pointer;
+        transition: transform .16s ease, background .2s ease, border-color .2s ease;
+      }
+      .iconbtn:hover { background: var(--surface-3); transform: translateY(-1px); }
+      .iconbtn:active { transform: scale(.94); }
+      .iconbtn svg { width: 19px; height: 19px; fill: currentColor; }
+      .theme-picker { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); }
+      .theme-picker select { width: 118px; min-height: 44px; padding: 8px; font-size: 16px; }
+      .theme-picker svg { width: 18px; height: 18px; fill: var(--accent); }
+      .theme-moon { display: none; }
+      :host([data-theme="dark"]) .theme-moon { display: block; }
+      :host([data-theme="dark"]) .theme-sun { display: none; }
+      .toolbar-groups { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 10px; min-width: 0; }
+      .toolbar-group { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+      .group-label { font-size: .72rem; color: var(--muted); flex: none; width: 60px; }
+      .nav {
+        display: flex; gap: 8px; margin-top: 10px; padding-bottom: 2px;
+        overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: 4px;
+      }
+      .nav::-webkit-scrollbar { display: none; }
+      .pill {
+        flex: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted);
+        font: inherit; font-size: .78rem; font-weight: 620; padding: 7px 13px; border-radius: 999px; cursor: pointer; min-height: 44px;
+        transition: background .2s ease, color .2s ease, transform .16s ease;
+      }
+      .pill:hover { color: var(--text); transform: translateY(-1px); }
+      .pill--on {
+        background: var(--accent);
+        border-color: transparent; color: var(--accent-ink);
+      }
+
+      .titlecard { background: none; border: none; box-shadow: none; padding: 2px 4px 0; animation: none; }
+      .titlecard:hover { box-shadow: none; }
       .titlecard h2 { margin: 0; font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em; }
-      .titlecard p { margin: 3px 0 0; font-size: .8rem; color: var(--secondary-text-color, #8fa8bf); }
+      .titlecard p { margin: 3px 0 0; font-size: .8rem; color: var(--muted); }
       .sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-      .sec-head .ico { width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; background: rgba(49, 216, 196, .14); color: #4ee8d4; flex: none; }
+      .sec-head .ico {
+        width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; flex: none;
+        background: var(--surface-3); color: var(--accent);
+      }
       .sec-head .ico svg { width: 18px; height: 18px; fill: currentColor; }
-      .sec-head h3 { margin: 0; font-size: .95rem; font-weight: 650; }
-      .sec-head span { display: block; font-size: .76rem; color: var(--secondary-text-color, #8fa8bf); }
+      .sec-head h3 { margin: 0; font-size: clamp(.9rem, .84rem + .3vw, .98rem); font-weight: 660; }
+      .sec-head span { display: block; font-size: .76rem; color: var(--muted); }
 
       .hero { padding: 0; overflow: hidden; }
-      .hero-media { position: relative; aspect-ratio: 16 / 9; min-height: 200px; background: linear-gradient(140deg, #0d2438, #071322); }
-      .hero-media img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; animation: slowzoom 14s ease-in-out infinite alternate; }
-      .hero-art { position: absolute; inset: 0; display: grid; place-items: center; background: linear-gradient(140deg, #0d2438, #071322); }
-      .hero-art svg { width: 40%; max-width: 200px; fill: rgba(120, 220, 255, .28); animation: pulse 4s ease-in-out infinite; }
-      .hero-media::after { content: ""; position: absolute; inset: 0; z-index: 2; background: linear-gradient(180deg, rgba(4, 12, 22, .05) 20%, rgba(4, 12, 22, .86) 100%); }
+      .hero-media {
+        position: relative; aspect-ratio: 2 / 1; min-height: 190px; overflow: hidden;
+        background: linear-gradient(140deg, var(--surface-3), var(--surface-2));
+      }
+      .hero-media img {
+        position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; background: #fff; display: block;
+        opacity: 0; transition: opacity .5s ease;
+      }
+      .hero-media img.is-ready { opacity: 1; }
+      .hero-art { position: absolute; inset: 0; display: grid; place-items: center; }
+      .hero-media--art { display: grid; place-items: center; width: 100%; }
+      .hero-art svg { width: 40%; max-width: 200px; fill: var(--muted); animation: breathe 4.5s ease-in-out infinite; }
       .hero-media--fallback { display: grid; place-items: center; }
-      .hero-media--fallback svg { width: 42%; max-width: 220px; fill: rgba(120, 220, 255, .35); }
-      .hero-copy { position: absolute; inset: auto 0 0 0; padding: 18px; z-index: 3; display: grid; gap: 4px; }
-      .hero-copy h1 { margin: 0; font-size: 1.4rem; letter-spacing: -.02em; }
-      .hero-copy p { margin: 0; font-size: .84rem; color: #b9cde0; display: flex; align-items: center; gap: 8px; }
-      .hero-badges { position: absolute; top: 14px; right: 14px; z-index: 3; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-      .dot { width: 9px; height: 9px; border-radius: 50%; background: #49e6a4; box-shadow: 0 0 0 0 rgba(73, 230, 164, .55); animation: pulse 2.2s infinite; }
-      .dot--off { background: #ff7c8a; animation: none; }
-      .hero-body { padding: 14px 16px 16px; display: grid; gap: 12px; }
+      .hero-media--fallback svg { width: 42%; max-width: 220px; fill: var(--surface-3); }
+      .hero-copy { display: grid; gap: 4px; }
+      .hero-copy h1 { margin: 0; font-size: clamp(1.15rem, 1rem + 1.1vw, 1.55rem); letter-spacing: -.02em; color: var(--text); }
+      .hero-copy p { margin: 0; font-size: .84rem; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+      .hero-badges { position: absolute; top: 14px; right: 14px; left: 14px; z-index: 3; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .hero-badges .badge { color: #fff; background: rgba(15, 25, 44, .82); }
+      .dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--ok); position: relative; }
+      .dot::after { content: ""; position: absolute; inset: -4px; border: 1px solid var(--ok); border-radius: 50%; animation: pulse 2.2s infinite; }
+      .dot--off { background: var(--bad); }
+      .dot--off::after { display: none; }
+      .hero-body { padding: 14px var(--pad) var(--pad); display: grid; gap: 12px; }
 
       .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-      .chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px;
-        background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .05); font-size: .8rem; font-weight: 600; }
-      .chip svg { width: 15px; height: 15px; fill: currentColor; }
-      .chip--ok { color: #5ff0b4; background: rgba(73, 230, 164, .14); }
-      .chip--bad { color: #ff98a6; background: rgba(255, 124, 138, .14); }
-      .chip--blue { color: #74c8ff; background: rgba(92, 192, 255, .14); }
-      .chip--muted { color: var(--secondary-text-color, #8fa8bf); }
+      .chips--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+      .chips--scroll::-webkit-scrollbar { display: none; }
+      .chip {
+        display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px;
+        min-height: 36px; background: var(--surface-2); border: 1px solid var(--line); max-width: 100%;
+        font-size: .8rem; font-weight: 600; white-space: nowrap;
+      }
+      .chip svg { width: 15px; height: 15px; fill: currentColor; flex: none; }
+      .chip--ok { color: var(--ok); background: rgba(62, 227, 155, .14); }
+      .chip--bad { color: var(--bad); background: rgba(255, 124, 138, .14); }
+      .chip--blue { color: var(--blue); background: rgba(92, 192, 255, .14); }
+      .chip--muted { color: var(--muted); }
+      button.chip { cursor: pointer; font: inherit; font-size: .84rem; min-height: 44px; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; display: block; transition: transform .16s ease, background .2s ease, color .2s ease; }
+      button.chip:hover { transform: translateY(-1px); }
+      button.chip:active { transform: scale(.96); }
+      button.chip[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: transparent; color: var(--accent-ink);
+      }
 
-      .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
-      .tile { display: flex; flex-direction: column; gap: 7px; padding: 12px; border-radius: 20px;
-        background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .05);
-        transition: transform .18s ease, background .18s ease; }
-      .tile:hover { transform: translateY(-2px); background: rgba(255, 255, 255, .075); }
-      .tile .ico { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); }
+      .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      [data-sec="status"] .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      @container (max-width: 440px) { [data-sec="status"] .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      .tile {
+        display: flex; flex-direction: column; gap: 7px; padding: 12px; border-radius: var(--radius-sm);
+        background: var(--surface-2); border: 1px solid transparent;
+        transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      }
+      .tile:hover { transform: translateY(-2px); background: var(--surface-3); border-color: var(--line); }
+      .tile .ico { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; background: var(--surface-3); color: var(--muted); }
       .tile .ico svg { width: 17px; height: 17px; fill: currentColor; }
-      .tile .k { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--secondary-text-color, #8fa8bf); }
-      .tile .v { font-size: .98rem; font-weight: 650; line-height: 1.25; word-break: break-word; }
-      .c-ok { color: #5ff0b4; } .c-bad { color: #ff98a6; } .c-blue { color: #74c8ff; }
-      .c-purple { color: #b5a8ff; } .c-amber { color: #ffc775; } .c-pink { color: #ff9ec4; } .c-cyan { color: #6fe6f0; }
-      .sec-head .ico.c-ok, .tile .ico.c-ok { background: rgba(73, 230, 164, .15); color: #5ff0b4; }
-      .sec-head .ico.c-bad, .tile .ico.c-bad { background: rgba(255, 124, 138, .15); color: #ff98a6; }
-      .sec-head .ico.c-blue, .tile .ico.c-blue { background: rgba(92, 192, 255, .15); color: #74c8ff; }
-      .sec-head .ico.c-purple, .tile .ico.c-purple { background: rgba(143, 125, 255, .15); color: #b5a8ff; }
-      .sec-head .ico.c-amber, .tile .ico.c-amber { background: rgba(255, 199, 117, .15); color: #ffc775; }
-      .sec-head .ico.c-pink, .tile .ico.c-pink { background: rgba(255, 158, 196, .15); color: #ff9ec4; }
-      .sec-head .ico.c-cyan, .tile .ico.c-cyan { background: rgba(111, 230, 240, .15); color: #6fe6f0; }
+      .tile .k { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+      .tile .v { font-size: .96rem; font-weight: 650; line-height: 1.25; word-break: break-word; }
+
+      .c-ok { color: var(--ok); } .c-bad { color: var(--bad); } .c-blue { color: var(--blue); }
+      .c-purple { color: var(--purple); } .c-amber { color: var(--amber); } .c-pink { color: var(--pink); } .c-cyan { color: var(--cyan); }
+      .sec-head .ico.c-ok, .tile .ico.c-ok { background: rgba(62, 227, 155, .16); color: var(--ok); }
+      .sec-head .ico.c-bad, .tile .ico.c-bad { background: rgba(255, 124, 138, .16); color: var(--bad); }
+      .sec-head .ico.c-blue, .tile .ico.c-blue { background: rgba(92, 192, 255, .16); color: var(--blue); }
+      .sec-head .ico.c-purple, .tile .ico.c-purple { background: rgba(143, 125, 255, .16); color: var(--purple); }
+      .sec-head .ico.c-amber, .tile .ico.c-amber { background: rgba(255, 199, 117, .16); color: var(--amber); }
+      .sec-head .ico.c-pink, .tile .ico.c-pink { background: rgba(255, 158, 196, .16); color: var(--pink); }
+      .sec-head .ico.c-cyan, .tile .ico.c-cyan { background: rgba(111, 230, 240, .16); color: var(--cyan); }
 
       .rows { display: grid; gap: 8px; }
-      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; border-radius: 16px; background: rgba(255, 255, 255, .035); }
-      .row .lbl { font-size: .84rem; color: var(--secondary-text-color, #8fa8bf); }
-      .row .val { font-weight: 620; font-size: .92rem; text-align: right; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; border-radius: var(--radius-sm); background: var(--surface-2); }
+      .row > * { min-width: 0; overflow-wrap: anywhere; }
+      .row .lbl { font-size: .84rem; color: var(--muted); }
+      .row .val { font-weight: 620; font-size: .92rem; text-align: right; max-width: 66%; }
+      .row--field { display: grid; gap: 6px; }
+      .row--field input, .row--field select { min-width: 0; }
 
       .media { display: grid; gap: 14px; }
-      .media-now { display: flex; align-items: center; gap: 12px; padding: 13px; border-radius: 20px;
-        background: linear-gradient(135deg, rgba(49, 216, 196, .14), rgba(143, 125, 255, .12)); }
-      .media-now .ico { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); }
-      .media-now .ico svg { width: 22px; height: 22px; fill: #6ff0e0; }
+      .media-now {
+        display: flex; align-items: center; gap: 12px; padding: 13px; border-radius: 20px; position: relative; overflow: hidden;
+        background: linear-gradient(135deg, rgba(49, 216, 196, .16), rgba(143, 125, 255, .14));
+      }
+      :host([data-theme="light"]) .media-now { background: linear-gradient(135deg, rgba(14, 181, 166, .14), rgba(107, 87, 230, .12)); }
+      .media-now .ico { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-3); color: var(--accent); flex: none; }
+      .media-now .ico svg { width: 22px; height: 22px; fill: currentColor; }
       .media-now .t { font-weight: 680; }
-      .media-now .s { font-size: .8rem; color: var(--secondary-text-color, #8fa8bf); }
+      .media-now .s { font-size: .8rem; color: var(--muted); }
+      .eq { display: flex; align-items: flex-end; gap: 3px; height: 16px; margin-left: auto; flex: none; }
+      .eq i { width: 3px; border-radius: 2px; background: var(--accent); height: 100%; transform-origin: bottom; animation: eq .9s ease-in-out infinite; }
+      .eq i:nth-child(2) { animation-delay: .12s; }
+      .eq i:nth-child(3) { animation-delay: .26s; }
+      .eq i:nth-child(4) { animation-delay: .38s; }
+      .eq--idle i { animation: none; transform: scaleY(.3); opacity: .45; }
       .transport { display: flex; gap: 10px; justify-content: center; align-items: center; }
-      .tbtn { width: 46px; height: 46px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .08);
-        background: rgba(255, 255, 255, .06); color: inherit; display: grid; place-items: center; cursor: pointer; transition: transform .15s, background .15s; }
-      .tbtn:hover { transform: translateY(-2px); background: rgba(255, 255, 255, .12); }
+      .tbtn {
+        width: 46px; height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+        background: var(--surface-2); color: inherit; display: grid; place-items: center; cursor: pointer;
+        transition: transform .15s ease, background .15s ease, color .15s ease;
+      }
+      .tbtn:hover { transform: translateY(-2px); background: var(--surface-3); }
+      .tbtn:active { transform: scale(.93); }
       .tbtn svg { width: 20px; height: 20px; fill: currentColor; }
-      .tbtn--main { width: 58px; height: 58px; border-radius: 20px; background: linear-gradient(135deg, #31d8c4, #6ff0a8); color: #04231f; border: none; }
+      .tbtn--main { width: 58px; height: 58px; border-radius: 20px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; }
       .tbtn--main svg { width: 26px; height: 26px; }
-      .tbtn--on { background: rgba(255, 124, 138, .2); color: #ff9ead; }
+      .tbtn--on { background: rgba(255, 124, 138, .18); color: var(--bad); }
 
       .slider { display: flex; align-items: center; gap: 12px; }
-      .slider .ico svg { width: 18px; height: 18px; fill: #74c8ff; }
-      input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px;
-        background: linear-gradient(90deg, #31d8c4, #8f7dff); outline: none; padding: 0; border: none; }
-      input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
-        background: #eaf4ff; border: 3px solid #31d8c4; cursor: pointer; }
-      input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #eaf4ff; border: 3px solid #31d8c4; cursor: pointer; }
+      .slider .ico svg { width: 18px; height: 18px; fill: var(--blue); }
+      .slider .val { min-width: 44px; text-align: right; font-size: .84rem; font-weight: 650; color: var(--muted); }
+      input[type="range"] {
+        -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 44px; border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent) var(--p, 0%), var(--surface-3) var(--p, 0%)) center / 100% 8px no-repeat;
+        outline: none; padding: 0; border: none; cursor: pointer;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+        background: var(--surface); border: 3px solid var(--accent); cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .25); transition: transform .12s ease;
+      }
+      input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+      input[type="range"]::-moz-range-thumb {
+        width: 18px; height: 18px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); cursor: pointer;
+      }
 
-      .field { display: grid; gap: 6px; }
-      .field > label { font-size: .78rem; font-weight: 600; color: var(--secondary-text-color, #8fa8bf); }
-      input, select, textarea { font: inherit; font-size: .9rem; color: inherit; width: 100%;
-        background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .09); border-radius: 14px; padding: 10px 12px; outline: none; }
-      textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
-      input:focus, select:focus, textarea:focus { border-color: rgba(49, 216, 196, .6); box-shadow: 0 0 0 3px rgba(49, 216, 196, .14); }
-      select option { background: #0d1728; color: #eaf4ff; }
+      .field { display: grid; gap: 6px; min-width: 0; }
+      .field > label { font-size: .78rem; font-weight: 600; color: var(--muted); }
+      input, select, textarea {
+        font: inherit; font-size: 16px; color: var(--text); width: 100%; min-width: 0; min-height: 44px;
+        background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; outline: none;
+        transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+      }
+      textarea { min-height: 140px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(49, 216, 196, .16); }
+      select option { background: var(--surface); color: var(--text); }
 
-      .sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; border-radius: 16px; background: rgba(255, 255, 255, .035); }
-      .sw .txt { font-size: .88rem; font-weight: 600; }
-      .sw .sub { font-size: .76rem; color: var(--secondary-text-color, #8fa8bf); }
-      input[type="checkbox"] { -webkit-appearance: none; appearance: none; width: 48px; height: 27px; border-radius: 999px;
-        background: rgba(255, 255, 255, .14); position: relative; cursor: pointer; flex: none; transition: background .2s; border: none; padding: 0; }
-      input[type="checkbox"]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; border-radius: 50%;
-        background: #eaf4ff; transition: transform .2s; }
-      input[type="checkbox"]:checked { background: linear-gradient(135deg, #31d8c4, #6ff0a8); }
+      .sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; border-radius: var(--radius-sm); background: var(--surface-2); }
+      .sw .txt { display: block; font-size: .88rem; font-weight: 600; }
+      .sw .sub { display: block; font-size: .76rem; color: var(--muted); }
+      input[type="checkbox"] {
+        -webkit-appearance: none; appearance: none; width: 48px; min-height: 27px; height: 27px; border-radius: 999px;
+        background: var(--surface-3); position: relative; cursor: pointer; flex: none; transition: background .2s; border: none; padding: 0;
+      }
+      input[type="checkbox"]::after {
+        content: ""; position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; border-radius: 50%;
+        background: #fff; transition: transform .2s cubic-bezier(.3, .8, .3, 1);
+      }
+      input[type="checkbox"]:checked { background: linear-gradient(135deg, var(--accent), var(--ok)); }
       input[type="checkbox"]:checked::after { transform: translateX(21px); }
 
-      .btn { border: none; border-radius: 16px; padding: 11px 16px; font: inherit; font-size: .88rem; font-weight: 650; cursor: pointer;
-        background: rgba(255, 255, 255, .08); color: inherit; display: inline-flex; align-items: center; gap: 8px; justify-content: center;
-        transition: transform .15s, filter .15s, background .15s; }
+      .btn {
+        border: 1px solid transparent; border-radius: var(--radius-sm); padding: 11px 16px; font: inherit; font-size: .88rem;
+        font-weight: 650; cursor: pointer; background: var(--surface-3); color: inherit;
+        display: inline-flex; align-items: center; gap: 8px; justify-content: center; min-height: 44px;
+        transition: transform .15s ease, filter .15s ease, background .15s ease;
+      }
       .btn:hover:not(:disabled) { transform: translateY(-1px); }
+      .btn:active:not(:disabled) { transform: scale(.97); }
       .btn:disabled { opacity: .55; cursor: not-allowed; }
       .btn svg { width: 17px; height: 17px; fill: currentColor; }
-      .btn--primary { background: linear-gradient(135deg, #31d8c4, #6ff0a8); color: #04231f; }
-      .btn--ghost { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .08); }
-      .btn--danger { background: rgba(255, 124, 138, .16); color: #ff9ead; }
+      .btn--primary { background: var(--accent); color: var(--accent-ink); }
+      .btn--ghost { background: var(--surface-2); border-color: var(--line); }
+      .btn--danger { background: rgba(255, 124, 138, .16); color: var(--bad); border-color: transparent; }
       .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
-      .btn-row .btn { flex: 1 1 auto; }
+      .btn-row .btn { flex: 1 1 150px; }
+      .cast-fields { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 8px; }
+      .cast-fields > input { grid-column: 1 / -1; }
+      .cast-fields > .btn { grid-column: 1; grid-row: 2; }
+      .cast-fields > select { grid-column: 2; grid-row: 2; }
+      .advanced { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 12px; }
+      .advanced > summary { cursor: pointer; min-height: 48px; padding: 12px 0; color: var(--text); font-size: .85rem; font-weight: 650; }
+      .advanced > .field { padding-bottom: 14px; gap: 14px; }
 
-      .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .74rem;
-        font-weight: 700; letter-spacing: .03em; background: rgba(255, 255, 255, .07); backdrop-filter: blur(6px); }
-      .badge--ok { background: rgba(73, 230, 164, .18); color: #6df0b4; }
-      .badge--warn { background: rgba(255, 199, 117, .18); color: #ffc775; }
-      .badge--bad { background: rgba(255, 124, 138, .18); color: #ff9ead; }
-      .badge--info { background: rgba(143, 125, 255, .2); color: #c3b8ff; }
+      .badge {
+        display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .74rem;
+        font-weight: 700; letter-spacing: .03em; background: var(--surface-3);
+      }
+      .badge--ok { background: rgba(62, 227, 155, .18); color: var(--ok); }
+      .badge--warn { background: rgba(255, 199, 117, .18); color: var(--amber); }
+      .badge--bad { background: rgba(255, 124, 138, .18); color: var(--bad); }
+      .badge--info { background: rgba(143, 125, 255, .2); color: var(--purple); }
 
-      .msg { padding: 12px 14px; border-radius: 18px; font-size: .86rem; font-weight: 600; }
-      .msg--ok { background: rgba(73, 230, 164, .14); color: #7df3bd; }
-      .msg--err { background: rgba(255, 124, 138, .14); color: #ff9ead; }
-      .hint { font-size: .78rem; color: var(--secondary-text-color, #8fa8bf); margin: 0; }
-      .loading { display: grid; place-items: center; gap: 14px; padding: 80px 20px; color: var(--secondary-text-color, #8fa8bf); }
-      .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .12); border-top-color: #31d8c4; animation: spin .9s linear infinite; }
+      .msg { padding: 12px 14px; border-radius: 18px; font-size: .86rem; font-weight: 600; animation: slidein .3s ease both; }
+      .msg--ok { background: rgba(62, 227, 155, .14); color: var(--ok); }
+      .msg--err { background: rgba(255, 124, 138, .14); color: var(--bad); }
+      .hint { font-size: .78rem; color: var(--muted); margin: 0; }
 
-      @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-      @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(73, 230, 164, .5); } 70% { box-shadow: 0 0 0 10px rgba(73, 230, 164, 0); } 100% { box-shadow: 0 0 0 0 rgba(73, 230, 164, 0); } }
-      @keyframes slowzoom { from { transform: scale(1); } to { transform: scale(1.06); } }
+      .loading { display: grid; gap: 12px; padding: 8px 0; }
+      .skel { height: 74px; border-radius: 20px; background: var(--surface-2); position: relative; overflow: hidden; }
+      .skel::after {
+        content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, var(--surface-3), transparent);
+        animation: shimmer 1.4s infinite;
+      }
+      .skel--tall { height: 190px; }
+      .spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--surface-3); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+
+      @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.99); } to { opacity: 1; transform: none; } }
+      @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+      @keyframes pulse { from { transform: scale(.6); opacity: .7; } to { transform: scale(1.6); opacity: 0; } }
+      @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .8; } 50% { transform: scale(1.05); opacity: 1; } }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes shimmer { to { transform: translateX(100%); } }
+      @keyframes eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+      .is-loading svg { animation: spin .9s linear infinite; }
+      :host([data-paused]) *, :host([data-paused]) *::after { animation-play-state: paused !important; }
+      @container (max-width: 440px) {
+        .toolbar-main { gap: 7px; }
+        .toolbar .brand .mark { display: none; }
+        .theme-picker svg { display: none !important; }
+        .theme-picker select { width: 103px; }
+        .brand small { font-size: .67rem; }
+      }
+
+      @media (hover: none) {
+        .card:hover { box-shadow: var(--shadow); }
+        .tile:hover, .chip:hover, .tbtn:hover, .btn:hover, .iconbtn:hover, .pill:hover { transform: none; }
+      }
+      @media (max-height: 560px) {
+        .toolbar { position: relative; top: auto; }
+        [data-sec] { scroll-margin-top: 12px; }
+      }
+      @media (pointer: coarse) {
+        button.chip, .pill { min-height: 44px; }
+        .tbtn { width: 52px; height: 52px; }
+        .tbtn--main { width: 62px; height: 62px; }
+        input[type="range"]::-webkit-slider-thumb { width: 28px; height: 28px; }
+        input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; }
+      }
       @media (prefers-reduced-motion: reduce) {
-        .card, .hero-media img, .dot, .spinner { animation: none !important; }
+        :host, *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+        .eq i { transform: scaleY(.5); }
       }
     `;
     return style;
   }
 
   _root() {
+    this.dataset.theme = "dark";
     this.shadowRoot.innerHTML = "";
     this.shadowRoot.append(this._style());
     this._stage = h("div", {class: "stage"});
@@ -517,16 +911,17 @@ class MaikaPanel extends HTMLElement {
     const media = this._entity("media_player") || "";
     const mediaState = this._state(media);
     const online = this._entity("binary_sensor", "online");
-    const image = h("img", {src: HERO_IMAGE, alt: "Loa MAIKA", loading: "lazy"});
+    const image = h("img", {src: HERO_IMAGE, alt: "Loa MAIKA", decoding: "async", referrerpolicy: "no-referrer"});
     const mediaBox = h("div", {class: "hero-media"});
     const art = h("div", {class: "hero-art"});
     art.append(this._speakerArt());
     mediaBox.append(art);
     mediaBox.append(image);
+    image.addEventListener("load", () => image.classList.add("is-ready"));
     image.addEventListener("error", () => {
-      image.remove();
-      mediaBox.classList.add("hero-media--fallback");
+      image.hidden = true;
     });
+    if (image.complete && image.naturalWidth) image.classList.add("is-ready");
 
     const stateText = mediaState ? this._stateLabel(mediaState.state) : "Không tìm thấy loa";
     mediaBox.append(
@@ -534,17 +929,15 @@ class MaikaPanel extends HTMLElement {
         h("span", {class: "badge badge--info", text: entry?.title || "MAIKA"}),
       ])
     );
-    mediaBox.append(
-      h("div", {class: "hero-copy"}, [
+    const copy = h("div", {class: "hero-copy"}, [
         h("h1", {text: this._speakerName()}),
         h("p", {}, [
           h("span", {class: ["dot", this._isOn(online) ? "" : "dot--off"].filter(Boolean).join(" ")}),
           document.createTextNode(stateText),
         ]),
-      ])
-    );
+      ]);
 
-    const body = h("div", {class: "hero-body"}, [this._chips()]);
+    const body = h("div", {class: "hero-body"}, [copy, this._chips()]);
     return this._card("hero span2", [mediaBox, body], delay);
   }
 
@@ -571,7 +964,7 @@ class MaikaPanel extends HTMLElement {
 
   _statusSection(delay) {
     const rows = [
-      ["online", "c-ok", "Trực tuyến", this._entity("binary_sensor", "online"), "access-point"],
+      ["online", "c-ok", "Trực tuyến", this._entity("binary_sensor", "online"), "online"],
       ["wifi", "c-blue", "Wi-Fi", this._entity("binary_sensor", "wifi_connected"), "wifi"],
       ["volume", "c-blue", "Âm lượng", this._entity("sensor", "volume"), "volume"],
       ["playback", "c-purple", "Đang phát", this._entity("sensor", "playback_status"), "play"],
@@ -604,16 +997,20 @@ class MaikaPanel extends HTMLElement {
     }
     const state = this._state(media);
     const attrs = state?.attributes || {};
-    const volume = Math.round((Number(attrs.volume_level) || 0) * 100);
+    const volume = this._draft.volume ?? Math.round((Number(attrs.volume_level) || 0) * 100);
     const muted = Boolean(attrs.is_volume_muted);
     const playing = state?.state === "playing";
 
+    const bars = h("div", {class: playing ? "eq" : ["eq", "eq--idle"].join(" "), "aria-hidden": "true"});
+    for (let index = 0; index < 4; index += 1) bars.append(h("i"));
+
     const now = h("div", {class: "media-now"}, [
       h("div", {class: "ico"}, [svgIcon(playing ? ICONS.pause : ICONS.play)]),
-      h("div", {}, [
+      h("div", {style: "min-width:0"}, [
         h("div", {class: "t", text: attrs.media_title || this._speakerName()}),
         h("div", {class: "s", text: this._stateLabel(state?.state || "unknown")}),
       ]),
+      bars,
     ]);
 
     const transport = h("div", {class: "transport"}, [
@@ -623,7 +1020,7 @@ class MaikaPanel extends HTMLElement {
       this._tbtn(muted ? "micOff" : "volume", "mute", media, muted ? "tbtn--on" : ""),
     ]);
 
-    const range = h("input", {type: "range", min: "0", max: "100", step: "1", value: String(volume), dataset: {field: "volume", entity: media}});
+    const range = h("input", {type: "range", min: "0", max: "100", step: "1", value: String(volume), "aria-label": "Âm lượng loa", "aria-valuetext": `${volume}%`, dataset: {field: "volume", entity: media}});
     const slider = h("div", {class: "slider"}, [
       h("span", {class: "ico"}, [svgIcon(ICONS.volume)]),
       range,
@@ -632,12 +1029,12 @@ class MaikaPanel extends HTMLElement {
 
     const form = h("form", {class: "field", dataset: {form: "cast"}}, [
       h("label", {text: "Phát âm thanh qua cloud (URL MP3/AAC)"}),
-      h("div", {class: "btn-row"}, [
-        h("input", {type: "url", name: "cast_url", placeholder: "https://.../maika.mp3", dataset: {field: "cast_url"}}),
-        h("select", {name: "cast_type", dataset: {field: "cast_type"}}, [
-          h("option", {value: "music", text: "Nhạc"}),
-          h("option", {value: "audio/mpeg", text: "MP3"}),
-          h("option", {value: "audio/aac", text: "AAC"}),
+      h("div", {class: "cast-fields"}, [
+        h("input", {type: "url", name: "cast_url", placeholder: "https://.../maika.mp3", value: this._draft.cast_url || "", required: true, dataset: {field: "cast_url"}}),
+        h("select", {name: "cast_type", "aria-label": "Định dạng âm thanh", dataset: {field: "cast_type"}}, [
+          h("option", {value: "music", text: "Nhạc", selected: !this._draft.cast_type || this._draft.cast_type === "music"}),
+          h("option", {value: "audio/mpeg", text: "MP3", selected: this._draft.cast_type === "audio/mpeg"}),
+          h("option", {value: "audio/aac", text: "AAC", selected: this._draft.cast_type === "audio/aac"}),
         ]),
         h("button", {class: "btn btn--ghost", type: "submit", text: "Phát"}),
       ]),
@@ -651,7 +1048,8 @@ class MaikaPanel extends HTMLElement {
   }
 
   _tbtn(icon, action, entity, extra) {
-    const btn = h("button", {class: ["tbtn", extra].filter(Boolean).join(" "), type: "button", dataset: {action, entity}});
+    const labels = {prev: "Bài trước", next: "Bài tiếp theo", playpause: icon === "pause" ? "Tạm dừng" : "Phát nhạc", mute: extra === "tbtn--on" ? "Bật âm lượng" : "Tắt âm lượng"};
+    const btn = h("button", {class: ["tbtn", extra].filter(Boolean).join(" "), type: "button", title: labels[action], "aria-label": labels[action], "aria-pressed": action === "mute" ? String(extra === "tbtn--on") : null, dataset: {action, entity}});
     btn.append(svgIcon(ICONS[icon]));
     return btn;
   }
@@ -688,13 +1086,13 @@ class MaikaPanel extends HTMLElement {
     if (!entityId) return null;
     const state = this._state(entityId);
     const options = state?.attributes?.options || [];
-    const select = h("select", {dataset: {action: "select", entity: entityId}});
+    const select = h("select", {id: `control-${entityId}`, dataset: {action: "select", entity: entityId}});
     for (const option of options) {
       select.append(h("option", {value: option, text: option, selected: option === state?.state}));
     }
-    return h("div", {class: "row"}, [
-      h("span", {class: "lbl", text: label}),
-      h("span", {style: "max-width:58%"}, [select]),
+    return h("div", {class: "row row--field"}, [
+      h("label", {class: "lbl", text: label, for: `control-${entityId}`}),
+      select,
     ]);
   }
 
@@ -709,13 +1107,14 @@ class MaikaPanel extends HTMLElement {
       const state = this._state(entityId);
       const input = h("input", {
         type: "text",
-        value: UNKNOWN.has(String(state?.state)) ? "" : String(state?.state || ""),
+        id: `control-${entityId}`,
+        value: this._draft[`text:${entityId}`] ?? (UNKNOWN.has(String(state?.state)) ? "" : String(state?.state || "")),
         dataset: {action: "text", entity: entityId, field: `text:${entityId}`},
         placeholder: label,
       });
-      return h("div", {class: "row"}, [
-        h("span", {class: "lbl", text: label}),
-        h("span", {style: "max-width:62%"}, [input]),
+      return h("div", {class: "row row--field"}, [
+        h("label", {class: "lbl", text: label, for: `control-${entityId}`}),
+        input,
       ]);
     });
     return this._card("span1", [
@@ -882,17 +1281,22 @@ class MaikaPanel extends HTMLElement {
       ]),
       h("div", {class: "field"}, [h("label", {text: "Nguồn âm báo thành công"}), sourceSelect]),
       h("div", {class: "field"}, [h("label", {text: "Thời điểm phát âm báo"}), timingSelect]),
-      h("div", {class: "field"}, [
+      h("div", {class: "field", hidden: value("audio_source", options[OPTION_KEYS.audioSource]) !== "custom", dataset: {customAudio: ""}}, [
         h("label", {text: "URL MP3 thành công tuỳ chỉnh"}),
         h("input", {type: "url", name: "audio_url", placeholder: "https://.../thanh-cong.mp3", value: value("audio_url", options[OPTION_KEYS.audioUrl] || ""), dataset: {field: "audio_url"}}),
       ]),
-      h("div", {class: "field"}, [
-        h("label", {text: "Media player phát âm báo"}),
-        h("input", {type: "text", name: "media_player", placeholder: "media_player.loa_phong_khach", value: value("media_player", options[OPTION_KEYS.mediaPlayer] || ""), dataset: {field: "media_player"}}),
-      ]),
-      h("div", {class: "field"}, [
-        h("label", {text: "Rule câu lệnh (mỗi dòng: câu lệnh | entity_id | action)"}),
-        h("textarea", {name: "rules", dataset: {field: "rules"}, text: value("rules", options[OPTION_KEYS.rules] || "")}),
+      h("details", {class: "advanced"}, [
+        h("summary", {text: "Nâng cao · âm báo & rule giọng nói"}),
+        h("div", {class: "field"}, [
+          h("div", {class: "field"}, [
+            h("label", {text: "Media player phát âm báo"}),
+            h("input", {type: "text", name: "media_player", placeholder: "media_player.loa_phong_khach", value: value("media_player", options[OPTION_KEYS.mediaPlayer] || ""), dataset: {field: "media_player"}}),
+          ]),
+          h("div", {class: "field"}, [
+            h("label", {text: "Rule: câu lệnh | entity_id | action"}),
+            h("textarea", {name: "rules", dataset: {field: "rules"}, text: value("rules", options[OPTION_KEYS.rules] || "")}),
+          ]),
+        ]),
       ]),
       h("div", {class: "btn-row"}, [
         h("button", {class: "btn btn--primary", type: "submit", text: "Lưu cấu hình", disabled: this._busy}),
@@ -900,110 +1304,269 @@ class MaikaPanel extends HTMLElement {
       ]),
     ]);
 
-    return this._card("span3", [
-      this._sectionHead("tune", "Cấu hình loa", "Chu kỳ, cast, âm báo, rule giọng nói — áp dụng mọi loa cùng tài khoản", "c-purple"),
+    return this._card("span2", [
+      this._sectionHead("tune", "Cấu hình loa", "Áp dụng cho mọi loa cùng tài khoản", "c-purple"),
       form,
     ], delay);
   }
 
-  _entrySwitch(delay) {
+  _toolbar() {
     const entries = this._snapshot?.entries || [];
-    if (entries.length < 2) return null;
-    const chips = entries.map((entry, index) =>
+    const serials = this._serials();
+    const active = this._activeSerial();
+    const entry = this._entry();
+
+    const accountChips = entries.map((item, index) =>
       h("button", {
-        class: ["chip", index === this._activeIndex ? "chip--ok" : "chip--muted"].join(" "),
+        class: ["chip", index === this._activeIndex ? "" : "chip--muted"].join(" "),
         type: "button",
-        style: "cursor:pointer;border:none;font:inherit",
+        "aria-pressed": index === this._activeIndex ? "true" : "false",
+        disabled: this._busy,
+        title: item.title || `Tài khoản ${index + 1}`,
         dataset: {action: "entry", index: String(index)},
-        text: entry.title || `Loa ${index + 1}`,
+        text: item.title || `Tài khoản ${index + 1}`,
       })
     );
-    return this._card("titlecard span2", [h("div", {class: "chips"}, chips)], delay);
-  }
 
-  _deviceSwitch(delay) {
-    const serials = this._serials();
-    if (serials.length < 2) return null;
-    const active = this._activeSerial();
-    const chips = serials.map((serial) =>
+    const deviceChips = serials.map((serial) =>
       h("button", {
-        class: ["chip", serial === active ? "chip--ok" : "chip--muted"].join(" "),
+        class: ["chip", serial === active ? "" : "chip--muted"].join(" "),
         type: "button",
-        style: "cursor:pointer;border:none;font:inherit",
+        "aria-pressed": serial === active ? "true" : "false",
+        disabled: this._busy,
+        title: this._deviceLabel(serial),
         dataset: {action: "device", serial},
         text: this._deviceLabel(serial),
       })
     );
-    return this._card("titlecard span2", [
-      h("div", {class: "chips"}, chips),
-      h("p", {
-        class: "hint",
-        text: `${serials.length} loa trong ${this._entry()?.title || "MAIKA"} — chạm để xem và cấu hình từng loa.`,
-      }),
-    ], delay);
+
+    const groups = [];
+    if (accountChips.length > 1) {
+      groups.push(h("div", {class: "toolbar-group"}, [h("span", {class: "group-label", text: "Tài khoản"}), h("div", {class: "chips chips--scroll", role: "group", "aria-label": "Chọn tài khoản MAIKA"}, accountChips)]));
+    }
+    if (deviceChips.length > 1) {
+      groups.push(h("div", {class: "toolbar-group"}, [h("span", {class: "group-label", text: "Chọn loa"}), h("div", {class: "chips chips--scroll", role: "group", "aria-label": "Chọn loa"}, deviceChips)]));
+    }
+
+    const nav = h("nav", {class: "nav", "aria-label": "Các mục quản lý loa"}, SECTIONS.map((section) =>
+      h("button", {
+        class: ["pill", section.id === this._activeSection ? "pill--on" : ""].filter(Boolean).join(" "),
+        type: "button",
+        "aria-current": section.id === this._activeSection ? "location" : null,
+        dataset: {action: "jump", section: section.id},
+        text: section.label,
+      })
+    ));
+
+    return this._card("toolbar span4", [
+      h("div", {class: "toolbar-main"}, [
+        this._narrow ? h("button", {class: "iconbtn", type: "button", "aria-label": "Mở menu Home Assistant", dataset: {action: "menu"}}, [svgIcon(ICONS.menu)]) : null,
+        h("div", {class: "brand"}, [
+          h("span", {class: "mark"}, [svgIcon(ICONS.speaker)]),
+          h("span", {class: "txt"}, [
+            h("b", {text: "MAIKA"}),
+            h("small", {text: this._speakerName(), title: this._speakerName()}),
+          ]),
+        ]),
+        h("label", {class: "theme-picker"}, [
+          h("span", {class: "theme-sun", "aria-hidden": "true"}, [svgIcon(ICONS.sun)]),
+          h("span", {class: "theme-moon", "aria-hidden": "true"}, [svgIcon(ICONS.moon)]),
+          h("select", {"aria-label": "Giao diện sáng, tối hoặc tự động", title: "Tự động theo giao diện Home Assistant", dataset: {action: "theme"}}, THEME_MODES.map((mode) => h("option", {value: mode, selected: mode === this._themeMode, text: THEME_MODE_LABELS[mode]}))),
+        ]),
+        h("button", {
+          class: `iconbtn${this._loading ? " is-loading" : ""}`,
+          type: "button",
+          title: "Làm mới dữ liệu loa",
+          "aria-label": "Làm mới dữ liệu loa",
+          disabled: this._loading,
+          dataset: {action: "refreshdata"},
+        }, [svgIcon(ICONS.refresh)]),
+      ]),
+      groups.length ? h("div", {class: "toolbar-groups"}, groups) : null,
+      entry ? nav : null,
+    ]);
+  }
+
+  _reducedMotion() {
+    return typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false;
+  }
+
+  _syncRangeFills() {
+    for (const range of this.shadowRoot.querySelectorAll('input[type="range"]')) {
+      const min = Number(range.min) || 0;
+      const max = Number(range.max) || 100;
+      const value = Number(range.value) || 0;
+      const percent = max > min ? ((value - min) / (max - min)) * 100 : 0;
+      range.style.setProperty("--p", `${percent.toFixed(1)}%`);
+    }
+  }
+
+  _setActiveSection(section, scroll) {
+    if (section) this._activeSection = section;
+    for (const pill of this.shadowRoot.querySelectorAll('[data-action="jump"]')) {
+      const active = pill.dataset.section === this._activeSection;
+      pill.classList.toggle("pill--on", active);
+      if (active) pill.setAttribute("aria-current", "location");
+      else pill.removeAttribute("aria-current");
+    }
+    if (!scroll) return;
+    const target = this._stage.querySelector(`[data-sec="${this._activeSection}"]`);
+    if (target) {
+      target.scrollIntoView({behavior: this._reducedMotion() ? "instant" : "smooth", block: "start"});
+    }
+  }
+
+  _observeSections() {
+    this._toolbarObserver?.disconnect();
+    const toolbar = this._stage.querySelector(".toolbar");
+    if (toolbar) {
+      const resize = () => this.style.setProperty("--toolbar-offset", `${toolbar.offsetHeight + 24}px`);
+      resize();
+      if (typeof ResizeObserver === "function") {
+        this._toolbarObserver = new ResizeObserver(resize);
+        this._toolbarObserver.observe(toolbar);
+      }
+    }
+    this._sectionObserver?.disconnect();
+    if (typeof IntersectionObserver !== "function") return;
+    const targets = [...this._stage.querySelectorAll("[data-sec]")];
+    if (!targets.length) return;
+    const intersections = new Map();
+    this._sectionObserver = new IntersectionObserver((records) => {
+      for (const record of records) intersections.set(record.target, record);
+      const visible = [...intersections.values()]
+        .filter((record) => record.isIntersecting)
+        .sort((first, second) => first.target.getBoundingClientRect().top - second.target.getBoundingClientRect().top)[0];
+      if (!visible) return;
+      const section = visible.target.dataset.sec;
+      if (section !== this._activeSection) this._setActiveSection(section, false);
+    }, {root: this, rootMargin: `-${toolbar?.offsetHeight || 0}px 0px -35% 0px`, threshold: 0});
+    for (const target of targets) this._sectionObserver.observe(target);
   }
 
   _render() {
     if (!this._stage) return;
-    const focusField = this.shadowRoot.activeElement?.dataset?.field || "";
-    this._stage.innerHTML = "";
-
+    const cards = [["toolbar", this._toolbar()]];
+    const message = h("div", {
+      class: `msg msg--${this._message?.type === "ok" ? "ok" : "err"} span4`,
+      hidden: !this._message,
+      role: "status",
+      "aria-live": "polite",
+      text: this._message?.text || "",
+    });
+    cards.push(["message", message]);
     if (!this._snapshot) {
-      this._stage.append(
-        this._card("span2", [h("div", {class: "loading"}, [h("div", {class: "spinner"}), h("span", {text: "Đang tải dữ liệu loa..."})])])
-      );
-      return;
-    }
-
-    if (!this._entry()) {
-      this._stage.append(
+      if (this._loading) cards.push(["loading", this._card("span4", [h("div", {class: "loading", role: "status", "aria-label": "Đang tải dữ liệu loa"}, [
+          h("div", {class: ["skel", "skel--tall"].join(" ")}),
+          h("div", {class: "skel"}),
+          h("div", {class: "skel"}),
+          h("span", {class: "hint", text: "Đang tải dữ liệu loa..."}),
+        ])])]);
+    } else if (!this._entry()) {
+      cards.push(["empty",
         this._card("span2", [
           this._sectionHead("speaker", "Chưa có loa MAIKA", "Hãy thêm integration MAIKA Speaker trước", "c-bad"),
           h("p", {class: "hint", text: "Vào Settings → Devices & services → Add integration → MAIKA Speaker."}),
-        ])
+        ]),
+      ]);
+    } else {
+      cards.push(
+        ["overview", this._heroCard(30)],
+        ["media", this._mediaSection(60)],
+        ["status", this._statusSection(90)],
+        ["assistant", this._assistantSection(120)],
+        ["identity", this._identitySection(150)],
+        ["info", this._deviceSection(180)],
+        ["firmware", this._firmwareSection(210)],
+        ["warranty", this._warrantySection(240)],
+        ["tools", this._toolsSection(270)],
+        ["license", this._licenseSection(300)],
+        ["settings", this._settingsSection(330)],
       );
-      return;
     }
+    const previous = new Map([...this._stage.children].map((card) => [card.dataset.card, card]));
+    let cursor = this._stage.firstElementChild;
+    let structureChanged = false;
+    for (const [section, card] of cards) {
+      if (!card) continue;
+      card.dataset.card = section;
+      if (SECTIONS.some((item) => item.id === section)) card.dataset.sec = section;
+      this._labelFields(card);
+      const current = previous.get(section);
+      const node = current ? this._patchNode(current, card) : card;
+      if (node !== cursor) {
+        this._stage.insertBefore(node, cursor);
+        structureChanged = true;
+      }
+      cursor = node.nextElementSibling;
+      previous.delete(section);
+    }
+    for (const card of previous.values()) { card.remove(); structureChanged = true; }
+    this._stage.setAttribute("aria-busy", String(this._loading || this._busy));
+    this._syncRangeFills();
+    if (structureChanged) this._observeSections();
+  }
 
-    if (this._message) {
-      this._stage.append(
-        this._card("span2", [h("div", {class: `msg msg--${this._message.type === "ok" ? "ok" : "err"}`, text: this._message.text})], 0)
-      );
+  _labelFields(card) {
+    for (const label of card.querySelectorAll(".field > label:not(.sw)")) {
+      const sibling = label.nextElementSibling;
+      const controls = "input:not([type=checkbox]), select, textarea";
+      const input = sibling?.matches(controls) ? sibling : sibling?.querySelector(controls);
+      if (!input || label.htmlFor) continue;
+      input.id = input.id || `field-${input.dataset.field || input.name}`;
+      label.htmlFor = input.id;
     }
+  }
 
-    const cards = [
-      this._entrySwitch(10),
-      this._deviceSwitch(25),
-      this._heroCard(30),
-      this._mediaSection(60),
-      this._statusSection(90),
-      this._assistantSection(120),
-      this._identitySection(150),
-      this._deviceSection(180),
-      this._firmwareSection(210),
-      this._warrantySection(240),
-      this._toolsSection(270),
-      this._licenseSection(300),
-      this._settingsSection(330),
-    ];
-    for (const card of cards) {
-      if (card) this._stage.append(card);
+  _patchNode(current, next) {
+    if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
+      current.replaceWith(next);
+      return next;
     }
-
-    if (focusField) {
-      const target = this._stage.querySelector(`[data-field="${CSS.escape(focusField)}"]`);
-      if (target) target.focus();
+    if (current.nodeType === Node.TEXT_NODE) {
+      if (current.textContent !== next.textContent) current.textContent = next.textContent;
+      return current;
     }
+    const focused = current === this.shadowRoot.activeElement;
+    if (current.tagName === "IMG" && current.getAttribute("src") === next.getAttribute("src")) return current;
+    const preserveAttribute = (name) => (current.tagName === "DETAILS" && name === "open") || (focused && name === "value");
+    for (const {name} of [...current.attributes]) {
+      if (!next.hasAttribute(name) && !preserveAttribute(name)) current.removeAttribute(name);
+    }
+    for (const {name, value} of next.attributes) {
+      if (!preserveAttribute(name) && current.getAttribute(name) !== value) current.setAttribute(name, value);
+    }
+    const nextValue = next.value;
+    if (focused && current.tagName === "SELECT") return current;
+    if (current.tagName !== "TEXTAREA") {
+      const children = [...current.childNodes];
+      const nextChildren = [...next.childNodes];
+      nextChildren.forEach((child, index) => {
+        if (children[index]) this._patchNode(children[index], child);
+        else current.append(child);
+      });
+      for (const child of children.slice(nextChildren.length)) child.remove();
+    }
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(current.tagName) && !focused) {
+      if (current.value !== nextValue) current.value = nextValue;
+      if (current.tagName === "INPUT") current.checked = next.checked;
+    }
+    return current;
   }
 
   _signature() {
     const entry = this._entry();
     const states = {};
-    const entities = entry?.entities || {};
+    const entities = entry?.device_entities?.[this._activeSerial()] || entry?.entities || {};
     for (const ids of Object.values(entities)) {
       for (const id of ids) {
         const state = this._hass?.states?.[id];
-        if (state) states[id] = `${state.state}|${JSON.stringify(state.attributes?.options || "")}`;
+        if (state) {
+          const attrs = state.attributes || {};
+          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title];
+        }
       }
     }
     return JSON.stringify({
@@ -1015,6 +1578,7 @@ class MaikaPanel extends HTMLElement {
       license: entry?.license,
       devices: entry?.devices,
       busy: this._busy,
+      loading: this._loading,
       message: this._message,
       narrow: this._narrow,
     });
@@ -1028,6 +1592,9 @@ class MaikaPanel extends HTMLElement {
   }
 
   async _load() {
+    if (this._loading) return;
+    this._loading = true;
+    this._maybeUpdate();
     try {
       const snapshot = await this._hass.callApi("GET", API);
       this._snapshot = snapshot;
@@ -1035,6 +1602,7 @@ class MaikaPanel extends HTMLElement {
     } catch (err) {
       this._message = {type: "error", text: `Không tải được dữ liệu panel: ${this._errorText(err)}`};
     }
+    this._loading = false;
     this._lastSignature = "";
     this._maybeUpdate();
   }
@@ -1068,8 +1636,13 @@ class MaikaPanel extends HTMLElement {
     if (el.type === "checkbox") return;
     this._draft[field] = el.value;
     if (field === "volume") {
+      el.setAttribute("aria-valuetext", `${el.value}%`);
       const label = el.parentElement?.querySelector(".val");
       if (label) label.textContent = `${el.value}%`;
+      const min = Number(el.min) || 0;
+      const max = Number(el.max) || 100;
+      const percent = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
+      el.style.setProperty("--p", `${percent.toFixed(1)}%`);
     }
   }
 
@@ -1080,9 +1653,18 @@ class MaikaPanel extends HTMLElement {
       this._draft[el.dataset.field] = el.type === "checkbox" ? el.checked : el.value;
     }
     const action = el.dataset.action;
+    if (action === "theme") {
+      this._setTheme(el.value);
+      return;
+    }
+    if (el.dataset.field === "audio_source") {
+      const customAudio = this.shadowRoot.querySelector("[data-custom-audio]");
+      if (customAudio) customAudio.hidden = el.value !== "custom";
+    }
     if (!action) {
       if (el.dataset.field === "volume" && el.dataset.entity) {
         const level = Math.min(1, Math.max(0, Number(el.value) / 100));
+        delete this._draft.volume;
         this._callService("media_player", "volume_set", {entity_id: el.dataset.entity, volume_level: level});
       }
       return;
@@ -1092,6 +1674,7 @@ class MaikaPanel extends HTMLElement {
     } else if (action === "switch") {
       this._callService("switch", el.checked ? "turn_on" : "turn_off", {entity_id: el.dataset.entity});
     } else if (action === "text") {
+      delete this._draft[el.dataset.field];
       this._callService("text", "set_value", {entity_id: el.dataset.entity, value: el.value});
     }
   }
@@ -1103,20 +1686,43 @@ class MaikaPanel extends HTMLElement {
     const entity = target.dataset.entity;
 
     if (action === "entry") {
+      if (this._busy) return;
       this._activeIndex = Number(target.dataset.index) || 0;
       this._deviceSerial = "";
       this._draft = {};
       this._message = null;
+      this._activeSection = "overview";
       this._lastSignature = "";
       this._maybeUpdate();
       return;
     }
 
     if (action === "device") {
+      if (this._busy) return;
       this._deviceSerial = target.dataset.serial || "";
-      this._draft = {};
+      for (const field of Object.keys(this._draft)) {
+        if (["volume", "cast_url", "cast_type"].includes(field) || field.startsWith("text:")) delete this._draft[field];
+      }
       this._lastSignature = "";
       this._maybeUpdate();
+      this._setActiveSection("overview", false);
+      return;
+    }
+
+    if (action === "menu") {
+      this.dispatchEvent(new CustomEvent("hass-toggle-menu", {bubbles: true, composed: true}));
+      return;
+    }
+
+    if (action === "jump") {
+      this._setActiveSection(target.dataset.section, true);
+      return;
+    }
+
+    if (action === "refreshdata") {
+      this._message = null;
+      this._lastSignature = "";
+      this._load();
       return;
     }
 

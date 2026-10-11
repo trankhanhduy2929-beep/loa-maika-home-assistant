@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản phát hành hiện tại: **v1.9.3**.
+Bản hiện tại: **v1.9.4**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -54,7 +54,10 @@ bài đang phát), toàn bộ cảm biến, nút, công tắc và lựa chọn c
 thời hiển thị bản quyền đang dùng (key, gói, hạn) và cho nhập/đổi key, chỉnh cấu
 hình ngay tại panel thay vì mở phần **Cấu hình**. Từ bản `1.9.2`, nếu một tài
 khoản MAIKA có nhiều loa, panel hiện hàng chip chọn loa và chỉ hiển thị entity
-của loa đang chọn. Chi tiết xem
+của loa đang chọn. Bản `1.9.4` tối ưu điện thoại/tablet/máy tính, có thanh
+chuyển mục nhanh và lựa chọn **Tự động / Sáng / Tối** ở góc trên. Giao diện
+giữ nội dung đang nhập khi loa cập nhật, hỗ trợ giảm chuyển động; không cần
+cài thêm Mushroom hoặc card-mod. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
 
 ## Cài bằng HACS
@@ -77,13 +80,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.9.3
+## File phát hành v1.9.4
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.9.3-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.9.3-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.9.4-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.9.4-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.9.3-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.9.4-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

@@ -2,6 +2,32 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.9.4] - 2026-10-11
+
+### Changed
+
+- Panel MAIKA tự chia 1 / 2 / 4 cột theo chiều rộng thực tế của panel, kể cả
+  khi mở sidebar Home Assistant, dùng tablet, điện thoại ngang hoặc màn hình nhỏ.
+- Chọn **Tự động / Sáng / Tối** ngay trên thanh công cụ. Tự động theo Home
+  Assistant; chế độ chọn tay có bảng màu riêng và được nhớ trên trình duyệt.
+- Thanh chuyển nhanh đến từng mục, nút mở menu HA trên điện thoại, vùng bấm
+  lớn hơn, hỗ trợ bàn phím và nhãn cho các nút điều khiển/ô nhập.
+- Ảnh loa không bị cắt; nhóm thông tin rõ hơn, phần cấu hình nâng cao có thể
+  thu gọn. Ô URL MP3 chỉ hiện khi chọn âm báo tuỳ chỉnh.
+- Hiệu ứng xuất hiện, trạng thái đang phát và phản hồi nút nhẹ hơn; giảm chuyển
+  động theo thiết lập thiết bị và dừng animation khi tab bị ẩn.
+
+### Fixed
+
+- Không dựng lại toàn bộ dashboard mỗi lần trạng thái loa thay đổi: giữ vị trí
+  cuộn, ô đang nhập, con trỏ, nội dung cast, key và rule chưa lưu.
+- Cập nhật tên bài, âm lượng và mute khi chỉ thuộc tính media player thay đổi.
+- Giữ cấu hình/key chưa lưu khi chuyển giữa các loa cùng tài khoản.
+- Lỗi tải dữ liệu có thông báo và nút thử lại, không còn chỉ hiện màn hình chờ.
+- Đổi màu vẫn dùng được khi trình duyệt chặn lưu trữ; ảnh lỗi có hình thay thế.
+
+License, gói, hạn dùng, API kích hoạt và ghép entity theo `unique_id` giữ nguyên.
+
 ## [1.9.3] - 2026-10-11
 
 ### Fixed
