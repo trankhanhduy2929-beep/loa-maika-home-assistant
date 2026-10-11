@@ -83,6 +83,7 @@ class MaikaLicenseEntitlement:
     issued_at: int
     expires_at: int
     grace_until: int
+    key_hint: str = ""
 
     def state_at(self, timestamp: int | None = None) -> str:
         """Return active, grace or expired at a Unix timestamp."""
@@ -233,6 +234,7 @@ class MaikaLicenseClient:
                 issued_at=_required_int(payload, "issued_at"),
                 expires_at=_required_int(payload, "expires_at"),
                 grace_until=_required_int(payload, "grace_until"),
+                key_hint=_optional_string(payload.get("key_hint")),
             )
         except (TypeError, ValueError) as err:
             raise MaikaLicenseTokenError("invalid_lease_payload") from err
@@ -321,6 +323,11 @@ def _normalize_refresh_token(value: str) -> str:
 
 def _urlsafe_b64decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _optional_string(value: Any) -> str:
+    """Return a trimmed string, or an empty string when absent."""
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _required_string(payload: dict[str, Any], key: str) -> str:

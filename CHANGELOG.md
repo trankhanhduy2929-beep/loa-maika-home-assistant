@@ -2,6 +2,27 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.9.0] - 2026-10-10
+
+### Added
+
+- Thêm panel quản lý loa MAIKA riêng trong sidebar Home Assistant: hiển thị thông
+  tin loa (tên, model, hãng, serial, firmware, wifi, trạng thái, bài đang phát)
+  cùng toàn bộ cảm biến, nút, công tắc và lựa chọn của tích hợp.
+- Panel hiển thị bản quyền đang dùng: key (dạng rút gọn), gói, hạn sử dụng, mã
+  cài đặt và liên kết mua/gia hạn.
+- Cho phép nhập/đổi key và chỉnh cấu hình tích hợp ngay trong panel: chu kỳ cập
+  nhật, cast âm thanh cloud, cảm biến khẩu lệnh, nguồn/kiểu phát âm báo thành
+  công, loa phát âm báo, khẩu lệnh điều khiển thiết bị HASS.
+- Thêm API nội bộ `/api/maika/panel` cho panel (yêu cầu đăng nhập Home Assistant).
+
+### Changed
+
+- Lease ký gửi kèm `key_hint` để panel hiển thị key đang dùng mà không lộ key đầy
+  đủ.
+- Panel được đăng ký tự động khi tích hợp khởi động và gỡ khi gỡ cấu hình cuối;
+  mọi lỗi đăng ký panel đều được bắt để không ảnh hưởng tích hợp.
+
 ## [1.8.1] - 2026-08-26
 
 ### Fixed
