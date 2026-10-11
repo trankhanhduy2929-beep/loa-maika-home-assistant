@@ -1,0 +1,411 @@
+import assert from "node:assert/strict";
+import {readFile, writeFile, mkdir} from "node:fs/promises";
+import {createServer} from "node:http";
+import {execFileSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
+import {join} from "node:path";
+const {chromium} = await import(process.env.MAIKA_PLAYWRIGHT_MODULE || "playwright-core");
+
+const root = fileURLToPath(new URL("../", import.meta.url));
+const output = process.env.MAIKA_TEST_OUTPUT || "/tmp/maika-panel-browser";
+await mkdir(output, {recursive: true});
+const catalog = execFileSync(process.env.PYTHON || "python3", ["-c", 'import json, runpy, sys; print(json.dumps(runpy.run_path(sys.argv[1])["voice_action_catalog"]()))', join(root, "custom_components/maika/voice_rules.py")]);
+const server = createServer(async (request, response) => {
+  const path = new URL(request.url, "http://localhost").pathname;
+  if (path === "/voice-actions.json") { response.setHeader("Content-Type", "application/json"); response.end(catalog); return; }
+  const isScript = ["/maika-panel.js", "/maika-voice-editor.js"].includes(path);
+  response.setHeader("Content-Type", isScript ? "application/javascript" : "text/html");
+  response.end(await readFile(isScript ? join(root, "custom_components/maika/frontend", path.slice(1)) : join(root, "scripts/fixtures/panel.html")));
+});
+await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+const base = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({executablePath: process.env.MAIKA_BROWSER_EXECUTABLE, headless: true, args: ["--no-sandbox"]});
+const context = await browser.newContext();
+const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlSAAAAAASUVORK5CYII=", "base64");
+await context.route("**/olli-maika-2.jpg", (route) => route.fulfill({contentType: "image/png", body: image}));
+const page = await context.newPage();
+const errors = [];
+page.on("pageerror", (error) => errors.push(String(error)));
+const waitRender = () => page.waitForTimeout(100);
+const load = async () => { await page.goto(base); await page.locator('[data-sec="settings"]').waitFor(); await page.waitForTimeout(500); };
+const metrics = [];
+
+async function verifyVoiceEditor() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  const editor = page.locator("maika-voice-editor");
+  const input = (id) => editor.locator(`#${id}`);
+  const rules = () => page.evaluate(() => snapshot.entries[0].options.voice_command_rules);
+  const serverOptions = () => page.evaluate(() => structuredClone(snapshot.entries[0].options));
+  const callsCount = () => page.evaluate(() => calls.filter((call) => call.service).length);
+  const confirm = async (action, accept = true) => {
+    await Promise.all([page.waitForEvent("dialog").then((dialog) => accept ? dialog.accept() : dialog.dismiss()), action()]);
+  };
+  const waitSaved = async () => {
+    await page.waitForFunction(() => !document.querySelector("maika-panel").shadowRoot.querySelector("maika-voice-editor").isBusy);
+    assert.match(await input("message").innerText(), /Đã lưu/);
+  };
+  const choose = async (entityId, action) => {
+    const domain = entityId.split(".")[0];
+    await input("target-type").selectOption(["automation", "script", "scene"].includes(domain) ? domain : "device");
+    if (!["automation", "script", "scene"].includes(domain)) await input("device-type").selectOption("");
+    await input("target-search").fill("");
+    await input("target").selectOption(entityId);
+    if (action) await input("action").selectOption(action);
+  };
+  const save = async (phrase) => { await input("phrase").fill(phrase); await input("save-command").click(); await waitSaved(); };
+  const initial = await rules();
+  assert.equal(await input("summary").innerText(), "2 câu lệnh");
+  await input("target-search").fill("den phong");
+  assert.match(await input("target").innerText(), /Đèn phòng khách/);
+  assert.doesNotMatch(await input("target").innerText(), /Điều hòa/);
+  await choose("light.phong_khach", "turn_on");
+  await input("param-brightness_pct").fill("70");
+  await save("Đèn khách bảy mươi");
+  assert((await rules()).startsWith(initial));
+  assert.match(await rules(), /Đèn khách bảy mươi \| light.phong_khach \| turn_on \| \{"brightness_pct":70\}/);
+  assert.equal(await callsCount(), 0);
+  assert.equal(await input("phrase").inputValue(), "");
+  const beforeDuplicate = await rules();
+  await input("phrase").fill("den khach bay muoi!!!");
+  await input("save-command").click();
+  assert.match(await input("message").innerText(), /đã được dùng/);
+  assert.equal(await rules(), beforeDuplicate);
+  await choose("automation.di_ngu");
+  assert.equal(await input("action").inputValue(), "trigger");
+  assert.equal(await input("param-skip_condition").inputValue(), "false");
+  await save("Bắt đầu đi ngủ");
+  assert.match(await rules(), /\{"skip_condition":false\}/);
+  await editor.locator(".command").filter({hasText: "chạy lệnh cũ"}).getByRole("button", {name: "Sửa", exact: true}).click();
+  assert.equal(await input("param-skip_condition").inputValue(), "");
+  await input("save-command").click(); await waitSaved();
+  assert.match(await rules(), /chạy lệnh cũ \| automation.di_ngu \| trigger\n/);
+  console.log("PASS visual create/search, exact legacy preservation, duplicate normalization, automation conditions and no actions on save");
+
+  await choose("fan.phong_khach", "set_percentage");
+  await input("param-percentage").fill("101");
+  assert.equal(await input("param-percentage").evaluate((node) => node.checkValidity()), false);
+  await input("param-percentage").fill("60"); await save("Quạt sáu mươi");
+  await choose("climate.may_lanh", "set_hvac_mode");
+  assert.deepEqual(await input("param-hvac_mode").locator("option").evaluateAll((nodes) => nodes.map((node) => node.value)), ["", "off", "cool"]);
+  await input("action").selectOption("set_temperature");
+  assert.equal(await input("param-temperature").getAttribute("min"), "16");
+  assert.equal(await input("param-temperature").getAttribute("max"), "30");
+  await input("param-temperature").fill("26"); await save("Điều hòa hai sáu");
+  await choose("cover.rem", "set_cover_position"); await input("param-position").fill("50"); await save("Rèm một nửa");
+  await choose("media_player.tv", "volume_set"); await input("param-volume_level").fill("35"); await save("TV âm lượng nhỏ");
+  assert.match(await rules(), /\{"volume_level":0.35\}/);
+  await choose("input_select.che_do", "select_option"); await input("param-option").selectOption("Đi vắng"); await save("Nhà đi vắng");
+  for (const [entityId, action, phrase] of [["script.chao_mung", "turn_on", "Chào mừng"], ["scene.xem_phim", "turn_on", "Xem phim"], ["button.chuong", "press", "Bấm chuông"]]) {
+    await choose(entityId, action); await save(phrase);
+  }
+  await choose("lock.cua", "lock");
+  assert.equal(await input("action").locator('option[value="unlock"]').count(), 0);
+  await choose("timer.bep", "start");
+  await input("param-duration").fill("00:99:00");
+  await input("phrase").fill("Hẹn giờ lỗi"); await input("save-command").click();
+  assert.match(await input("message").innerText(), /Kiểm tra/);
+  await input("param-duration").fill("00:05:00"); await save("Hẹn giờ bếp");
+  console.log("PASS fan, climate dynamic modes/bounds, cover, volume scaling, helpers, scripts/scenes/buttons and safe action allow-list");
+
+  await choose("light.phong_khach", "turn_on");
+  await input("param-brightness_pct").fill("45");
+  await input("phrase").fill("Bản nháp được giữ");
+  await input("phrase").evaluate((node) => node.setSelectionRange(3, 6));
+  await page.evaluate(() => {
+    window.previousEditor = panel.shadowRoot.querySelector("maika-voice-editor");
+    window.previousPhrase = previousEditor.shadowRoot.getElementById("phrase");
+    states[panel._entity("media_player")].attributes.media_title = "Tên bài vừa đổi";
+    states["light.den_moi"] = {state: "on", attributes: {friendly_name: "Đèn mới vừa thêm"}};
+    tick();
+  });
+  await waitRender();
+  assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
+  assert.equal(await input("param-brightness_pct").inputValue(), "45");
+  assert(await page.evaluate(() => panel.shadowRoot.querySelector("maika-voice-editor") === previousEditor && previousEditor.shadowRoot.activeElement === previousPhrase));
+  assert.deepEqual(await input("phrase").evaluate((node) => [node.selectionStart, node.selectionEnd]), [3, 6]);
+  assert.match(await input("target").innerText(), /Đèn mới vừa thêm/);
+  await page.locator('[data-action="device"][data-serial="SERIAL-0-1"]').click();
+  assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
+  await confirm(() => page.locator('[data-action="entry"][data-index="1"]').click(), false);
+  assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
+  const beforeActions = await callsCount();
+  await confirm(() => input("test-command").click(), false);
+  assert.equal(await callsCount(), beforeActions);
+  await confirm(() => input("test-command").click());
+  await waitRender();
+  assert.equal(await callsCount(), beforeActions + 1);
+  assert.deepEqual(await page.evaluate(() => calls.filter((call) => call.service).at(-1)), {domain: "light", service: "turn_on", data: {entity_id: "light.phong_khach", brightness_pct: 45}});
+  console.log("PASS HA live updates, external entities, cursor/device/account draft preservation and explicit test confirmation");
+
+  await page.evaluate(() => { failSave = true; });
+  await input("save-command").click(); await waitRender();
+  assert.match(await input("message").innerText(), /Chưa lưu được/);
+  assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
+  assert.doesNotMatch(await rules(), /Bản nháp được giữ/);
+  await page.evaluate(() => { failSave = false; });
+  await page.locator('[name="scan_interval"]').fill("85");
+  await page.locator('[data-form="options"] button[type="submit"]').click(); await waitRender();
+  assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
+  await input("retry-save").click(); await waitSaved();
+  assert.match(await rules(), /Bản nháp được giữ/);
+  await confirm(() => input("cancel-edit").click());
+  await editor.locator(".command").filter({hasText: "Đèn khách bảy mươi"}).getByRole("button", {name: "Sửa", exact: true}).click();
+  await input("phrase").fill("Đèn sửa từ tab này");
+  await page.evaluate(() => { snapshot.entries[0].options.voice_command_rules += "\n# Thay đổi từ tab khác"; });
+  await page.locator('[data-action="refreshdata"]').click(); await waitRender();
+  assert.equal(await input("phrase").inputValue(), "Đèn sửa từ tab này");
+  await input("save-command").click(); await waitRender();
+  assert.match(await input("message").innerText(), /đã đổi ở nơi khác/);
+  assert.doesNotMatch(await rules(), /Đèn sửa từ tab này/);
+  assert.equal(await input("phrase").inputValue(), "Đèn sửa từ tab này");
+  await confirm(() => input("reload-rules").click()); await waitRender();
+  assert.equal(await input("phrase").inputValue(), "");
+  assert.match(await rules(), /# Thay đổi từ tab khác/);
+  await input("audio-source").selectOption("disabled");
+  await page.evaluate(() => { snapshot.entries[0].options.voice_success_audio_timing = "after_success"; });
+  await input("voice-settings").locator('button[type="submit"]').click(); await waitRender();
+  assert.match(await input("message").innerText(), /đã đổi ở nơi khác/);
+  await confirm(() => input("reload-rules").click()); await waitRender();
+  console.log("PASS failed save retry, partial general settings, optimistic concurrency for rules/audio and conflict reload");
+
+  const original = editor.locator(".command").filter({hasText: "Đèn khách bảy mươi"});
+  await original.getByRole("button", {name: "Thêm cách nói", exact: true}).click();
+  assert.equal(await input("phrase").inputValue(), "");
+  assert.equal(await input("param-brightness_pct").inputValue(), "70");
+  await save("Cách nói khác cho đèn");
+  const copied = editor.locator(".command").filter({hasText: "Cách nói khác cho đèn"});
+  await confirm(() => copied.getByRole("button", {name: "Xóa", exact: true}).click(), false);
+  assert.match(await rules(), /Cách nói khác cho đèn/);
+  await confirm(() => copied.getByRole("button", {name: "Xóa", exact: true}).click()); await waitSaved();
+  assert.doesNotMatch(await rules(), /Cách nói khác cho đèn/);
+  assert.match(await rules(), /# Cấu hình cũ được giữ nguyên/);
+  assert.match(await rules(), /# Thay đổi từ tab khác/);
+  await input("list-search").fill("quat sau");
+  assert.equal(await editor.locator(".command").count(), 1);
+  await input("list-search").fill("");
+  console.log("PASS copy/edit/delete, cancellation, accent-insensitive list search and preserved legacy comments/parameters");
+
+  const players = await input("audio-player").locator("option").evaluateAll((nodes) => nodes.map((node) => node.value));
+  assert.equal(players.length, 3);
+  assert(!players.includes("media_player.tv"));
+  await input("audio-player").selectOption(players[2]);
+  await input("audio-source").selectOption("custom");
+  await input("audio-url").fill("https://example.test/thanh-cong.mp3");
+  await page.evaluate(() => { states["light.den_moi"].attributes.friendly_name = "Đèn mới đổi tên"; tick(); }); await waitRender();
+  assert.equal(await input("audio-player").inputValue(), players[2]);
+  await input("voice-settings").locator('button[type="submit"]').click(); await waitSaved();
+  assert.equal((await serverOptions()).voice_success_audio_url, "https://example.test/thanh-cong.mp3");
+  await input("audio-url").fill("invalid-url");
+  await input("audio-source").selectOption("disabled");
+  assert(await input("audio-url").isDisabled());
+  await input("voice-settings").locator('button[type="submit"]').click(); await waitSaved();
+  await input("voice-enabled").uncheck();
+  await input("voice-settings").locator('button[type="submit"]').click(); await waitSaved();
+  await choose("light.phong_khach", "turn_off");
+  assert.equal(await input("save-command").innerText(), "Lưu & bật điều khiển");
+  await save("Tắt đèn phòng khách");
+  assert.equal((await serverOptions()).enable_voice_command_sensor, true);
+  const unlabeled = await editor.evaluate((node) => [...node.shadowRoot.querySelectorAll("input,select")].filter((control) => !control.getAttribute("aria-label") && !control.labels?.length).map((control) => control.id));
+  assert.deepEqual(unlabeled, []);
+  await choose("light.phong_khach", "turn_on");
+  await confirm(() => page.locator('[data-action="entry"][data-index="1"]').click());
+  assert.equal(await input("phrase").inputValue(), "");
+  assert.equal(await input("summary").innerText(), "2 câu lệnh");
+  console.log("PASS per-account speaker selection, custom/disabled audio validity, explicit enable and accessible labels");
+
+  await page.locator('[data-action="entry"][data-index="0"]').click();
+  const storedRules = await rules();
+  execFileSync(process.env.PYTHON || "python3", ["-c", 'import runpy, sys; parse = runpy.run_path(sys.argv[1])["parse_voice_command_rules"]; rules = parse(sys.stdin.read()); assert len(rules) >= 10', join(root, "custom_components/maika/voice_rules.py")], {input: storedRules});
+  await writeFile(join(output, "voice-options.json"), JSON.stringify(await serverOptions(), null, 2));
+  console.log("PASS generated browser rules round-trip through the actual Python backend validator");
+}
+
+try {
+  await verifyVoiceEditor();
+  for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
+    await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
+    await load();
+    for (const theme of ["light", "dark"]) {
+      await page.locator('[data-action="theme"]').selectOption(theme);
+      await page.waitForTimeout(350);
+      const result = await page.evaluate(() => ({
+        width: panel.clientWidth, scroll: panel.scrollWidth, theme: panel.dataset.theme,
+        color: getComputedStyle(panel).backgroundColor,
+        columns: getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length,
+        overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
+          const rect = node.getBoundingClientRect();
+          return rect.width && (rect.right > panel.getBoundingClientRect().right + 1 || rect.left < -1);
+        }).map((node) => node.className || node.tagName),
+      }));
+      assert.equal(result.scroll, result.width, `Horizontal scroll ${width} ${theme}`);
+      assert.equal(result.theme, theme);
+      assert.deepEqual(result.overflow, [], `Overflow ${width}`);
+      assert.equal(result.columns, width > 1100 ? 4 : width > 620 ? 2 : 1);
+      metrics.push({viewport: width, ...result});
+      if ([390, 1440].includes(width)) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({path: join(output, `${theme}-${width}.png`)});
+        await page.locator('[data-action="jump"][data-section="voice"]').click();
+        await page.waitForTimeout(600);
+        assert.equal(await page.locator('[data-action="jump"][data-section="voice"]').getAttribute("aria-current"), "location");
+        await page.screenshot({path: join(output, `voice-${theme}-${width}.png`)});
+        await page.locator('[data-action="jump"][data-section="overview"]').click();
+      }
+    }
+  }
+  console.log("PASS 18 width/theme combinations (320–1920px), no horizontal overflow");
+  await page.setViewportSize({width: 1300, height: 900});
+  await page.evaluate(() => { document.querySelector("#sidebar").style.display = "block"; });
+  assert.equal(await page.evaluate(() => getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length), 2);
+  console.log("PASS responsive layout follows actual panel width with HA sidebar");
+
+  await page.locator('[data-action="theme"]').selectOption("auto");
+  await page.evaluate(() => { hass.themes.darkMode = false; tick(); });
+  await waitRender();
+  assert.equal(await page.locator("maika-panel").getAttribute("data-theme"), "light");
+  await page.locator('[data-action="theme"]').selectOption("dark");
+  await page.waitForTimeout(450);
+  assert.equal(await page.evaluate(() => getComputedStyle(panel).backgroundColor), "rgb(11, 18, 32)");
+  await load();
+  assert.equal(await page.locator("maika-panel").getAttribute("data-theme"), "dark");
+  console.log("PASS automatic HA theme, manual override, persistence after reload");
+
+  await page.locator('[data-action="theme"]').selectOption("light");
+  const cast = page.locator('[name="cast_url"]');
+  await cast.fill("https://example.test/nhac.mp3");
+  const before = await page.evaluate(() => {
+    window.oldImage = panel.shadowRoot.querySelector(".hero-media img");
+    window.oldCast = panel.shadowRoot.querySelector('[name="cast_url"]');
+    const media = panel._entity("media_player");
+    states[media].attributes = {...states[media].attributes, volume_level: .75, media_title: "Bài tiếp theo", is_volume_muted: true};
+    tick();
+    return true;
+  });
+  await waitRender();
+  assert(before);
+  assert.equal(await cast.inputValue(), "https://example.test/nhac.mp3");
+  assert(await page.evaluate(() => panel.shadowRoot.activeElement === oldCast && panel.shadowRoot.querySelector(".hero-media img") === oldImage));
+  assert.equal(await page.locator('[data-field="volume"]').inputValue(), "75");
+  assert.equal(await page.locator(".media-now .t").innerText(), "Bài tiếp theo");
+  assert.equal(await page.locator('[data-action="mute"]').getAttribute("aria-pressed"), "true");
+  console.log("PASS live attributes update without replacing focused input or hero image");
+
+  await page.locator('[data-action="theme"]').selectOption("dark");
+  assert.equal(await cast.inputValue(), "https://example.test/nhac.mp3");
+  await page.locator('[data-form="cast"] button[type="submit"]').click();
+  assert(await page.evaluate(() => calls.some((call) => call.service === "play_media" && call.data.media_content_id === "https://example.test/nhac.mp3")));
+  await page.locator('[data-action="device"][data-serial="SERIAL-0-0"]').click();
+  assert.equal(await page.locator(".hero-copy h1").innerText(), "Loa phòng ngủ");
+  assert.equal(await cast.inputValue(), "");
+  await page.locator('[data-action="playpause"]').click();
+  assert(await page.evaluate(() => calls.some((call) => call.service === "media_play_pause" && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));
+  console.log("PASS cast service payload and correct device despite unrelated entity names");
+
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await page.waitForTimeout(600);
+  const positions = await page.evaluate(() => ({toolbar: panel.shadowRoot.querySelector(".toolbar").getBoundingClientRect().bottom, target: panel.shadowRoot.querySelector('[data-sec="settings"]').getBoundingClientRect().top}));
+  assert(positions.target >= positions.toolbar, JSON.stringify(positions));
+  const beforeOptions = await page.evaluate(() => ({...snapshot.entries[0].options}));
+  await page.locator('[name="scan_interval"]').fill("90");
+  await page.locator('[data-form="options"] button[type="submit"]').click();
+  await waitRender();
+  const savedOptions = await page.evaluate(() => calls.filter((call) => call.path === "maika/panel/options").at(-1).data.options);
+  assert.deepEqual(Object.keys(savedOptions).sort(), ["enable_experimental_cloud_cast", "scan_interval"]);
+  assert.equal(await page.evaluate(() => snapshot.entries[0].options.voice_command_rules), beforeOptions.voice_command_rules);
+  assert.equal(await page.locator('[name="license_server_url"]').count(), 0);
+  assert.equal(await page.locator('[name="rules"]').count(), 0);
+  console.log("PASS section navigation, hidden activation URL, partial settings preserve voice rules/audio");
+
+  await page.evaluate(() => { failApi = true; });
+  await page.locator('[data-action="refreshdata"]').click();
+  await waitRender();
+  assert.match(await page.locator('[data-card="message"]').innerText(), /Không tải được/);
+  assert(await page.locator('[data-sec="overview"]').isVisible());
+  await page.evaluate(() => { failApi = false; });
+  await page.locator('[data-action="refreshdata"]').click();
+  await waitRender();
+  assert(await page.locator('[data-card="message"]').isHidden());
+  console.log("PASS refresh failure keeps previous data and allows retry");
+
+  await page.emulateMedia({reducedMotion: "reduce"});
+  assert.equal(await page.evaluate(() => getComputedStyle(panel.shadowRoot.querySelector(".card")).animationName), "none");
+  assert.equal(await page.evaluate(() => getComputedStyle(panel.shadowRoot.querySelector(".dot"), "::after").animationName), "none");
+  await page.evaluate(() => {
+    const root = panel.parentElement;
+    panel.remove();
+    if (panel._renderFrame !== null) throw new Error("Frame not cleaned up");
+    root.append(panel);
+    tick();
+  });
+  await waitRender();
+  console.log("PASS reduced motion and disconnect/reconnect lifecycle");
+  await page.setViewportSize({width: 390, height: 844});
+  await load();
+  const textId = await page.evaluate(() => panel._entity("text", "speaker_name"));
+  const nameInput = page.locator(`input[data-entity="${textId}"]`);
+  await nameInput.fill("Tên loa đang viết");
+  await nameInput.evaluate((element) => element.setSelectionRange(4, 7));
+  await page.evaluate(() => { states[panel._entity("sensor", "volume")].state = "63"; tick(); });
+  await waitRender();
+  assert.equal(await nameInput.inputValue(), "Tên loa đang viết");
+  assert.deepEqual(await nameInput.evaluate((element) => [element.selectionStart, element.selectionEnd]), [4, 7]);
+  await page.locator('[data-action="jump"][data-section="license"]').click();
+  await page.locator('[name="license_key"]').fill("MAIKA-TEST-TEST-TEST-TEST");
+  await page.locator('[data-form="license"] button[type="submit"]').click();
+  await waitRender();
+  assert.deepEqual(await page.evaluate(() => calls.find((call) => call.path === "maika/panel/license").data), {entry_id: "account-0", license_key: "MAIKA-TEST-TEST-TEST-TEST"});
+  assert.equal(await page.locator('[name="license_key"]').inputValue(), "");
+  console.log("PASS text caret, selection and license replacement API");
+
+  await page.evaluate(() => {
+    for (const entry of snapshot.entries) {
+      entry.title = "Tài khoản có tên rất dài ".repeat(8);
+      for (const device of Object.values(entry.devices)) device.name = "Loa có tên rất dài ".repeat(10);
+      entry.license.key_hint = "MAIKA-" + "x".repeat(150);
+    }
+    states[panel._entity("media_player")].attributes.media_title = "Bài hát không có khoảng cách".replaceAll(" ", "").repeat(30);
+    tick();
+  });
+  await waitRender();
+  assert.equal(await page.evaluate(() => panel.scrollWidth - panel.clientWidth), 0);
+  await page.setViewportSize({width: 844, height: 390});
+  assert.equal(await page.locator(".toolbar").evaluate((element) => getComputedStyle(element).position), "relative");
+  console.log("PASS long content, landscape phone layout");
+
+  const blockedContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+  await blockedContext.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {get() { throw new Error("Storage blocked"); }});
+  });
+  await blockedContext.route("**/olli-maika-2.jpg", (route) => route.abort());
+  const blockedPage = await blockedContext.newPage();
+  blockedPage.on("pageerror", (error) => errors.push(String(error)));
+  await blockedPage.goto(base);
+  await blockedPage.locator('[data-sec="overview"]').waitFor();
+  await blockedPage.locator('[data-action="theme"]').selectOption("light");
+  assert.equal(await blockedPage.locator("maika-panel").getAttribute("data-theme"), "light");
+  await blockedPage.waitForTimeout(300);
+  assert(await blockedPage.locator(".hero-media img").evaluate((element) => element.hidden));
+  const unlabeled = await blockedPage.evaluate(() => [...panel.shadowRoot.querySelectorAll("input, select, textarea")].filter((element) => !element.getAttribute("aria-label") && !element.labels?.length).map((element) => element.outerHTML));
+  assert.deepEqual(unlabeled, []);
+  console.log("PASS touch browser, blocked storage, failed image fallback and form labels");
+
+  await blockedPage.evaluate(async () => {
+    panel.remove();
+    window.failedPanel = document.createElement("maika-panel");
+    document.body.append(failedPanel);
+    failedPanel.hass = {...hass, callApi: async () => { throw new Error("Offline at startup"); }};
+  });
+  await blockedPage.locator('[data-card="message"]').waitFor();
+  assert.match(await blockedPage.locator('[data-card="message"]').innerText(), /Offline at startup/);
+  await blockedPage.evaluate(() => { failedPanel.hass = hass; });
+  await blockedPage.locator('[data-action="refreshdata"]').click();
+  await blockedPage.locator('[data-sec="overview"]').waitFor();
+  console.log("PASS first-load failure, visible error and working retry");
+  await blockedContext.close();
+  assert.deepEqual(errors, []);
+  await writeFile(join(output, "metrics.json"), JSON.stringify(metrics, null, 2));
+} finally {
+  await browser.close();
+  server.close();
+}

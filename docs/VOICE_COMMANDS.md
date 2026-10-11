@@ -1,4 +1,42 @@
-# Sensor và rule câu lệnh giọng nói
+# Điều khiển Home Assistant bằng giọng nói MAIKA
+
+## Tạo câu lệnh trực quan (từ v1.10.0)
+
+Mở **MAIKA → Giọng nói** trong sidebar:
+
+1. Chọn **Thiết bị / Automation / Kịch bản / Cảnh**. Lọc loại thiết bị hoặc
+   tìm bằng tên; giao diện lấy entity thật từ Home Assistant, không phụ thuộc
+   tên loa hay ví dụ `loa_phong_ngu`.
+2. Chọn thao tác. Giao diện hiện ô nhập độ sáng, nhiệt độ, vị trí rèm, tốc độ
+   quạt, âm lượng… đúng loại. Các chế độ có sẵn lấy từ thuộc tính entity.
+3. Nhập câu muốn nói rồi bấm **Lưu câu lệnh**. Khi tính năng đang tắt, nút
+   **Lưu & bật điều khiển** bật luôn tiếp nhận câu nói cho tài khoản này.
+
+Ví dụ: chọn **Đèn phòng khách → Bật → Độ sáng 70%**, nhập **đèn khách bảy
+mươi** rồi lưu. Không phải viết entity ID, action hoặc JSON.
+
+- **Sửa / Thêm cách nói / Xóa** ngay trên từng câu lệnh. Câu bị trùng sau khi
+  bỏ dấu/hoa thường/dấu câu sẽ được cảnh báo trước khi lưu.
+- **Chạy thử** yêu cầu xác nhận vì sẽ điều khiển thật. Nút này dùng service
+  Home Assistant, không kiểm tra nhận diện giọng nói hoặc âm phản hồi.
+- Automation: **Kích hoạt automation** chạy ngay; **Bật automation** chỉ bật
+  lịch/trigger, không chạy ngay. Lệnh mới mặc định kiểm tra điều kiện.
+  Chọn **Có — chạy trực tiếp** để bỏ qua điều kiện. **Giữ mặc định** giữ hành
+  vi HA (bỏ qua điều kiện), cũng là hành vi của lệnh cũ không có thông số này.
+  Automation phụ thuộc biến `trigger` có thể cần chỉnh automation hoặc chuyển
+  chuỗi hành động sang script để chạy thủ công.
+- Danh sách thao tác/thông số sinh từ cùng allowlist của backend; không cho
+  gọi service tùy ý, thay target qua thông số hoặc mở khóa cửa.
+- Câu lệnh, comment và thông số cũ chưa chỉnh sửa được giữ nguyên. Lỗi lưu
+  không xóa bản nháp. Nếu tab khác sửa cấu hình, panel chặn ghi đè và cho
+  tải lại sau khi xác nhận; nhớ giữ lại nội dung bạn muốn nhập lại.
+- Câu nói vẫn khớp toàn câu như trước, không phải AI tự hiểu mọi cách diễn đạt.
+  Muốn thêm một cách nói, dùng nút **Thêm cách nói**.
+
+**Giọng nói & âm phản hồi** nằm ngay trong mục này. Chọn MP3 có sẵn hoặc URL,
+chế độ ưu tiên/sau thành công và loa MAIKA cùng tài khoản. Bật cast cloud ở
+**Cấu hình loa**; có nhiều loa thì chọn cố định một loa phát âm báo.
+Các cài đặt giọng nói áp dụng cho mọi loa trong cùng tài khoản MAIKA.
 
 ## Luồng dữ liệu
 
@@ -17,7 +55,7 @@ APK MAIKA 3.2.3 gửi `StartListening` với payload `deviceId` và `type: conve
 
 Câu mới nhất được đưa vào sensor `last_voice_command`. Frame hiện không cung cấp serial loa đủ tin cậy nên đây là sensor cấp tài khoản, không gắn vào một loa cụ thể.
 
-## Bật tính năng
+## Cách cấu hình cũ (vẫn tương thích)
 
 1. Mở **Settings → Devices & services → MAIKA Speaker**.
 2. Chọn **Configure**.
@@ -78,7 +116,7 @@ Assistant; loa nhận URL qua cloud MAIKA và tự tải file.
 
 Frame cloud chưa cung cấp serial nguồn đủ tin cậy, vì vậy người dùng chọn một loa xác nhận cố định. Nếu có nhiều loa, chọn đúng loa dùng để ra các rule HASS.
 
-## Cú pháp rule
+## Cú pháp rule nâng cao (không bắt buộc trên panel)
 
 ```text
 câu lệnh | entity_id | action

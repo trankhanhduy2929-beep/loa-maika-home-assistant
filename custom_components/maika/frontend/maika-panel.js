@@ -1,4 +1,6 @@
 /* MAIKA Speaker management panel for Home Assistant. */
+import "./maika-voice-editor.js";
+
 const API = "maika/panel";
 const HERO_IMAGE = "https://smarthomekit.vn/wp-content/uploads/2021/12/olli-maika-2.jpg";
 
@@ -7,17 +9,6 @@ const PLAN_LABELS = {
   month_1: "Gói 1 tháng",
   month_6: "Gói 6 tháng",
   lifetime: "Vĩnh viễn",
-};
-
-const AUDIO_SOURCE_LABELS = {
-  disabled: "Tắt",
-  bundled: "MP3 MAIKA tích hợp",
-  custom: "URL MP3 tuỳ chỉnh",
-};
-
-const AUDIO_TIMING_LABELS = {
-  priority: "Ưu tiên: che giọng loa",
-  after_success: "Chỉ phát sau khi thành công",
 };
 
 const STATUS_LABELS = {
@@ -34,12 +25,6 @@ const STATUS_LABELS = {
 const OPTION_KEYS = {
   scanInterval: "scan_interval",
   cloudCast: "enable_experimental_cloud_cast",
-  voiceSensor: "enable_voice_command_sensor",
-  rules: "voice_command_rules",
-  audioSource: "voice_success_audio_source",
-  audioTiming: "voice_success_audio_timing",
-  audioUrl: "voice_success_audio_url",
-  mediaPlayer: "voice_success_media_player_entity_id",
 };
 
 const UNKNOWN = new Set(["unknown", "unavailable", "none", "", "None", "null"]);
@@ -48,6 +33,7 @@ const THEME_MODES = ["auto", "light", "dark"];
 const THEME_MODE_LABELS = {auto: "Tự động", light: "Sáng", dark: "Tối"};
 const SECTIONS = [
   {id: "overview", label: "Tổng quan"},
+  {id: "voice", label: "Giọng nói"},
   {id: "status", label: "Trạng thái"},
   {id: "assistant", label: "Trợ lý"},
   {id: "identity", label: "Tên & vị trí"},
@@ -740,6 +726,11 @@ class MaikaPanel extends HTMLElement {
     this.shadowRoot.addEventListener("input", this._onInput);
     this.shadowRoot.addEventListener("change", this._onChange);
     this.shadowRoot.addEventListener("submit", this._onSubmit);
+    this.shadowRoot.addEventListener("maika-voice-saved", (event) => {
+      const entry = this._snapshot?.entries?.find((item) => item.entry_id === event.detail.entry_id);
+      if (entry) entry.options = {...entry.options, ...event.detail.options};
+      this._maybeUpdate();
+    });
     this._render();
   }
 
@@ -1197,9 +1188,7 @@ class MaikaPanel extends HTMLElement {
     const license = entry?.license || {};
     const plan = license.plan ? planLabel(license.plan) : "Chưa kích hoạt";
     const expires = license.expires_at ? fmtTime(license.expires_at) : "Không giới hạn";
-    const serverUrl = license.server_url || this._snapshot?.default_server_url || "";
     const draftKey = this._draft["license_key"] ?? "";
-    const draftServer = this._draft["license_server_url"] ?? serverUrl;
 
     const rows = [
       this._row("Gói hiện tại", plan, "c-cyan"),
@@ -1211,8 +1200,6 @@ class MaikaPanel extends HTMLElement {
     const form = h("form", {class: "field", dataset: {form: "license"}}, [
       h("label", {text: "License key"}),
       h("input", {type: "text", name: "license_key", placeholder: "MAIKA-XXXX-XXXX-XXXX-XXXX", value: draftKey, dataset: {field: "license_key"}, autocomplete: "off"}),
-      h("label", {text: "URL máy chủ kích hoạt"}),
-      h("input", {type: "url", name: "license_server_url", value: draftServer, dataset: {field: "license_server_url"}}),
       h("div", {class: "btn-row"}, [
         h("button", {class: "btn btn--primary", type: "submit", text: "Kích hoạt / thay key", disabled: this._busy}),
         this._snapshot?.portal_url
@@ -1236,29 +1223,9 @@ class MaikaPanel extends HTMLElement {
   _settingsSection(delay) {
     const options = this._entry()?.options || {};
     const bounds = this._snapshot?.scan_interval_bounds || [15, 3600];
-    const sourceOptions = this._snapshot?.audio_source_options || ["disabled", "bundled", "custom"];
-    const timingOptions = this._snapshot?.audio_timing_options || ["priority", "after_success"];
     const draft = this._draft;
 
     const value = (key, fallback) => (key in draft ? draft[key] : fallback);
-
-    const sourceSelect = h("select", {name: "audio_source", dataset: {field: "audio_source"}});
-    for (const option of sourceOptions) {
-      sourceSelect.append(h("option", {
-        value: option,
-        text: AUDIO_SOURCE_LABELS[option] || option,
-        selected: option === value("audio_source", options[OPTION_KEYS.audioSource]),
-      }));
-    }
-
-    const timingSelect = h("select", {name: "audio_timing", dataset: {field: "audio_timing"}});
-    for (const option of timingOptions) {
-      timingSelect.append(h("option", {
-        value: option,
-        text: AUDIO_TIMING_LABELS[option] || option,
-        selected: option === value("audio_timing", options[OPTION_KEYS.audioTiming]),
-      }));
-    }
 
     const form = h("form", {class: "field", style: "gap:14px", dataset: {form: "options"}}, [
       h("div", {class: "field"}, [
@@ -1271,32 +1238,6 @@ class MaikaPanel extends HTMLElement {
           h("span", {class: "sub", text: "Phát MP3/TTS từ Home Assistant tới loa"}),
         ]),
         h("input", {type: "checkbox", name: "cloud_cast", checked: Boolean(value("cloud_cast", options[OPTION_KEYS.cloudCast])), dataset: {field: "cloud_cast"}}),
-      ]),
-      h("label", {class: "sw"}, [
-        h("span", {}, [
-          h("span", {class: "txt", text: "Sensor câu lệnh giọng nói"}),
-          h("span", {class: "sub", text: "Bật rule điều khiển thiết bị HASS bằng giọng nói"}),
-        ]),
-        h("input", {type: "checkbox", name: "voice_sensor", checked: Boolean(value("voice_sensor", options[OPTION_KEYS.voiceSensor])), dataset: {field: "voice_sensor"}}),
-      ]),
-      h("div", {class: "field"}, [h("label", {text: "Nguồn âm báo thành công"}), sourceSelect]),
-      h("div", {class: "field"}, [h("label", {text: "Thời điểm phát âm báo"}), timingSelect]),
-      h("div", {class: "field", hidden: value("audio_source", options[OPTION_KEYS.audioSource]) !== "custom", dataset: {customAudio: ""}}, [
-        h("label", {text: "URL MP3 thành công tuỳ chỉnh"}),
-        h("input", {type: "url", name: "audio_url", placeholder: "https://.../thanh-cong.mp3", value: value("audio_url", options[OPTION_KEYS.audioUrl] || ""), dataset: {field: "audio_url"}}),
-      ]),
-      h("details", {class: "advanced"}, [
-        h("summary", {text: "Nâng cao · âm báo & rule giọng nói"}),
-        h("div", {class: "field"}, [
-          h("div", {class: "field"}, [
-            h("label", {text: "Media player phát âm báo"}),
-            h("input", {type: "text", name: "media_player", placeholder: "media_player.loa_phong_khach", value: value("media_player", options[OPTION_KEYS.mediaPlayer] || ""), dataset: {field: "media_player"}}),
-          ]),
-          h("div", {class: "field"}, [
-            h("label", {text: "Rule: câu lệnh | entity_id | action"}),
-            h("textarea", {name: "rules", dataset: {field: "rules"}, text: value("rules", options[OPTION_KEYS.rules] || "")}),
-          ]),
-        ]),
       ]),
       h("div", {class: "btn-row"}, [
         h("button", {class: "btn btn--primary", type: "submit", text: "Lưu cấu hình", disabled: this._busy}),
@@ -1442,7 +1383,7 @@ class MaikaPanel extends HTMLElement {
       if (!visible) return;
       const section = visible.target.dataset.sec;
       if (section !== this._activeSection) this._setActiveSection(section, false);
-    }, {root: this, rootMargin: `-${toolbar?.offsetHeight || 0}px 0px -35% 0px`, threshold: 0});
+    }, {root: this, rootMargin: `-${(toolbar?.offsetHeight || 0) + 24}px 0px -35% 0px`, threshold: 0});
     for (const target of targets) this._sectionObserver.observe(target);
   }
 
@@ -1475,6 +1416,7 @@ class MaikaPanel extends HTMLElement {
       cards.push(
         ["overview", this._heroCard(30)],
         ["media", this._mediaSection(60)],
+        ["voice", this._card("span4", [h("maika-voice-editor")], 90)],
         ["status", this._statusSection(90)],
         ["assistant", this._assistantSection(120)],
         ["identity", this._identitySection(150)],
@@ -1506,6 +1448,7 @@ class MaikaPanel extends HTMLElement {
     for (const card of previous.values()) { card.remove(); structureChanged = true; }
     this._stage.setAttribute("aria-busy", String(this._loading || this._busy));
     this._syncRangeFills();
+    this._syncVoiceEditor();
     if (structureChanged) this._observeSections();
   }
 
@@ -1586,9 +1529,18 @@ class MaikaPanel extends HTMLElement {
 
   _maybeUpdate() {
     const signature = this._signature();
-    if (signature === this._lastSignature) return;
+    if (signature === this._lastSignature) { this._syncVoiceEditor(); return; }
     this._lastSignature = signature;
     this._render();
+  }
+
+  _syncVoiceEditor() {
+    this.shadowRoot.querySelector("maika-voice-editor")?.configure({
+      hass: this._hass,
+      entry: this._entry(),
+      catalog: this._snapshot?.voice_actions,
+      limits: this._snapshot?.voice_limits,
+    });
   }
 
   async _load() {
@@ -1657,10 +1609,6 @@ class MaikaPanel extends HTMLElement {
       this._setTheme(el.value);
       return;
     }
-    if (el.dataset.field === "audio_source") {
-      const customAudio = this.shadowRoot.querySelector("[data-custom-audio]");
-      if (customAudio) customAudio.hidden = el.value !== "custom";
-    }
     if (!action) {
       if (el.dataset.field === "volume" && el.dataset.entity) {
         const level = Math.min(1, Math.max(0, Number(el.value) / 100));
@@ -1687,6 +1635,10 @@ class MaikaPanel extends HTMLElement {
 
     if (action === "entry") {
       if (this._busy) return;
+      if (Number(target.dataset.index) === this._activeIndex) return;
+      const editor = this.shadowRoot.querySelector("maika-voice-editor");
+      if (editor?.isBusy) return;
+      if (editor?.hasUnsavedChanges && !window.confirm("Đổi tài khoản và bỏ bản nháp giọng nói chưa lưu?")) return;
       this._activeIndex = Number(target.dataset.index) || 0;
       this._deviceSerial = "";
       this._draft = {};
@@ -1755,7 +1707,7 @@ class MaikaPanel extends HTMLElement {
     const kind = form?.dataset?.form;
     if (!kind) return;
     event.preventDefault();
-    if (this._busy) return;
+    if (this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy) return;
 
     if (kind === "cast") {
       const media = this._entity("media_player");
@@ -1776,7 +1728,6 @@ class MaikaPanel extends HTMLElement {
     if (kind === "license") {
       const entry = this._entry();
       const licenseKey = String(form.elements.namedItem("license_key")?.value || "").trim();
-      const serverUrl = String(form.elements.namedItem("license_server_url")?.value || "").trim();
       if (!licenseKey) {
         this._notify("error", "Nhập license key trước khi kích hoạt.");
         return;
@@ -1786,7 +1737,6 @@ class MaikaPanel extends HTMLElement {
       const result = await this._post(`${API}/license`, {
         entry_id: entry.entry_id,
         license_key: licenseKey,
-        server_url: serverUrl,
       });
       this._busy = false;
       if (result.ok) {
@@ -1808,19 +1758,14 @@ class MaikaPanel extends HTMLElement {
       const options = {
         [OPTION_KEYS.scanInterval]: num("scan_interval", entry.options?.[OPTION_KEYS.scanInterval] ?? 60),
         [OPTION_KEYS.cloudCast]: Boolean(form.elements.namedItem("cloud_cast")?.checked),
-        [OPTION_KEYS.voiceSensor]: Boolean(form.elements.namedItem("voice_sensor")?.checked),
-        [OPTION_KEYS.audioSource]: String(form.elements.namedItem("audio_source")?.value || "disabled"),
-        [OPTION_KEYS.audioTiming]: String(form.elements.namedItem("audio_timing")?.value || "priority"),
-        [OPTION_KEYS.audioUrl]: String(form.elements.namedItem("audio_url")?.value || "").trim(),
-        [OPTION_KEYS.mediaPlayer]: String(form.elements.namedItem("media_player")?.value || "").trim(),
-        [OPTION_KEYS.rules]: String(form.elements.namedItem("rules")?.value || ""),
       };
       this._busy = true;
       this._maybeUpdate();
       const result = await this._post(`${API}/options`, {entry_id: entry.entry_id, options});
       this._busy = false;
       if (result.ok) {
-        this._draft = {};
+        delete this._draft.scan_interval;
+        delete this._draft.cloud_cast;
         this._notify("ok", "Đã lưu cấu hình. Integration đang tải lại.");
         await this._load();
       } else {

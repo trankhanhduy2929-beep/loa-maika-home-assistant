@@ -2,6 +2,41 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.10.0] - 2026-10-11
+
+### Added
+
+- Mục **Giọng nói** riêng, nổi bật ngay dưới điều khiển loa: tạo câu lệnh bằng
+  cách chọn thiết bị → chọn thao tác → nhập câu nói, không cần viết rule/JSON.
+- Tìm theo tên trong Home Assistant, lọc loại thiết bị và chọn riêng automation,
+  script, scene. Chọn trực quan độ sáng, tốc độ quạt, vị trí rèm, nhiệt độ,
+  âm lượng và các thông số được hỗ trợ.
+- Danh sách câu lệnh có tìm kiếm, sửa, thêm cách nói, xóa và chạy thử có xác
+  nhận. Lưu/chọn thiết bị không tự thực hiện thao tác.
+- Automation có lựa chọn kiểm tra hoặc bỏ qua điều kiện. Lệnh mới mặc định
+  kiểm tra điều kiện; lệnh cũ giữ nguyên hành vi.
+- Cài đặt giọng nói và âm phản hồi nằm trong cùng mục, có chọn loa MAIKA theo
+  tên, MP3 có sẵn hoặc URL riêng và chế độ ưu tiên che giọng mặc định.
+
+### Changed
+
+- Bỏ ô URL máy chủ kích hoạt khỏi panel: chỉ nhập key. Máy chủ đang lưu hoặc
+  máy chủ mặc định vẫn được dùng tự động; không đổi key, gói hay mã máy.
+- Cấu hình chung chỉ còn chu kỳ cập nhật và cast cloud; lưu tại đây không ghi
+  đè câu lệnh hoặc âm phản hồi.
+
+### Fixed
+
+- Giữ nguyên câu lệnh cũ, comment và thông số chưa sửa; không phải tạo lại.
+- Giữ bản nháp khi cập nhật trạng thái/chuyển loa cùng tài khoản, cảnh báo khi
+  đổi tài khoản và phát hiện cấu hình bị sửa từ tab khác để tránh ghi đè.
+- Từ chối câu nói trùng, thông số sai và thao tác ngoài danh sách an toàn.
+  Chọn loa phát phản hồi chỉ liệt kê loa MAIKA thuộc tài khoản đang mở.
+
+Kiểm tra bằng Python và Chromium với Home Assistant giả lập; chưa kiểm thử
+nhận dạng giọng nói/cast trên loa thật trong lần phát hành này. Portal Vercel,
+thanh toán và các license hiện có không thay đổi.
+
 ## [1.9.4] - 2026-10-11
 
 ### Changed

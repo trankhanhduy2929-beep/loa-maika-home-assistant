@@ -72,6 +72,26 @@ def _simple_actions(*actions: str) -> dict[str, _VoiceActionSpec]:
     return {action: _spec() for action in actions}
 
 
+def _field_schema(
+    validator: ServiceDataValidator, **schema: Any
+) -> ServiceDataValidator:
+    validator.voice_field_schema = schema
+    return validator
+
+
+def _describe_field(validator: ServiceDataValidator) -> dict[str, Any]:
+    schema = getattr(validator, "voice_field_schema", None)
+    if schema is not None:
+        return dict(schema)
+    if validator is _boolean:
+        return {"type": "boolean"}
+    if validator is _duration:
+        return {"type": "duration"}
+    if validator is _tone:
+        return {"type": "tone", "max_length": MAX_SERVICE_STRING_LENGTH}
+    return {"type": "string", "max_length": MAX_SERVICE_STRING_LENGTH}
+
+
 def _string(value: Any) -> str:
     if not isinstance(value, str):
         raise ValueError("must be a string")
@@ -95,7 +115,7 @@ def _enum(*values: str) -> ServiceDataValidator:
             raise ValueError(f"must be one of: {choices}")
         return normalized
 
-    return validate
+    return _field_schema(validate, type="enum", options=list(values))
 
 
 def _boolean(value: Any) -> bool:
@@ -114,7 +134,7 @@ def _number(minimum: float, maximum: float) -> ServiceDataValidator:
             raise ValueError(f"must be between {minimum:g} and {maximum:g}")
         return value
 
-    return validate
+    return _field_schema(validate, type="number", min=minimum, max=maximum)
 
 
 def _integer(minimum: int, maximum: int) -> ServiceDataValidator:
@@ -129,7 +149,7 @@ def _integer(minimum: int, maximum: int) -> ServiceDataValidator:
             raise ValueError(f"must be between {minimum} and {maximum}")
         return int(value)
 
-    return validate
+    return _field_schema(validate, type="integer", min=minimum, max=maximum)
 
 
 def _sequence(*validators: ServiceDataValidator) -> ServiceDataValidator:
@@ -140,7 +160,9 @@ def _sequence(*validators: ServiceDataValidator) -> ServiceDataValidator:
             validator(item) for validator, item in zip(validators, value, strict=True)
         )
 
-    return validate
+    return _field_schema(
+        validate, type="sequence", items=[_describe_field(item) for item in validators]
+    )
 
 
 def _tone(value: Any) -> int | str:
@@ -334,7 +356,8 @@ _VOICE_SERVICE_SPECS: dict[str, dict[str, _VoiceActionSpec]] = {
     },
     "script": _simple_actions("turn_on", "turn_off", "toggle"),
     "automation": {
-        **_simple_actions("trigger", "turn_on", "turn_off", "toggle"),
+        **_simple_actions("turn_on", "turn_off", "toggle"),
+        "trigger": _spec({"skip_condition": _boolean}),
     },
     "button": {"press": _spec()},
     "input_button": {"press": _spec()},
@@ -436,6 +459,24 @@ ALLOWED_VOICE_ACTIONS = frozenset(
     for domain_actions in _VOICE_SERVICE_SPECS.values()
     for action in domain_actions
 )
+
+
+def voice_action_catalog() -> dict[str, dict[str, Any]]:
+    """Describe the same allow-list used to validate and execute voice rules."""
+    return {
+        domain: {
+            action: {
+                "fields": {
+                    name: _describe_field(validator)
+                    for name, validator in spec.fields.items()
+                },
+                "required": sorted(spec.required),
+                "exclusive": [sorted(group) for group in spec.mutually_exclusive],
+            }
+            for action, spec in actions.items()
+        }
+        for domain, actions in _VOICE_SERVICE_SPECS.items()
+    }
 
 
 @dataclass(frozen=True, slots=True)

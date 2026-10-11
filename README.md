@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.9.4**.
+Bản hiện tại: **v1.10.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -57,7 +57,9 @@ khoản MAIKA có nhiều loa, panel hiện hàng chip chọn loa và chỉ hi�
 của loa đang chọn. Bản `1.9.4` tối ưu điện thoại/tablet/máy tính, có thanh
 chuyển mục nhanh và lựa chọn **Tự động / Sáng / Tối** ở góc trên. Giao diện
 giữ nội dung đang nhập khi loa cập nhật, hỗ trợ giảm chuyển động; không cần
-cài thêm Mushroom hoặc card-mod. Chi tiết xem
+cài thêm Mushroom hoặc card-mod. Bản `1.10.0` có mục **Giọng nói** riêng:
+chọn thiết bị/automation, chọn thao tác và nhập câu nói — không cần viết rule.
+Kích hoạt chỉ cần dán key, không còn ô URL máy chủ. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
 
 ## Cài bằng HACS
@@ -80,13 +82,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.9.4
+## File phát hành v1.10.0
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.9.4-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.9.4-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.10.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.10.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.9.4-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.10.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
@@ -113,30 +115,22 @@ không nhận số điện thoại/mật khẩu MAIKA. Lease ký số có thời
 phép chạy offline thêm tối đa bảy ngày khi server tạm mất kết nối. Xem
 [Kích hoạt thương mại](docs/LICENSING.md).
 
-## Câu lệnh cố định từ loa
+## Điều khiển nhà bằng giọng nói
 
-Trong **Devices & services → MAIKA Speaker → Configure**:
+Mở **MAIKA → Giọng nói** trong sidebar Home Assistant:
 
-1. Bật **Sensor câu lệnh mới nhất và rule điều khiển**.
-2. Nhập mỗi rule theo dạng `câu lệnh | entity_id | action`; thêm cột JSON thứ tư
-   khi cần độ sáng, nhiệt độ, phần trăm quạt, vị trí rèm hoặc âm lượng.
-3. Lưu để integration reload.
+1. Chọn **Thiết bị / Automation / Kịch bản / Cảnh**, tìm bằng tên quen thuộc.
+2. Chọn thao tác: bật/tắt, bấm nút, đặt độ sáng, nhiệt độ, tốc độ, mở rèm…
+3. Nhập câu nói, ví dụ **bật đèn phòng khách**, rồi bấm **Lưu câu lệnh**.
+   Nếu tính năng đang tắt, nút **Lưu & bật điều khiển** sẽ bật cùng lúc.
 
-Ví dụ:
+Không phải nhập entity ID, service hoặc JSON. Có sẵn nút **Sửa**, **Thêm cách
+nói**, **Xóa** và **Chạy thử**; chạy thử điều khiển thật nên luôn có xác nhận.
 
-```text
-bật đèn phòng khách | light.den_phong_khach | turn_on
-bật đèn 70 phần trăm | light.den_phong_khach | turn_on | {"brightness_pct":70}
-mở rèm một nửa | cover.rem_phong_khach | set_cover_position | {"position":50}
-đặt điều hòa 26 độ | climate.may_lanh | set_temperature | {"temperature":26}
-quạt mức 60 | fan.quat_phong_khach | set_percentage | {"percentage":60}
-chạy cảnh đi ngủ | scene.di_ngu | turn_on
-```
-
-Rule hỗ trợ nhiều domain phổ biến với allowlist action/field riêng; cú pháp ba cột
-cũ vẫn giữ nguyên. JSON không thể đổi target hoặc gọi service hệ thống. Câu nói
-phải khớp toàn bộ sau khi bỏ hoa/thường, dấu tiếng Việt, khoảng trắng thừa và
-dấu câu; câu có thêm từ sẽ không chạy. Xem bảng action và ví dụ đầy đủ tại
+Câu lệnh cũ tự hiện trong danh sách và vẫn dùng bình thường. Automation mới
+mặc định kiểm tra điều kiện; có thể chọn bỏ qua để chạy trực tiếp. Câu nói
+khớp toàn bộ sau khi bỏ hoa/thường, dấu tiếng Việt, khoảng trắng thừa và dấu
+câu; câu có thêm từ sẽ không chạy. Xem hướng dẫn và cú pháp cũ (không bắt buộc) tại
 [Câu lệnh giọng nói](docs/VOICE_COMMANDS.md).
 
 Nếu thiết bị không chạy, mở entity **Câu lệnh giọng nói mới nhất** trong Developer Tools → States. `stream_connected` phải là `true`, `voice_subscription_status` phải là `subscribed`, `voice_subscription_count` phải bằng `voice_subscription_target_count` và `stream_frame_count` phải tăng sau khi reload. Sau khi nói, `last_stream_frame_type` cần thành `speakerConversationResponse`; khi rule khớp, `result` phải là `executed`. Integration báo rõ `entity_not_found`, `entity_unavailable` hoặc `service_not_supported` thay vì báo thành công giả.
@@ -145,18 +139,17 @@ Nếu thiết bị không chạy, mở entity **Câu lệnh giọng nói mới n
 
 Từ bản `1.5.0`, có thể phát một file MP3 ngắn để thay thế best-effort câu báo sai của MAIKA:
 
-1. Bật **Cast âm thanh cloud thử nghiệm**.
-2. Bật **Sensor câu lệnh mới nhất và rule điều khiển**.
-3. Tại **Nguồn âm báo thành công**, chọn **MP3 MAIKA tích hợp** để dùng file
-   `/mp3/maika.mp3` công khai trên portal, **URL MP3 tùy chỉnh** để giữ file
-   riêng trong HASS/Internet, hoặc **Tắt**.
-4. Chỉ khi chọn URL tùy chỉnh mới cần điền **URL MP3 thành công tùy chỉnh**.
-5. Nếu config entry có nhiều loa, chọn loa phát âm báo. Với đúng một loa,
-   integration tự chọn.
-6. Tại **Thời điểm phát âm báo**, giữ **Ưu tiên: che giọng mặc định** (mặc định).
+1. Bật **Cast âm thanh cloud** ở **Cấu hình loa**.
+2. Vào **Giọng nói → Giọng nói & âm phản hồi**, bật điều khiển thiết bị HASS.
+3. Chọn **Âm MAIKA có sẵn** để dùng `/mp3/maika.mp3` trên portal,
+   **File MP3 của bạn (URL)** hoặc **Không phát âm báo**.
+4. Chỉ khi chọn MP3 riêng mới cần điền URL file.
+5. Nếu tài khoản có nhiều loa, chọn một loa phát phản hồi. Với đúng một loa,
+   integration tự chọn; chưa tự phân biệt chắc chắn loa nào vừa nghe câu nói.
+6. Tại **Thời điểm phản hồi**, chọn **Ưu tiên che giọng mặc định của loa**.
    Chế độ này gửi MP3 ngay khi rule hợp lệ và dùng lại mã hội thoại của câu nói.
-   Nếu muốn giữ hành vi cũ, chọn **Sau khi HASS thành công**.
-7. Lưu để integration reload.
+   Nếu muốn chỉ phát khi thao tác không lỗi, chọn **Sau khi điều khiển thành công**.
+7. Bấm **Lưu cài đặt giọng nói**.
 
 Ở chế độ **Ưu tiên**, clip được gửi trước/khi service HASS đang chạy để giảm hiện
 tượng câu mặc định phát trước. Nếu service HASS lỗi, clip đang phát có thể đã bắt

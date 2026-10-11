@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>MAIKA panel verification</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; font-family: system-ui; }
+    body { display: flex; background: #101010; }
+    #sidebar { display: none; flex: none; width: 256px; }
+    maika-panel { flex: 1; min-width: 0; }
+  </style>
+  <script type="module" src="/maika-panel.js"></script>
+</head>
+<body>
+  <aside id="sidebar"></aside>
+  <maika-panel id="panel"></maika-panel>
+  <script>
+    window.calls = [];
+    window.failApi = false;
+    window.failSave = false;
+    window.states = {};
+    const entries = [];
+    const entityData = {
+      binary_sensor: {online: "on", wifi_connected: "on", available_to_call: "on", favorite: "off", device_active: "on", warranty_active: "on"},
+      sensor: {volume: "42", playback_status: "playing", model: "OLLI MAIKA S1", room: "Phòng ngủ", default_language: "vi-VN", wifi_ssid: "MAIKA Home 5G", serial_number: "SN-0001", activated_at: "2024-12-01", firmware_version: "3.2.3", firmware_update_status: "up_to_date", warranty_expire_date: "2027-12-01"},
+      switch: {microphone_mute: "off"},
+      select: {tts_voice: "Nữ miền Bắc", wakeword_sensitivity: "medium", wakeword_response: "Xin chào"},
+      text: {speaker_name: "Loa phòng ngủ", calling_name: "Phòng ngủ", address: "123 Nguyễn Trãi, Hà Nội"},
+      button: {refresh_status: "unknown", restart: "unknown"},
+      media_player: {media: "playing"},
+    };
+    for (let account = 0; account < 2; account += 1) {
+      const entry = {
+        entry_id: `account-${account}`, title: `Nhà ${account + 1}`, devices: {}, entities: {}, device_entities: {}, entity_keys: {},
+        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_media_player_entity_id: ""},
+        license: {status: "active", plan: "lifetime", expires_at: null, key_hint: "MAIKA-DEMO-…-1234", activation_code: "MAIKA-DEMO-TEST-ONLY-0000", server_url: "https://license.example.test"},
+      };
+      for (let speaker = 0; speaker < 2; speaker += 1) {
+        const serial = `SERIAL-${account}-${speaker}`;
+        const name = speaker ? "Loa phòng khách" : "Loa phòng ngủ";
+        entry.devices[serial] = {name, serial_number: serial, model: "OLLI MAIKA S1", manufacturer: "MAIKA", status: "active"};
+        const groups = entry.device_entities[serial] = {};
+        for (const [domain, entities] of Object.entries(entityData)) {
+          groups[domain] = [];
+          entry.entities[domain] ||= [];
+          let counter = 0;
+          for (const [key, value] of Object.entries(entities)) {
+            const id = `${domain}.arbitrary_${account}_${speaker}_${counter++}`;
+            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng"} : {};
+            if (domain === "select") attributes.options = [value, "Tuỳ chọn khác"];
+            states[id] = {entity_id: id, state: key === "speaker_name" ? name : value, attributes};
+            entry.entity_keys[id] = key;
+            groups[domain].push(id);
+            entry.entities[domain].push(id);
+          }
+        }
+      }
+      entries.push(entry);
+    }
+    window.snapshot = {entries, portal_url: "https://portal.example.test", scan_interval_bounds: [15, 3600], audio_source_options: ["disabled", "bundled", "custom"], audio_timing_options: ["priority", "after_success"]};
+    const demoEntities = {
+      "light.phong_khach": ["Đèn phòng khách", {supported_color_modes: ["brightness", "rgb"]}],
+      "fan.phong_khach": ["Quạt phòng khách", {preset_modes: ["auto", "sleep"]}],
+      "cover.rem": ["Rèm cửa phòng khách", {}],
+      "climate.may_lanh": ["Điều hòa phòng ngủ", {min_temp: 16, max_temp: 30, hvac_modes: ["off", "cool"], fan_modes: ["auto", "low", "high"]}],
+      "automation.di_ngu": ["Đi ngủ — tắt nhà", {}],
+      "script.chao_mung": ["Chào mừng về nhà", {}],
+      "scene.xem_phim": ["Xem phim", {}],
+      "media_player.tv": ["TV phòng khách", {source_list: ["HDMI 1", "HDMI 2"]}],
+      "input_select.che_do": ["Chế độ nhà", {options: ["Ở nhà", "Đi vắng"]}],
+      "button.chuong": ["Chuông cửa", {}],
+      "lock.cua": ["Khóa cửa chính", {}],
+      "timer.bep": ["Hẹn giờ bếp", {}],
+    };
+    for (const [entityId, [name, attributes]] of Object.entries(demoEntities)) states[entityId] = {entity_id: entityId, state: "off", attributes: {friendly_name: name, ...attributes}};
+    window.hass = {
+      states, themes: {darkMode: true},
+      callApi: async (method, path, data) => {
+        calls.push({method, path, data});
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        if (failApi) throw new Error("Thử mất kết nối");
+        if (method === "GET") return structuredClone(snapshot);
+        if (path === "maika/panel/options") {
+          if (failSave) throw new Error("Lưu thất bại giả lập");
+          const entry = snapshot.entries.find((item) => item.entry_id === data.entry_id);
+          if ("expected_voice_rules" in data && data.expected_voice_rules !== entry.options.voice_command_rules || data.expected_voice_options && Object.entries(data.expected_voice_options).some(([key, value]) => entry.options[key] !== value)) throw {body: {message: "voice_rules_changed"}};
+          Object.assign(entry.options, data.options);
+          return {updated: true};
+        }
+        return {status: "active"};
+      },
+      callService: async (domain, service, data) => {calls.push({domain, service, data});},
+    };
+    window.panel = document.getElementById("panel");
+    Promise.all([customElements.whenDefined("maika-panel"), fetch("/voice-actions.json").then((response) => response.json())]).then(([, catalog]) => {
+      snapshot.voice_actions = catalog;
+      snapshot.voice_limits = {rules: 200, phrase: 200};
+      hass.services = Object.fromEntries(Object.entries(catalog).map(([domain, actions]) => [domain, Object.fromEntries(Object.keys(actions).map((action) => [action, {}]))]));
+      panel.narrow = innerWidth < 870; panel.hass = hass;
+    });
+    window.tick = () => { panel.hass = {...hass, states: {...states}}; };
+  </script>
+</body>
+</html>

@@ -44,7 +44,13 @@ from .license import (
 from .license_config import DEFAULT_LICENSE_SERVER_URL, LICENSE_PORTAL_URL
 from .license_store import MaikaLicenseStore, MaikaStoredLicense
 from .media_url import is_valid_http_media_url
-from .voice_rules import VoiceCommandRulesError, parse_voice_command_rules
+from .voice_rules import (
+    MAX_PHRASE_LENGTH,
+    MAX_VOICE_COMMAND_RULES,
+    VoiceCommandRulesError,
+    parse_voice_command_rules,
+    voice_action_catalog,
+)
 from .voice_success_audio import (
     resolve_voice_success_audio_source,
     resolve_voice_success_audio_timing,
@@ -387,6 +393,11 @@ class MaikaPanelStateView(MaikaPanelMixin, HomeAssistantView):
                 "scan_interval_bounds": [MIN_SCAN_INTERVAL, MAX_SCAN_INTERVAL],
                 "audio_source_options": list(VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS),
                 "audio_timing_options": list(VOICE_SUCCESS_AUDIO_TIMING_OPTIONS),
+                "voice_actions": voice_action_catalog(),
+                "voice_limits": {
+                    "rules": MAX_VOICE_COMMAND_RULES,
+                    "phrase": MAX_PHRASE_LENGTH,
+                },
             }
         )
 
@@ -462,6 +473,20 @@ class MaikaPanelOptionsView(MaikaPanelMixin, HomeAssistantView):
         incoming = body.get("options")
         if not isinstance(incoming, dict):
             return self.json_message("invalid_options", 400)
+        if "expected_voice_options" in body:
+            expected = body["expected_voice_options"]
+            if not isinstance(expected, dict) or any(
+                key not in _OPTION_KEYS for key in expected
+            ):
+                return self.json_message("invalid_options", 400)
+            current = _public_options(dict(entry.options))
+            if any(current.get(key) != value for key, value in expected.items()):
+                return self.json_message("voice_rules_changed", 409)
+        if "expected_voice_rules" in body and body["expected_voice_rules"] != str(
+            entry.options.get(CONF_VOICE_COMMAND_RULES, DEFAULT_VOICE_COMMAND_RULES)
+            or ""
+        ):
+            return self.json_message("voice_rules_changed", 409)
         filtered = {key: incoming[key] for key in _OPTION_KEYS if key in incoming}
         merged, errors = _validate_options(self.hass, entry, filtered)
         if errors:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import asyncio
 import base64
 import binascii
 import ipaddress
@@ -361,6 +362,7 @@ def _validate_voice_rules(errors: list[str]) -> None:
             'x | light.a | turn_on | {"brightness_pct":{"nested":1}}',
             "x | lock.a | unlock",
             'x | light.a | turn_on | {"brightness_pct":1,"brightness_pct":2}',
+            'x | automation.a | trigger | {"skip_condition":"false"}',
         )
         for rule_text in rejected_rules:
             try:
@@ -368,6 +370,26 @@ def _validate_voice_rules(errors: list[str]) -> None:
             except module.VoiceCommandRulesError:
                 continue
             errors.append(f"Unsafe voice rule was accepted: {rule_text}")
+        catalog = module.voice_action_catalog()
+        json.dumps(catalog)
+        if set(catalog) != set(module._VOICE_SERVICE_SPECS):
+            errors.append("Voice editor catalog must match the rule allow-list")
+        if catalog["fan"]["set_percentage"]["fields"]["percentage"] != {
+            "type": "integer",
+            "min": 0,
+            "max": 100,
+        }:
+            errors.append("Voice editor percentage bounds are incorrect")
+        if catalog["climate"]["set_temperature"]["required"] != ["temperature"]:
+            errors.append("Voice editor is missing required temperature")
+        if "unlock" in catalog["lock"]:
+            errors.append("Voice editor must not allow unlocking doors")
+        automation = module.parse_voice_command_rules(
+            'chạy cảnh | automation.demo | trigger | {"skip_condition":false}'
+        )[0]
+        if dict(automation.service_data) != {"skip_condition": False}:
+            errors.append("Automation condition choice was not preserved")
+        _validate_panel_options(errors, module)
     except Exception as err:
         errors.append(f"Voice rule validation failed: {err}")
     finally:
@@ -375,6 +397,207 @@ def _validate_voice_rules(errors: list[str]) -> None:
             sys.modules.pop(module_name, None)
         else:
             sys.modules[module_name] = previous_module
+
+
+def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -> None:
+    """Exercise panel option handling without a running Home Assistant."""
+    directory = ROOT / f"custom_components/{DOMAIN}"
+    namespace = {
+        "parse_voice_command_rules": voice_module.parse_voice_command_rules,
+        "VoiceCommandRulesError": voice_module.VoiceCommandRulesError,
+    }
+    for filename in ("const.py", "media_url.py"):
+        path = directory / filename
+        exec(compile(path.read_text(), str(path), "exec"), namespace)
+
+    class View:
+        @staticmethod
+        def json(data: Any, status_code: int = 200) -> tuple[int, Any]:
+            return status_code, data
+
+        @staticmethod
+        def json_message(message: str, status_code: int) -> tuple[int, Any]:
+            return status_code, {"message": message}
+
+    namespace["HomeAssistantView"] = View
+    selected = {
+        "resolve_voice_success_audio_source",
+        "resolve_voice_success_audio_timing",
+        "_public_options",
+        "_validate_options",
+        "_entry_by_id",
+        "_read_json",
+        "MaikaPanelMixin",
+        "MaikaPanelOptionsView",
+        "MaikaPanelLicenseView",
+    }
+    for filename in ("voice_success_audio.py", "panel.py"):
+        path = directory / filename
+        tree = ast.parse(path.read_text(), filename=str(path))
+        tree.body = [
+            node
+            for node in tree.body
+            if getattr(node, "name", "") in selected
+            or (isinstance(node, ast.ImportFrom) and node.module == "__future__")
+            or (
+                isinstance(node, ast.Assign)
+                and any(
+                    isinstance(target, ast.Name) and target.id == "_OPTION_KEYS"
+                    for target in node.targets
+                )
+            )
+        ]
+        exec(compile(tree, str(path), "exec"), namespace)
+
+    rules_key = namespace["CONF_VOICE_COMMAND_RULES"]
+    audio_key = namespace["CONF_VOICE_SUCCESS_AUDIO_SOURCE"]
+    scan_key = namespace["CONF_SCAN_INTERVAL"]
+    entry = types.SimpleNamespace(
+        entry_id="maika-test",
+        options={
+            rules_key: "# legacy\nbật đèn | light.demo | turn_on",
+            audio_key: "bundled",
+            scan_key: 60,
+        },
+    )
+
+    def update_entry(target: Any, *, options: dict[str, Any]) -> None:
+        target.options = options
+
+    hass = types.SimpleNamespace(
+        config_entries=types.SimpleNamespace(
+            async_get_entry=lambda entry_id: (
+                entry if entry_id == entry.entry_id else None
+            ),
+            async_update_entry=update_entry,
+        ),
+        states=types.SimpleNamespace(
+            async_entity_ids=lambda domain: ["media_player.test"]
+        ),
+    )
+    view = namespace["MaikaPanelOptionsView"](hass)
+    server_urls = []
+
+    class LicenseStore:
+        record = types.SimpleNamespace(server_url="https://old.example.test")
+
+        def __init__(self, home_assistant: Any) -> None:
+            pass
+
+        async def async_load(self) -> Any:
+            return self.record
+
+        async def async_save(self, record: Any) -> None:
+            type(self).record = record
+
+    class LicenseClient:
+        def __init__(self, home_assistant: Any, server_url: str, identity: Any) -> None:
+            server_urls.append(server_url)
+
+        async def async_activate(self, key: str) -> Any:
+            assert key == "MAIKA-TEST-ONLY"
+            return types.SimpleNamespace(status="active", activation_code="TEST")
+
+    async def identity(home_assistant: Any) -> Any:
+        return types.SimpleNamespace(installation_hash="test-installation")
+
+    async def reload_entry(entry_id: str) -> None:
+        assert entry_id == entry.entry_id
+
+    namespace.update(
+        MaikaLicenseStore=LicenseStore,
+        MaikaLicenseClient=LicenseClient,
+        MaikaStoredLicense=types.SimpleNamespace(
+            from_response=lambda **values: types.SimpleNamespace(**values)
+        ),
+        normalize_license_key=lambda key: key,
+        normalize_license_server_url=lambda url: url,
+        async_get_installation_identity=identity,
+        DEFAULT_LICENSE_SERVER_URL="https://default.example.test",
+    )
+    hass.config_entries.async_reload = reload_entry
+    hass.async_create_task = lambda task: task.close()
+
+    async def request(payload: Any) -> tuple[int, Any]:
+        async def read_json() -> Any:
+            return payload
+
+        return await view.post(types.SimpleNamespace(json=read_json))
+
+    async def check() -> None:
+        original = dict(entry.options)
+        status, _ = await request(
+            {"entry_id": entry.entry_id, "options": {scan_key: 90}}
+        )
+        assert status == 200
+        assert entry.options == {**original, scan_key: 90}
+        expected = namespace["_public_options"](entry.options)
+        newer = (
+            '# legacy\nngủ ngon | automation.demo | trigger | {"skip_condition":false}'
+        )
+        payload = {
+            "entry_id": entry.entry_id,
+            "options": {rules_key: newer},
+            "expected_voice_rules": original[rules_key],
+            "expected_voice_options": {audio_key: expected[audio_key]},
+        }
+        status, _ = await request(payload)
+        assert status == 200 and entry.options[rules_key] == newer
+        license_view = namespace["MaikaPanelLicenseView"](hass)
+
+        async def activation_body() -> Any:
+            return {"entry_id": entry.entry_id, "license_key": "MAIKA-TEST-ONLY"}
+
+        for record in (
+            types.SimpleNamespace(server_url="https://old.example.test"),
+            None,
+        ):
+            LicenseStore.record = record
+            status, data = await license_view.post(
+                types.SimpleNamespace(json=activation_body)
+            )
+            assert status == 200 and data["status"] == "active"
+            assert LicenseStore.record.installation_hash == "test-installation"
+        assert server_urls == [
+            "https://old.example.test",
+            "https://default.example.test",
+        ]
+        before_conflict = dict(entry.options)
+        status, data = await request(payload)
+        assert status == 409 and data["message"] == "voice_rules_changed"
+        assert entry.options == before_conflict
+        payload["expected_voice_rules"] = newer
+        entry.options[audio_key] = "disabled"
+        status, _ = await request(payload)
+        assert status == 409 and entry.options[audio_key] == "disabled"
+        status, _ = await request(
+            {
+                "entry_id": entry.entry_id,
+                "options": {rules_key: "x | lock.door | unlock"},
+            }
+        )
+        assert status == 400 and entry.options[rules_key] == newer
+        status, _ = await request({"entry_id": "missing", "options": {scan_key: 60}})
+        assert status == 404
+        status, _ = await request(
+            {"entry_id": entry.entry_id, "options": [], "expected_voice_options": []}
+        )
+        assert status == 400
+        status, _ = await request(
+            {"entry_id": entry.entry_id, "options": {}, "expected_voice_options": []}
+        )
+        assert status == 400
+        status, _ = await request(
+            {"entry_id": entry.entry_id, "options": {scan_key: 60}}
+        )
+        assert status == 200 and entry.options[rules_key] == newer
+
+    try:
+        asyncio.run(check())
+    except Exception as err:
+        errors.append(
+            f"Panel options compatibility/conflict validation failed: {err!r}"
+        )
 
 
 def validate(
