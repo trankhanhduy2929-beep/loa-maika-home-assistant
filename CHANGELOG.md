@@ -2,6 +2,40 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.12.0] - 2026-10-11
+
+### Added
+
+- Phong cách Liquid Glass tông cam: thẻ kính mờ, viền phản sáng, nút cam
+  chuyển sắc, nền sáng kem/tối nâu than. Ô nhập giữ nền rõ để dễ đọc.
+- Vòng sóng quanh loa, ảnh loa chuyển động nhẹ, dải sóng và vệt sáng trên
+  thanh phát nhạc khi trạng thái HA đang phát và không tắt tiếng. Dừng
+  hiệu ứng phát nhạc khi tạm dừng, tắt tiếng, mất kết nối hoặc chưa rõ
+  trạng thái. Sóng chỉ mang tính minh hoạ, không thu/phân tích âm thanh.
+- Nút **Hoạt ảnh** cạnh thanh chọn mục để bật/tắt chuyển động, nhớ theo
+  trình duyệt và đồng bộ lựa chọn giữa các tab, không lưu lên HA/server.
+
+### Accessibility
+
+- Tôn trọng **Giảm chuyển động** của hệ thống, kể cả khi đã bật hoạt ảnh;
+  dừng animation khi ra khỏi vùng nhìn hoặc chuyển tab, gồm cả thông báo
+  bên trong trình tạo câu lệnh. Không thêm vòng lặp animation JavaScript.
+- Nền đặc khi giảm trong suốt/tăng tương phản; fallback nền đặc nếu trình
+  duyệt không hỗ trợ kính mờ. Giảm mức blur trên thiết bị cảm ứng.
+- Giữ độ tương phản chữ/nút và chữ trên mục được chọn cả khi rê chuột.
+
+### Preserved
+
+- Giữ sửa lỗi cuộn chuột v1.11.1, vuốt đổi loa, cuộn lồng nhau, sáng/tối,
+  bản nháp key/câu lệnh và mọi cấu hình. Không đổi API hay dữ liệu license.
+
+### Tests
+
+- Kiểm tra trực tiếp chuyển trạng thái, hoạt ảnh chuyển động theo thời
+  gian, bật/tắt/lưu lựa chọn, giảm chuyển động/trong suốt và tương phản;
+  chạy lại bộ trình duyệt ở 320–1920px, con lăn và cử chỉ cảm ứng với HA
+  giả lập. Chưa kiểm thử trên loa và máy Home Assistant thực tế.
+
 ## [1.11.1] - 2026-10-11
 
 ### Fixed

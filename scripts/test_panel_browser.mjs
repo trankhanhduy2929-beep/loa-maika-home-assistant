@@ -26,7 +26,10 @@ await context.route("**/olli-maika-2.jpg", (route) => route.fulfill({contentType
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (error) => errors.push(String(error)));
-const waitRender = () => page.waitForTimeout(100);
+const waitRender = async () => {
+  await page.waitForTimeout(100);
+  await page.waitForFunction(() => document.querySelector("maika-panel")._renderFrame === null);
+};
 const load = async () => { await page.goto(base); await page.locator('[data-sec="settings"]').waitFor(); await page.waitForTimeout(500); };
 const metrics = [];
 
@@ -219,6 +222,117 @@ async function verifyVoiceEditor() {
   execFileSync(process.env.PYTHON || "python3", ["-c", 'import runpy, sys; parse = runpy.run_path(sys.argv[1])["parse_voice_command_rules"]; rules = parse(sys.stdin.read()); assert len(rules) >= 10', join(root, "custom_components/maika/voice_rules.py")], {input: storedRules});
   await writeFile(join(output, "voice-options.json"), JSON.stringify(await serverOptions(), null, 2));
   console.log("PASS generated browser rules round-trip through the actual Python backend validator");
+}
+
+async function verifyGlassAndMotion() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  const effects = page.locator('[data-action="effects"]');
+  const wave = page.locator(".sound-wave i").first();
+  const aura = page.locator(".hero-aura i").first();
+  const animation = (locator) => locator.evaluate((element) => getComputedStyle(element).animationName);
+  const updatePlayback = async (state, online = "on", muted = false) => {
+    await page.evaluate(({state, online, muted}) => {
+      const media = states[panel._entity("media_player")];
+      media.state = state;
+      media.attributes.is_volume_muted = muted;
+      states[panel._entity("binary_sensor", "online")].state = online;
+      tick();
+    }, {state, online, muted});
+    await waitRender();
+  };
+  const contrast = (foreground, background) => {
+    const luminance = (hex) => {
+      const channels = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255).map((value) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+      return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+    };
+    const values = [luminance(foreground), luminance(background)].sort((first, second) => second - first);
+    return (values[0] + .05) / (values[1] + .05);
+  };
+  for (const theme of ["light", "dark"]) {
+    await page.locator('[data-action="theme"]').selectOption(theme);
+    const palette = await page.evaluate(() => {
+      const style = getComputedStyle(panel);
+      return Object.fromEntries(["accent", "text", "muted", "surface", "brand-start", "brand-end", "brand-ink"].map((key) => [key, style.getPropertyValue(`--${key}`).trim()]));
+    });
+    const accentChannels = [1, 3, 5].map((offset) => parseInt(palette.accent.slice(offset, offset + 2), 16));
+    assert(accentChannels[0] > accentChannels[1] && accentChannels[1] > accentChannels[2], "The accent stays orange in both themes");
+    for (const token of ["accent", "text", "muted"]) assert(contrast(palette[token], palette.surface) >= 4.5, `${theme} ${token} contrast on solid card fallback`);
+    for (const token of ["brand-start", "brand-end"]) assert(contrast(palette["brand-ink"], palette[token]) >= 4.5, `${theme} ${token} button contrast`);
+    await page.locator(".pill--on").hover();
+    await page.waitForTimeout(300);
+    const buttonInk = [1, 3, 5].map((offset) => parseInt(palette["brand-ink"].slice(offset, offset + 2), 16));
+    assert.equal(await page.locator(".pill--on").evaluate((element) => getComputedStyle(element).color), `rgb(${buttonInk.join(", ")})`, "Active navigation keeps legible dark text on hover");
+    assert.match(await page.locator(".hero").evaluate((element) => getComputedStyle(element).backdropFilter), /blur/);
+  }
+  assert.equal(await animation(wave), "sound-wave");
+  assert.equal(await animation(aura), "sound-ripple");
+  const movingTransform = await wave.evaluate((element) => getComputedStyle(element).transform);
+  await page.waitForTimeout(250);
+  assert.notEqual(await wave.evaluate((element) => getComputedStyle(element).transform), movingTransform, "The waveform really animates over time");
+  await page.evaluate(() => { window.savedHeroImage = panel.shadowRoot.querySelector(".hero-media img"); });
+  for (const [state, online, muted, expected] of [["paused", "on", false, "paused"], ["idle", "on", false, "idle"], ["off", "on", false, "off"], ["buffering", "on", false, "buffering"], ["standby", "on", false, "standby"], ["playing", "on", true, "muted"], ["playing", "off", false, "offline"], ["unavailable", "on", false, "offline"], ["playing", "unavailable", false, "unknown"]]) {
+    await updatePlayback(state, online, muted);
+    assert.equal(await page.locator(".hero").getAttribute("data-activity"), expected);
+    assert.equal(await animation(wave), "none");
+    assert.equal(await animation(aura), "none");
+    assert.equal(await page.locator(".media-now").evaluate((element) => getComputedStyle(element, "::before").animationName), "none");
+    assert.equal(await animation(page.locator(".eq i").first()), "none");
+    if (["offline", "unknown"].includes(expected)) assert.equal(await page.locator(".hero").getAttribute("data-connected"), null);
+  }
+  await updatePlayback("playing");
+  assert.equal(await animation(wave), "sound-wave");
+  assert(await page.evaluate(() => savedHeroImage === panel.shadowRoot.querySelector(".hero-media img")));
+  console.log("PASS orange glass themes, text/button palette contrast and live playback/muted/offline/unknown animations without reloading the image");
+
+  await page.locator('[name="license_key"]').fill("MAIKA-ANIMATION-DRAFT");
+  await page.locator("maika-voice-editor").locator("#phrase").fill("bản nháp không mất khi tắt hoạt ảnh");
+  await effects.click();
+  assert.equal(await effects.getAttribute("aria-pressed"), "false");
+  assert.equal(await animation(wave), "none");
+  assert.equal(await page.locator("maika-voice-editor").getAttribute("data-reduced-motion"), "");
+  assert.equal(await page.locator('[name="license_key"]').inputValue(), "MAIKA-ANIMATION-DRAFT");
+  assert.equal(await page.locator("maika-voice-editor").locator("#phrase").inputValue(), "bản nháp không mất khi tắt hoạt ảnh");
+  await load();
+  assert.equal(await effects.getAttribute("aria-pressed"), "false");
+  await effects.click();
+  await page.emulateMedia({reducedMotion: "reduce"});
+  await page.waitForFunction(() => panel.shadowRoot.querySelector('[data-action="effects"]').disabled);
+  assert.equal(await animation(wave), "none");
+  assert.equal(await effects.getAttribute("aria-pressed"), "false");
+  await page.emulateMedia({reducedMotion: "no-preference"});
+  await page.waitForFunction(() => !panel.hasAttribute("data-reduced-motion"));
+  assert.equal(await animation(wave), "sound-wave");
+  await page.evaluate(() => {
+    localStorage.setItem("maika.panel.motion", "off");
+    window.dispatchEvent(new StorageEvent("storage", {key: "maika.panel.motion"}));
+  });
+  assert.equal(await effects.getAttribute("aria-pressed"), "false");
+  await effects.click();
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await page.waitForFunction(() => panel.shadowRoot.querySelector(".hero").hasAttribute("data-motion-paused"));
+  assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "paused");
+  await page.locator('[data-action="jump"][data-section="overview"]').click();
+  await page.waitForFunction(() => !panel.shadowRoot.querySelector(".hero").hasAttribute("data-motion-paused"));
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {configurable: true, value: true});
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "paused");
+  await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event("visibilitychange")); });
+  assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "running");
+  console.log("PASS motion toggle persistence, draft preservation, cross-tab preference, system reduced motion and offscreen/background pause");
+
+  const session = await context.newCDPSession(page);
+  for (const feature of [{name: "prefers-reduced-transparency", value: "reduce"}, {name: "prefers-contrast", value: "more"}]) {
+    await session.send("Emulation.setEmulatedMedia", {features: [feature]});
+    assert.equal(await page.locator(".hero").evaluate((element) => getComputedStyle(element).backdropFilter), "none");
+    assert.equal(await page.locator(".toolbar").evaluate((element) => getComputedStyle(element).backdropFilter), "none");
+  }
+  await session.send("Emulation.setEmulatedMedia", {features: []});
+  await session.detach();
+  assert.equal(await page.evaluate(() => calls.filter((call) => call.service || call.method === "POST").length), 0);
+  console.log("PASS solid readable fallback for reduced transparency/high contrast; no settings or device actions from visual effects");
 }
 
 async function verifyDesktopScrolling() {
@@ -432,6 +546,7 @@ async function verifySpeakerGestures() {
 }
 
 try {
+  await verifyGlassAndMotion();
   await verifyDesktopScrolling();
   await verifySpeakerGestures();
   await verifyVoiceEditor();
@@ -481,7 +596,7 @@ try {
   assert.equal(await page.locator("maika-panel").getAttribute("data-theme"), "light");
   await page.locator('[data-action="theme"]').selectOption("dark");
   await page.waitForTimeout(450);
-  assert.equal(await page.evaluate(() => getComputedStyle(panel).backgroundColor), "rgb(9, 23, 28)");
+  assert.equal(await page.evaluate(() => getComputedStyle(panel).backgroundColor), "rgb(23, 17, 15)");
   await load();
   assert.equal(await page.locator("maika-panel").getAttribute("data-theme"), "dark");
   console.log("PASS automatic HA theme, manual override, persistence after reload");
@@ -600,6 +715,11 @@ try {
   await blockedPage.locator('[data-sec="overview"]').waitFor();
   await blockedPage.locator('[data-action="theme"]').selectOption("light");
   assert.equal(await blockedPage.locator("maika-panel").getAttribute("data-theme"), "light");
+  await blockedPage.locator('[data-action="effects"]').click();
+  assert.equal(await blockedPage.locator('[data-action="effects"]').getAttribute("aria-pressed"), "false");
+  await blockedPage.evaluate(() => { const root = panel.parentElement; panel.remove(); root.append(panel); tick(); });
+  assert.equal(await blockedPage.locator('[data-action="effects"]').getAttribute("aria-pressed"), "false");
+  await blockedPage.locator('[data-action="effects"]').click();
   await blockedPage.waitForTimeout(300);
   assert(await blockedPage.locator(".hero-media img").evaluate((element) => element.hidden));
   const unlabeled = await blockedPage.evaluate(() => [...panel.shadowRoot.querySelectorAll("input, select, textarea")].filter((element) => !element.getAttribute("aria-label") && !element.labels?.length).map((element) => element.outerHTML));

@@ -12,10 +12,21 @@ hiện ô URL máy chủ kích hoạt. Từ `1.10.1`, panel là nơi cấu hình
 cài đặt; nút **Configure / Tùy chọn MAIKA** bên trang tích hợp đã được bỏ.
 Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lại.
 
-## Giao diện và vuốt chạm từ v1.11.0
+## Liquid Glass và hoạt ảnh từ v1.12.0
 
-- Tông xanh ngọc, nền tối xanh than hoặc sáng trắng bạc hà, điểm nhấn tím nhẹ.
-  Ảnh loa gọn bên cạnh tên/trạng thái, không còn khung ảnh lớn.
+- Tông cam MAIKA, nền sáng kem/tối nâu than, thẻ kính mờ và viền phản sáng.
+  Ảnh loa gọn bên cạnh tên/trạng thái, nút cam chuyển sắc. Ô nhập giữ nền
+  rõ để không khó đọc nội dung.
+- Khi HA báo loa đang phát và không tắt tiếng: ảnh loa chuyển động nhẹ,
+  vòng sóng lan và dải sóng chạy, thanh phát nhạc có vệt sáng chậm.
+  Tạm dừng/tắt tiếng/mất kết nối hoặc chưa rõ trạng thái thì dừng hiệu ứng
+  phát nhạc. Sóng là minh hoạ trạng thái, không đo âm thanh hay thu micro.
+- Nút **Hoạt ảnh** ở cạnh thanh chọn mục (biểu tượng lấp lánh trên điện
+  thoại) bật/tắt chuyển động, không làm mất bản nháp và không gọi dịch vụ
+  loa. Lựa chọn được nhớ trong trình duyệt và đồng bộ giữa các tab.
+- Hệ thống bật **Giảm chuyển động** thì hoạt ảnh tắt, nút có chú thích và
+  không cho bật ngược lại. Nền kính chuyển sang nền đặc khi thiết bị yêu
+  cầu giảm trong suốt/tăng tương phản hoặc không hỗ trợ backdrop-filter.
 - **Vuốt ngang trên thẻ loa** để chuyển loa trong cùng tài khoản. Có nút
   trước/sau, số thứ tự và phím trái/phải khi thẻ được focus. Một loa thì ẩn
   các nút này; vuốt tới đầu/cuối không tự quay vòng.
@@ -123,7 +134,7 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.11.1`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.12.0`, khởi động lại Home Assistant rồi tải
 lại trang bằng **Ctrl+F5**/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các
