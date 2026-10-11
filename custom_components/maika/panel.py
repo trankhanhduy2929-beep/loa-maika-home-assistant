@@ -11,6 +11,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
@@ -213,6 +214,21 @@ def _serialize_license(manager: Any) -> dict[str, Any]:
     }
 
 
+def _serial_for_device(
+    device_registry: dr.DeviceRegistry, device_id: str | None
+) -> str:
+    """Return the MAIKA serial owned by a device registry entry."""
+    if not device_id:
+        return ""
+    device = device_registry.async_get(device_id)
+    if device is None:
+        return ""
+    for domain, identifier in device.identifiers:
+        if domain == DOMAIN and isinstance(identifier, str) and identifier:
+            return identifier
+    return ""
+
+
 def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     runtime = getattr(entry, "runtime_data", None)
     coordinator = getattr(runtime, "coordinator", None)
@@ -230,11 +246,24 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
             devices[serial] = payload
 
     entities: dict[str, list[str]] = {}
+    device_entities: dict[str, dict[str, list[str]]] = {}
     registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         if registry_entry.disabled_by:
             continue
         entities.setdefault(registry_entry.domain, []).append(registry_entry.entity_id)
+        serial = _serial_for_device(device_registry, registry_entry.device_id)
+        if not serial:
+            continue
+        grouped = device_entities.setdefault(serial, {})
+        grouped.setdefault(registry_entry.domain, []).append(registry_entry.entity_id)
+        if serial not in devices:
+            device = device_registry.async_get(registry_entry.device_id)
+            devices[serial] = {
+                "serial_number": serial,
+                "name": (device.name_by_user or device.name) if device else "",
+            }
 
     return {
         "entry_id": entry.entry_id,
@@ -243,6 +272,10 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
         "license": _serialize_license(manager),
         "devices": devices,
         "entities": {domain: sorted(ids) for domain, ids in entities.items()},
+        "device_entities": {
+            serial: {domain: sorted(ids) for domain, ids in grouped.items()}
+            for serial, grouped in device_entities.items()
+        },
     }
 
 

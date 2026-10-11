@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "maika"
-INTEGRATION_VERSION = "1.9.1"
+INTEGRATION_VERSION = "1.9.2"
 
 APP_VERSION = "3.2.3"
 APP_DEVICE_TYPE = "android"

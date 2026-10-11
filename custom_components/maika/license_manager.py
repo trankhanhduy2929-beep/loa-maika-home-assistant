@@ -78,7 +78,7 @@ class MaikaLicenseManager:
         await manager.async_validate()
         return manager
 
-    async def async_validate(self) -> None:
+    async def async_validate(self, *, _retry: bool = False) -> None:
         """Refresh from the server, falling back to a signed cached lease."""
         try:
             client = MaikaLicenseClient(
@@ -91,6 +91,9 @@ class MaikaLicenseManager:
             self._validate_cached_lease(client)
             return
         except (MaikaLicenseTokenError, ValueError) as err:
+            if not _retry and await self._async_adopt_rotated_record():
+                await self.async_validate(_retry=True)
+                return
             raise MaikaLicenseUnavailableError(
                 "license_invalid_configuration", self.identity.activation_code
             ) from err
@@ -129,6 +132,18 @@ class MaikaLicenseManager:
         self.state = (
             response.entitlement.state_at() if response.entitlement else response.status
         )
+
+    async def _async_adopt_rotated_record(self) -> bool:
+        """Adopt a lease rotated by another MAIKA entry on this instance."""
+        persisted = await self.store.async_load()
+        if (
+            persisted is None
+            or persisted.installation_hash != self.identity.installation_hash
+            or persisted.refresh_token == self.record.refresh_token
+        ):
+            return False
+        self.record = persisted
+        return True
 
     def async_start(
         self,

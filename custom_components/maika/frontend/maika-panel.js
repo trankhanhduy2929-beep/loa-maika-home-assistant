@@ -136,6 +136,7 @@ class MaikaPanel extends HTMLElement {
     this._hass = null;
     this._snapshot = null;
     this._activeIndex = 0;
+    this._deviceSerial = "";
     this._busy = false;
     this._message = null;
     this._draft = {};
@@ -355,13 +356,45 @@ class MaikaPanel extends HTMLElement {
     return entries[index];
   }
 
+  _serials() {
+    const entry = this._entry();
+    const scoped = Object.keys(entry?.device_entities || {});
+    if (scoped.length) {
+      return scoped.sort((a, b) => this._deviceLabel(a).localeCompare(this._deviceLabel(b), "vi"));
+    }
+    return Object.keys(entry?.devices || {});
+  }
+
+  _activeSerial() {
+    const serials = this._serials();
+    if (!serials.length) return "";
+    return serials.includes(this._deviceSerial) ? this._deviceSerial : serials[0];
+  }
+
+  _activeDevice() {
+    return this._entry()?.devices?.[this._activeSerial()] || {};
+  }
+
+  _deviceLabel(serial) {
+    const device = this._entry()?.devices?.[serial] || {};
+    const name = String(device.name || device.calling_name || "").trim();
+    return name || `Loa ${String(serial).slice(-4)}`;
+  }
+
   _entities(domain) {
-    return this._entry()?.entities?.[domain] || [];
+    const entry = this._entry();
+    const scoped = entry?.device_entities?.[this._activeSerial()]?.[domain];
+    if (scoped && scoped.length) return scoped;
+    return entry?.entities?.[domain] || [];
   }
 
   _entity(domain, ...parts) {
     const list = this._entities(domain);
-    return list.find((id) => parts.every((part) => id.includes(part))) || "";
+    const matches = (id) => {
+      const flat = id.replace(/_/g, "");
+      return parts.every((part) => id.includes(part) || flat.includes(part.replace(/_/g, "")));
+    };
+    return list.find(matches) || "";
   }
 
   _state(entityId) {
@@ -508,8 +541,7 @@ class MaikaPanel extends HTMLElement {
     const nameEntity = this._entity("text", "speaker_name");
     const name = this._value(nameEntity, "");
     if (name && name !== "—") return name;
-    const device = Object.values(this._entry()?.devices || {})[0] || {};
-    return device.name || this._entry()?.title || "Loa MAIKA";
+    return this._activeDevice().name || this._entry()?.title || "Loa MAIKA";
   }
 
   _stateLabel(state) {
@@ -682,7 +714,7 @@ class MaikaPanel extends HTMLElement {
   }
 
   _deviceSection(delay) {
-    const device = Object.values(this._entry()?.devices || {})[0] || {};
+    const device = this._activeDevice();
     const rows = [
       ["Model", this._value(this._entity("sensor", "model"), device.model || "—")],
       ["Phòng", this._value(this._entity("sensor", "room"), "—")],
@@ -701,7 +733,7 @@ class MaikaPanel extends HTMLElement {
   _firmwareSection(delay) {
     const version = this._value(this._entity("sensor", "firmware_version"), "—");
     const status = this._value(this._entity("sensor", "firmware_update"), "—");
-    const device = Object.values(this._entry()?.devices || {})[0] || {};
+    const device = this._activeDevice();
     const rows = [
       this._row("Phiên bản firmware", version, "c-blue"),
       this._row("Trạng thái cập nhật", status, "c-cyan"),
@@ -858,7 +890,7 @@ class MaikaPanel extends HTMLElement {
     ]);
 
     return this._card("span3", [
-      this._sectionHead("tune", "Cấu hình loa", "Chu kỳ cập nhật, cast cloud, âm báo và rule giọng nói", "c-purple"),
+      this._sectionHead("tune", "Cấu hình loa", "Chu kỳ, cast, âm báo, rule giọng nói — áp dụng mọi loa cùng tài khoản", "c-purple"),
       form,
     ], delay);
   }
@@ -876,6 +908,28 @@ class MaikaPanel extends HTMLElement {
       })
     );
     return this._card("titlecard span2", [h("div", {class: "chips"}, chips)], delay);
+  }
+
+  _deviceSwitch(delay) {
+    const serials = this._serials();
+    if (serials.length < 2) return null;
+    const active = this._activeSerial();
+    const chips = serials.map((serial) =>
+      h("button", {
+        class: ["chip", serial === active ? "chip--ok" : "chip--muted"].join(" "),
+        type: "button",
+        style: "cursor:pointer;border:none;font:inherit",
+        dataset: {action: "device", serial},
+        text: this._deviceLabel(serial),
+      })
+    );
+    return this._card("titlecard span2", [
+      h("div", {class: "chips"}, chips),
+      h("p", {
+        class: "hint",
+        text: `${serials.length} loa trong ${this._entry()?.title || "MAIKA"} — chạm để xem và cấu hình từng loa.`,
+      }),
+    ], delay);
   }
 
   _render() {
@@ -908,6 +962,7 @@ class MaikaPanel extends HTMLElement {
 
     const cards = [
       this._entrySwitch(10),
+      this._deviceSwitch(25),
       this._heroCard(30),
       this._mediaSection(60),
       this._statusSection(90),
@@ -943,6 +998,7 @@ class MaikaPanel extends HTMLElement {
     return JSON.stringify({
       entry: entry?.entry_id,
       index: this._activeIndex,
+      device: this._activeSerial(),
       states,
       options: entry?.options,
       license: entry?.license,
@@ -1037,8 +1093,17 @@ class MaikaPanel extends HTMLElement {
 
     if (action === "entry") {
       this._activeIndex = Number(target.dataset.index) || 0;
+      this._deviceSerial = "";
       this._draft = {};
       this._message = null;
+      this._lastSignature = "";
+      this._maybeUpdate();
+      return;
+    }
+
+    if (action === "device") {
+      this._deviceSerial = target.dataset.serial || "";
+      this._draft = {};
       this._lastSignature = "";
       this._maybeUpdate();
       return;

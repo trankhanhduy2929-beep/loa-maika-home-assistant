@@ -1,7 +1,8 @@
 # Panel quản lý loa MAIKA
 
 Từ bản `1.9.0`, tích hợp MAIKA tự đăng ký một mục **MAIKA** trong sidebar Home
-Assistant. Từ `1.9.1`, panel dùng giao diện dashboard dạng sections: lưới 4 cột
+Assistant. Từ `1.9.1`, panel dùng giao diện dashboard dạng sections; từ `1.9.2`,
+panel hỗ trợ nhiều loa trong cùng tài khoản. Layout: lưới 4 cột
 trên máy tính, tự co về 2 cột trên tablet và 1 cột trên điện thoại.
 
 ## Bố cục
@@ -27,7 +28,12 @@ trên máy tính, tự co về 2 cột trên tablet và 1 cột trên điện th
     báo, rule câu lệnh, nút lưu và nút tải lại integration.
 11. **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
 
-Nếu có nhiều config entry, các chip chọn loa xuất hiện ở đầu panel.
+Nếu có nhiều config entry, các chip chọn **tài khoản** xuất hiện ở đầu panel.
+Nếu một tài khoản có nhiều loa, thêm hàng chip chọn **loa** ngay bên dưới: chạm
+để đổi loa và mọi mục trong panel (media, trạng thái, trợ lý, tên/vị trí, thông
+tin thiết bị, firmware, bảo hành, công cụ) chỉ hiển thị entity của loa đó.
+Mục **Bản quyền** và **Cấu hình** là của cả tài khoản/Home Assistant nên dùng
+chung cho mọi loa.
 
 ## Thao tác
 

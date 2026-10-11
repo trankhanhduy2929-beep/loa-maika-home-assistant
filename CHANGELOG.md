@@ -2,6 +2,29 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.9.2] - 2026-10-11
+
+### Added
+
+- Panel tự nhận diện **nhiều loa trong cùng một tài khoản MAIKA**: thêm hàng chip
+  chọn loa, mọi mục (ảnh, media, trạng thái, trợ lý, tên/vị trí, thông tin thiết
+  bị, firmware, bảo hành, công cụ) chỉ hiển thị entity của loa đang chọn.
+- Snapshot panel có thêm `device_entities` (entity theo serial từng loa) để giao
+  diện scoped theo thiết bị thay vì gộp toàn bộ entry.
+
+### Fixed
+
+- Thêm tài khoản MAIKA thứ hai dùng chung license key trên cùng Home Assistant
+  không còn bị cắt hạn dùng thử: khi máy chủ xoay refresh token cho entry khác,
+  entry đang chạy tự nạp lại lease vừa xoay thay vì báo lỗi rồi reload.
+- Chip và tile Wi-Fi luôn báo "Mất Wi-Fi" dù loa đang kết nối, do panel tìm
+  chuỗi `wifi` trong khi entity_id thật là `..._wi_fi_connected`. Cách khớp tên
+  giờ bỏ dấu gạch dưới nên vẫn khớp các entity có tên viết tắt.
+
+### Changed
+
+- Nhãn mục Cấu hình ghi rõ cấu hình áp dụng cho mọi loa cùng tài khoản.
+
 ## [1.9.1] - 2026-10-10
 
 ### Changed
