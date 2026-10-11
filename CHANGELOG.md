@@ -2,6 +2,34 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.11.0] - 2026-10-11
+
+### Added
+
+- Vuốt ngang trên thẻ loa để chuyển loa trong cùng tài khoản; có nút trước/sau,
+  số thứ tự và hỗ trợ phím trái/phải. Không chuyển vòng bất ngờ ở hai đầu.
+- Hiệu ứng kéo nhẹ, chuyển loa, phản hồi khi nhấn và viền sáng chuyển động;
+  thanh chọn mục/loa cuộn ngang có điểm dừng. Vuốt dọc vẫn cuộn trang bình thường.
+- Nút **Tạo câu lệnh** ngay trên thẻ loa để mở nhanh mục Giọng nói.
+
+### Changed
+
+- Giao diện xanh ngọc, nền tối xanh than / nền sáng trắng bạc hà, điểm nhấn tím
+  nhẹ; thẻ và nút đồng bộ giữa panel và trình tạo câu lệnh.
+- Thu gọn ảnh loa sang bên cạnh tên/trạng thái, bỏ khung ảnh lớn chiếm màn hình.
+- Phần phát URL MP3/AAC thu gọn trong **Phát âm thanh từ đường dẫn**; chạm để mở.
+  Ô nhập và trạng thái mở vẫn giữ khi loa cập nhật.
+- Dừng hoạt cảnh khi ra ngoài vùng nhìn hoặc tab bị ẩn; tôn trọng chế độ
+  giảm chuyển động của thiết bị, không chạy vòng lặp JavaScript khi đứng yên.
+
+### Safety
+
+- Vuốt chỉ đổi loa đang xem, không gọi service, không đổi tài khoản và không
+  lưu cấu hình. Giữ bản nháp key, cấu hình chung và giọng nói trong cùng tài khoản.
+- Bỏ qua vuốt ngắn, cuộn dọc, cử chỉ nhiều ngón hoặc bị hủy; không đổi loa
+  khi đang thực hiện thao tác/lưu câu lệnh. Một loa thì ẩn bộ chuyển loa.
+- Không đổi license, entity, câu lệnh, âm báo, API kích hoạt hoặc thanh toán.
+
 ## [1.10.1] - 2026-10-11
 
 ### Changed

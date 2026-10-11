@@ -12,6 +12,25 @@ hiện ô URL máy chủ kích hoạt. Từ `1.10.1`, panel là nơi cấu hình
 cài đặt; nút **Configure / Tùy chọn MAIKA** bên trang tích hợp đã được bỏ.
 Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lại.
 
+## Giao diện và vuốt chạm từ v1.11.0
+
+- Tông xanh ngọc, nền tối xanh than hoặc sáng trắng bạc hà, điểm nhấn tím nhẹ.
+  Ảnh loa gọn bên cạnh tên/trạng thái, không còn khung ảnh lớn.
+- **Vuốt ngang trên thẻ loa** để chuyển loa trong cùng tài khoản. Có nút
+  trước/sau, số thứ tự và phím trái/phải khi thẻ được focus. Một loa thì ẩn
+  các nút này; vuốt tới đầu/cuối không tự quay vòng.
+- Vuốt dọc vẫn cuộn trang; thanh chọn mục/loa cuộn ngang tự nhiên. Cử chỉ
+  ngắn, nhiều ngón hoặc bị huỷ không đổi loa. Các ô nhập/nút không bắt vuốt.
+- Vuốt chỉ đổi loa đang xem: không thực thi lệnh, không đổi tài khoản,
+  không tự lưu. Không chuyển loa khi panel đang thao tác hoặc đang lưu/chạy
+  thử câu lệnh. Bản nháp key, cấu hình chung và giọng nói vẫn giữ nguyên.
+- Chạm **Tạo câu lệnh** trên thẻ loa để tới Giọng nói. Mở
+  **Phát âm thanh từ đường dẫn** trong Điều khiển MAIKA để nhập URL MP3/AAC;
+  ô nhập và trạng thái mở vẫn giữ khi có cập nhật dữ liệu.
+- Hiệu ứng nhấn, kéo/chuyển loa và viền sáng dùng transform/opacity; dừng
+  khi ra khỏi vùng nhìn, tab bị ẩn hoặc thiết bị bật **Giảm chuyển động**.
+  Không cần cài thêm thư viện giao diện và không có vòng lặp JS khi đứng yên.
+
 ## Giao diện sáng / tối và điều hướng
 
 - Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
@@ -98,7 +117,7 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.10.1`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.11.0`, khởi động lại Home Assistant rồi tải
 lại trang/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các

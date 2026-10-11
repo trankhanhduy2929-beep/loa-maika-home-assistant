@@ -129,6 +129,8 @@ const ICONS = {
   sun: "M11 1h2v3h-2zm0 19h2v3h-2zM1 11h3v2H1zm19 0h3v2h-3zM4.2 2.8l2.1 2.1-1.4 1.4L2.8 4.2zm14.9 14.9 2.1 2.1-1.4 1.4-2.1-2.1zM2.8 19.8l2.1-2.1 1.4 1.4-2.1 2.1zM17.7 4.9l2.1-2.1 1.4 1.4-2.1 2.1zM12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12",
   moon: "M20.9 13.2A8 8 0 0 1 10.8 3.1 9 9 0 1 0 20.9 13.2",
   menu: "M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z",
+  left: "M15.4 5 8.4 12l7 7 1.4-1.4-5.6-5.6 5.6-5.6z",
+  right: "m8.6 5-1.4 1.4 5.6 5.6-5.6 5.6L8.6 19l7-7z",
 };
 
 class MaikaPanel extends HTMLElement {
@@ -152,6 +154,17 @@ class MaikaPanel extends HTMLElement {
     this._onInput = this._onInput.bind(this);
     this._onChange = this._onChange.bind(this);
     this._onSubmit = this._onSubmit.bind(this);
+    this._gesture = null;
+    this._gestureFrame = null;
+    this._deviceAnimation = null;
+    this._onPointerDown = this._onPointerDown.bind(this);
+    this._onPointerMove = this._onPointerMove.bind(this);
+    this._onPointerEnd = this._onPointerEnd.bind(this);
+    this._onSpeakerKey = this._onSpeakerKey.bind(this);
+    this._onMotionChange = () => {
+      this._cancelGesture();
+      this._deviceAnimation?.cancel();
+    };
     this._onThemeChange = () => this._applyTheme();
     this._onStorage = (event) => {
       if (event.key === THEME_STORE_KEY || event.key === null) {
@@ -159,12 +172,17 @@ class MaikaPanel extends HTMLElement {
         this._applyTheme();
       }
     };
-    this._onVisibility = () => { this.toggleAttribute("data-paused", document.hidden); };
+    this._onVisibility = () => {
+      this.toggleAttribute("data-paused", document.hidden);
+      if (document.hidden) this._onMotionChange();
+    };
   }
 
   connectedCallback() {
     this._colorQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
     this._colorQuery?.addEventListener("change", this._onThemeChange);
+    this._motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    this._motionQuery?.addEventListener("change", this._onMotionChange);
     window.addEventListener("storage", this._onStorage);
     document.addEventListener("visibilitychange", this._onVisibility);
     this._onVisibility();
@@ -178,6 +196,9 @@ class MaikaPanel extends HTMLElement {
 
   disconnectedCallback() {
     this._colorQuery?.removeEventListener("change", this._onThemeChange);
+    this._motionQuery?.removeEventListener("change", this._onMotionChange);
+    this._onMotionChange();
+    this._motionObserver?.disconnect();
     window.removeEventListener("storage", this._onStorage);
     document.removeEventListener("visibilitychange", this._onVisibility);
     this._sectionObserver?.disconnect();
@@ -297,16 +318,19 @@ class MaikaPanel extends HTMLElement {
     const style = document.createElement("style");
     style.textContent = `
       :host {
-        --bg: #0b1220;
-        --surface: #141f31;
-        --surface-2: rgba(140, 195, 255, .07);
-        --surface-3: rgba(140, 195, 255, .12);
-        --line: rgba(130, 195, 255, .16);
-        --text: #eaf4ff;
-        --muted: #a3b5cb;
-        --accent: #31d8c4;
-        --accent-2: #8f7dff;
-        --accent-ink: #04231f;
+        --bg: #09171c;
+        --surface: #12262d;
+        --surface-2: rgba(153, 220, 213, .055);
+        --surface-3: rgba(153, 220, 213, .11);
+        --line: rgba(156, 216, 211, .14);
+        --text: #edf8f6;
+        --muted: #a4bcbf;
+        --accent: #3ee1cb;
+        --accent-2: #b1a0f8;
+        --accent-ink: #07342e;
+        --ease: cubic-bezier(.22, 1, .36, 1);
+        --product-surface: #eef8f4;
+        --product-tint: #d4f1e8;
         --ok: #3ee39b;
         --bad: #ff7c8a;
         --blue: #5cc0ff;
@@ -314,8 +338,8 @@ class MaikaPanel extends HTMLElement {
         --amber: #ffc775;
         --pink: #ff9ec4;
         --cyan: #6fe6f0;
-        --shadow: 0 8px 28px rgba(3, 10, 20, .18);
-        --shadow-hover: 0 12px 32px rgba(3, 10, 20, .28);
+        --shadow: 0 8px 24px rgba(0, 10, 14, .16), inset 0 1px 0 rgba(255, 255, 255, .025);
+        --shadow-hover: 0 14px 32px rgba(0, 10, 14, .24);
         --radius: 26px;
         --radius-sm: 16px;
         --gap: 14px;
@@ -334,18 +358,19 @@ class MaikaPanel extends HTMLElement {
         color: var(--text);
         color-scheme: dark;
         background: var(--bg);
-        transition: background-color .3s ease, color .3s ease;
+        background-image: radial-gradient(ellipse at 8% 0, rgba(38, 209, 183, .11), transparent 40%), radial-gradient(ellipse at 94% 22%, rgba(163, 137, 235, .07), transparent 34%);
+        transition: background-color .35s ease, color .25s ease;
       }
       :host([data-theme="light"]) {
-        --bg: #f0f4f9;
+        --bg: #f1f7f5;
         --surface: #ffffff;
-        --surface-2: rgba(24, 62, 104, .06);
-        --surface-3: rgba(24, 62, 104, .12);
-        --line: rgba(24, 62, 104, .14);
-        --text: #172b46;
-        --muted: #53677f;
-        --accent: #007e73;
-        --accent-2: #6b57e6;
+        --surface-2: rgba(30, 109, 98, .045);
+        --surface-3: rgba(30, 109, 98, .085);
+        --line: rgba(28, 90, 80, .13);
+        --text: #183b38;
+        --muted: #526d6a;
+        --accent: #087e70;
+        --accent-2: #7760ca;
         --accent-ink: #ffffff;
         --ok: #06734f;
         --bad: #b82642;
@@ -354,14 +379,21 @@ class MaikaPanel extends HTMLElement {
         --amber: #805009;
         --pink: #a12d68;
         --cyan: #08687a;
-        --shadow: 0 10px 26px rgba(20, 50, 90, .1);
-        --shadow-hover: 0 16px 34px rgba(20, 50, 90, .16);
+        --shadow: 0 8px 24px rgba(35, 83, 70, .055), inset 0 1px 0 #fff;
+        --shadow-hover: 0 14px 32px rgba(35, 83, 70, .11);
         color-scheme: light;
       }
       * { box-sizing: border-box; }
       [hidden] { display: none !important; }
       button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
       button, a, select { touch-action: manipulation; }
+      button { position: relative; isolation: isolate; }
+      button::after {
+        content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+        background: currentColor; opacity: 0; transform: scale(.7);
+        transition: opacity .32s ease, transform .4s var(--ease);
+      }
+      button:active:not(:disabled)::after { opacity: .12; transform: scale(1); transition-duration: .08s; }
       button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
         outline: 3px solid var(--accent); outline-offset: 3px;
       }
@@ -372,7 +404,7 @@ class MaikaPanel extends HTMLElement {
         max-width: 1560px;
         min-width: 0;
         min-height: 100%;
-        background: var(--bg);
+        background: transparent;
         margin: 0 auto;
         padding: calc(14px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-left, 0px))
           calc(40px + env(safe-area-inset-bottom, 0px));
@@ -399,6 +431,7 @@ class MaikaPanel extends HTMLElement {
         overflow-wrap: anywhere;
         position: relative;
         background: var(--surface);
+        background-image: linear-gradient(145deg, var(--surface-2), transparent 65%);
         border: 1px solid var(--line);
         border-radius: var(--radius);
         padding: var(--pad);
@@ -408,7 +441,7 @@ class MaikaPanel extends HTMLElement {
         transition: box-shadow .25s ease, border-color .25s ease, background-color .3s ease;
       }
       .card:hover { box-shadow: var(--shadow-hover); }
-      .card:focus-within { border-color: var(--accent); }
+      .card:has(:focus-visible) { border-color: var(--accent); }
 
       .toolbar {
         position: sticky;
@@ -416,8 +449,8 @@ class MaikaPanel extends HTMLElement {
         z-index: 5;
         padding: 10px 12px;
         border-radius: 20px;
-        backdrop-filter: blur(14px) saturate(140%);
-        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        backdrop-filter: blur(12px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(130%);
         background: var(--surface);
         background: color-mix(in srgb, var(--surface) 82%, transparent);
         animation: none;
@@ -426,11 +459,15 @@ class MaikaPanel extends HTMLElement {
       .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; min-width: 0; flex: 1; }
       .brand .mark {
         width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; flex: none;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+        background: linear-gradient(145deg, #76ecd8, #28bcae); color: #063d35;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5);
       }
       .brand .mark svg { width: 18px; height: 18px; fill: currentColor; }
+      .brand-wave { display: flex; align-items: center; gap: 3px; }
+      .brand-wave i { width: 3px; height: 15px; border-radius: 4px; background: currentColor; }
+      .brand-wave i:first-child, .brand-wave i:last-child { height: 8px; }
       .brand .txt { min-width: 0; }
-      .brand b { display: block; font-size: .92rem; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .brand b { display: block; font-size: .86rem; letter-spacing: .12em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .brand small { display: block; font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .iconbtn {
         width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--line); flex: none;
@@ -451,18 +488,21 @@ class MaikaPanel extends HTMLElement {
       .group-label { font-size: .72rem; color: var(--muted); flex: none; width: 60px; }
       .nav {
         display: flex; gap: 8px; margin-top: 10px; padding-bottom: 2px;
-        overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: 4px;
+        overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 4px;
+        scroll-snap-type: x proximity; overscroll-behavior-x: contain;
       }
       .nav::-webkit-scrollbar { display: none; }
       .pill {
         flex: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted);
         font: inherit; font-size: .78rem; font-weight: 620; padding: 7px 13px; border-radius: 999px; cursor: pointer; min-height: 44px;
-        transition: background .2s ease, color .2s ease, transform .16s ease;
+        transition: background .24s ease, color .24s ease, transform .22s var(--ease), box-shadow .24s ease;
+        scroll-snap-align: start;
       }
       .pill:hover { color: var(--text); transform: translateY(-1px); }
       .pill--on {
         background: var(--accent);
         border-color: transparent; color: var(--accent-ink);
+        box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 18%, transparent);
       }
 
       .titlecard { background: none; border: none; box-shadow: none; padding: 2px 4px 0; animation: none; }
@@ -478,34 +518,65 @@ class MaikaPanel extends HTMLElement {
       .sec-head h3 { margin: 0; font-size: clamp(.9rem, .84rem + .3vw, .98rem); font-weight: 660; }
       .sec-head span { display: block; font-size: .76rem; color: var(--muted); }
 
-      .hero { padding: 0; overflow: hidden; }
-      .hero-media {
-        position: relative; aspect-ratio: 2 / 1; min-height: 190px; overflow: hidden;
-        background: linear-gradient(140deg, var(--surface-3), var(--surface-2));
+      .hero { padding: var(--pad); overflow: hidden; display: grid; gap: 16px; align-content: center; }
+      .hero-heading { display: flex; align-items: center; gap: 12px; justify-content: space-between; min-width: 0; }
+      .eyebrow { color: var(--accent); font-size: .67rem; font-weight: 750; letter-spacing: .14em; }
+      .hero-account { color: var(--muted); font-size: .75rem; max-width: 48%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .hero-showcase {
+        display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; min-width: 0;
+        transform: translate3d(var(--swipe-offset, 0px), 0, 0); transition: transform .32s var(--ease);
       }
+      .hero-showcase[data-swipe] { touch-action: pan-y pinch-zoom; cursor: grab; user-select: none; -webkit-user-select: none; border-radius: 20px; }
+      .hero-showcase:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+      :host([data-swiping]) .hero-showcase { transition: none; cursor: grabbing; will-change: transform; }
+      .hero-media {
+        position: relative; width: clamp(114px, 21cqw, 180px); aspect-ratio: 1 / 1.08; overflow: hidden; isolation: isolate;
+        background: var(--product-surface); border-radius: 30px; flex: none;
+        box-shadow: 0 12px 30px rgba(0, 30, 25, .12);
+      }
+      .hero-media::before {
+        content: ""; position: absolute; inset: -35%; pointer-events: none;
+        background: conic-gradient(from 20deg, transparent 15%, #2bd5bd 40%, #b3a4f5 55%, transparent 80%);
+        opacity: .55;
+      }
+      .hero[data-connected] .hero-media::before { animation: orbit 12s linear infinite; }
+      .hero-media::after { content: ""; position: absolute; inset: 2px; z-index: 0; background: linear-gradient(140deg, var(--product-surface), var(--product-tint)); border-radius: 28px; }
       .hero-media img {
-        position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; background: #fff; display: block;
-        opacity: 0; transition: opacity .5s ease;
+        position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block;
+        mix-blend-mode: multiply; opacity: 0; transition: opacity .4s ease; pointer-events: none;
       }
       .hero-media img.is-ready { opacity: 1; }
-      .hero-art { position: absolute; inset: 0; display: grid; place-items: center; }
+      .hero-art { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; color: #58867d; }
+      .hero-media:has(img.is-ready:not([hidden])) .hero-art { visibility: hidden; }
       .hero-media--art { display: grid; place-items: center; width: 100%; }
-      .hero-art svg { width: 40%; max-width: 200px; fill: var(--muted); animation: breathe 4.5s ease-in-out infinite; }
-      .hero-media--fallback { display: grid; place-items: center; }
-      .hero-media--fallback svg { width: 42%; max-width: 220px; fill: var(--surface-3); }
-      .hero-copy { display: grid; gap: 4px; }
-      .hero-copy h1 { margin: 0; font-size: clamp(1.15rem, 1rem + 1.1vw, 1.55rem); letter-spacing: -.02em; color: var(--text); }
-      .hero-copy p { margin: 0; font-size: .84rem; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-      .hero-badges { position: absolute; top: 14px; right: 14px; left: 14px; z-index: 3; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-      .hero-badges .badge { color: #fff; background: rgba(15, 25, 44, .82); }
-      .dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--ok); position: relative; }
-      .dot::after { content: ""; position: absolute; inset: -4px; border: 1px solid var(--ok); border-radius: 50%; animation: pulse 2.2s infinite; }
+      .hero-art svg { width: 42%; max-width: 80px; fill: currentColor; }
+      .hero-copy { display: grid; gap: 10px; min-width: 0; }
+      .hero-copy h1 { margin: 0; font-size: clamp(1.18rem, 1rem + .9vw, 1.7rem); line-height: 1.2; letter-spacing: -.035em; color: var(--text); }
+      .hero-copy p { margin: 0; font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 9px; }
+      .hero-link { align-self: start; justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 9px; margin-left: -9px; border: 0; border-radius: 12px; background: transparent; color: var(--accent); font: inherit; font-size: .78rem; font-weight: 650; cursor: pointer; }
+      .hero-link svg { width: 17px; height: 17px; fill: currentColor; flex: none; }
+      .dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--ok); position: relative; }
+      .dot::after { content: ""; position: absolute; inset: -4px; border: 1px solid var(--ok); border-radius: 50%; animation: pulse 2.8s infinite; }
       .dot--off { background: var(--bad); }
       .dot--off::after { display: none; }
-      .hero-body { padding: 14px var(--pad) var(--pad); display: grid; gap: 12px; }
+      .speaker-pager { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+      .swipe-hint { color: var(--muted); font-size: .73rem; flex: 1; min-width: 0; }
+      .speaker-count { color: var(--text); font-size: .75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .speaker-pager .iconbtn { width: 44px; height: 44px; border-radius: 50%; }
+      .speaker-pager .iconbtn:disabled { cursor: default; opacity: .3; }
+      @container (max-width: 380px) {
+        .hero-showcase { gap: 10px; }
+        .hero-media { width: 100px; border-radius: 25px; }
+        .hero-media::after { border-radius: 23px; }
+        .hero-copy h1 { font-size: 1.15rem; }
+        .hero-link { font-size: .72rem; }
+        .hero { gap: 12px; }
+        .swipe-hint { font-size: .68rem; }
+      }
 
       .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-      .chips--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+      .chips--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; scroll-snap-type: x proximity; overscroll-behavior-x: contain; }
+      .chips--scroll > .chip { scroll-snap-align: start; }
       .chips--scroll::-webkit-scrollbar { display: none; }
       .chip {
         display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px;
@@ -582,7 +653,7 @@ class MaikaPanel extends HTMLElement {
       .tbtn:hover { transform: translateY(-2px); background: var(--surface-3); }
       .tbtn:active { transform: scale(.93); }
       .tbtn svg { width: 20px; height: 20px; fill: currentColor; }
-      .tbtn--main { width: 58px; height: 58px; border-radius: 20px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; }
+      .tbtn--main { width: 60px; height: 60px; border-radius: 22px; background: linear-gradient(145deg, #74ead5, #26c5b4); color: #073a33; border: none; box-shadow: 0 6px 18px rgba(30, 191, 170, .18), inset 0 1px 0 rgba(255, 255, 255, .4); }
       .tbtn--main svg { width: 26px; height: 26px; }
       .tbtn--on { background: rgba(255, 124, 138, .18); color: var(--bad); }
 
@@ -676,6 +747,14 @@ class MaikaPanel extends HTMLElement {
       .skel--tall { height: 190px; }
       .spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--surface-3); border-top-color: var(--accent); animation: spin .9s linear infinite; }
 
+      .cast-drawer { border-top: 1px solid var(--line); }
+      .cast-drawer summary { display: flex; align-items: center; gap: 9px; list-style: none; min-height: 48px; font-size: .8rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+      .cast-drawer summary::-webkit-details-marker { display: none; }
+      .cast-drawer summary svg { width: 18px; height: 18px; fill: var(--accent); flex: none; }
+      .cast-drawer summary::after { content: "+"; margin-left: auto; font-size: 1.15rem; color: var(--accent); transition: transform .25s var(--ease); }
+      .cast-drawer[open] summary::after { transform: rotate(45deg); }
+      .cast-drawer[open] > form { padding-top: 2px; animation: slidein .25s var(--ease); }
+      @keyframes orbit { to { transform: rotate(360deg); } }
       @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.99); } to { opacity: 1; transform: none; } }
       @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
       @keyframes pulse { from { transform: scale(.6); opacity: .7; } to { transform: scale(1.6); opacity: 0; } }
@@ -684,15 +763,18 @@ class MaikaPanel extends HTMLElement {
       @keyframes shimmer { to { transform: translateX(100%); } }
       @keyframes eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
       .is-loading svg { animation: spin .9s linear infinite; }
-      :host([data-paused]) *, :host([data-paused]) *::after { animation-play-state: paused !important; }
+      :host([data-paused]) *, :host([data-paused]) *::before, :host([data-paused]) *::after,
+      [data-motion-paused] *, [data-motion-paused] *::before, [data-motion-paused] *::after { animation-play-state: paused !important; }
       @container (max-width: 440px) {
         .toolbar-main { gap: 7px; }
-        .toolbar .brand .mark { display: none; }
+        .toolbar .brand .mark { width: 30px; height: 32px; border-radius: 11px; }
+        .brand { gap: 7px; }
         .theme-picker svg { display: none !important; }
         .theme-picker select { width: 103px; }
         .brand small { font-size: .67rem; }
       }
 
+      @container (max-width: 380px) { .toolbar .brand .mark { display: none; } }
       @media (hover: none) {
         .card:hover { box-shadow: var(--shadow); }
         .tile:hover, .chip:hover, .tbtn:hover, .btn:hover, .iconbtn:hover, .pill:hover { transform: none; }
@@ -708,6 +790,7 @@ class MaikaPanel extends HTMLElement {
         input[type="range"]::-webkit-slider-thumb { width: 28px; height: 28px; }
         input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; }
       }
+      button:active:not(:disabled) { transform: scale(.96); }
       @media (prefers-reduced-motion: reduce) {
         :host, *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
         .eq i { transform: scaleY(.5); }
@@ -726,6 +809,12 @@ class MaikaPanel extends HTMLElement {
     this.shadowRoot.addEventListener("input", this._onInput);
     this.shadowRoot.addEventListener("change", this._onChange);
     this.shadowRoot.addEventListener("submit", this._onSubmit);
+    this.shadowRoot.addEventListener("pointerdown", this._onPointerDown, {passive: true});
+    this.shadowRoot.addEventListener("pointermove", this._onPointerMove, {passive: true});
+    this.shadowRoot.addEventListener("pointerup", this._onPointerEnd, {passive: true});
+    this.shadowRoot.addEventListener("pointercancel", this._onPointerEnd, {passive: true});
+    this.shadowRoot.addEventListener("lostpointercapture", this._onPointerEnd, {passive: true});
+    this.shadowRoot.addEventListener("keydown", this._onSpeakerKey);
     this.shadowRoot.addEventListener("maika-voice-saved", (event) => {
       const entry = this._snapshot?.entries?.find((item) => item.entry_id === event.detail.entry_id);
       if (entry) entry.options = {...entry.options, ...event.detail.options};
@@ -899,37 +988,43 @@ class MaikaPanel extends HTMLElement {
 
   _heroCard(delay) {
     const entry = this._entry();
-    const media = this._entity("media_player") || "";
-    const mediaState = this._state(media);
-    const online = this._entity("binary_sensor", "online");
-    const image = h("img", {src: HERO_IMAGE, alt: "Loa MAIKA", decoding: "async", referrerpolicy: "no-referrer"});
-    const mediaBox = h("div", {class: "hero-media"});
-    const art = h("div", {class: "hero-art"});
-    art.append(this._speakerArt());
-    mediaBox.append(art);
-    mediaBox.append(image);
+    const serials = this._serials();
+    const index = serials.indexOf(this._activeSerial());
+    const canSwipe = serials.length > 1;
+    const mediaState = this._state(this._entity("media_player"));
+    const online = this._isOn(this._entity("binary_sensor", "online"));
+    const image = h("img", {src: HERO_IMAGE, alt: "Loa MAIKA", decoding: "async", referrerpolicy: "no-referrer", draggable: "false", width: "180", height: "180"});
+    const mediaBox = h("div", {class: "hero-media"}, [
+      h("div", {class: "hero-art", "aria-hidden": "true"}, [this._speakerArt()]), image,
+    ]);
     image.addEventListener("load", () => image.classList.add("is-ready"));
-    image.addEventListener("error", () => {
-      image.hidden = true;
-    });
+    image.addEventListener("error", () => { image.hidden = true; });
     if (image.complete && image.naturalWidth) image.classList.add("is-ready");
-
-    const stateText = mediaState ? this._stateLabel(mediaState.state) : "Không tìm thấy loa";
-    mediaBox.append(
-      h("div", {class: "hero-badges"}, [
-        h("span", {class: "badge badge--info", text: entry?.title || "MAIKA"}),
-      ])
-    );
     const copy = h("div", {class: "hero-copy"}, [
-        h("h1", {text: this._speakerName()}),
-        h("p", {}, [
-          h("span", {class: ["dot", this._isOn(online) ? "" : "dot--off"].filter(Boolean).join(" ")}),
-          document.createTextNode(stateText),
-        ]),
-      ]);
-
-    const body = h("div", {class: "hero-body"}, [copy, this._chips()]);
-    return this._card("hero span2", [mediaBox, body], delay);
+      h("h1", {text: this._speakerName()}),
+      h("p", {}, [
+        h("span", {class: online ? "dot" : "dot dot--off", "aria-hidden": "true"}),
+        document.createTextNode(mediaState ? this._stateLabel(mediaState.state) : "Chưa kết nối loa"),
+      ]),
+      h("button", {class: "hero-link", type: "button", dataset: {action: "open-voice"}}, [svgIcon(ICONS.mic), "Tạo câu lệnh", svgIcon(ICONS.right)]),
+    ]);
+    const showcase = h("div", {
+      class: "hero-showcase", role: "group", "aria-label": `Loa đang chọn: ${this._speakerName()}`,
+      tabindex: canSwipe ? "0" : null, "aria-describedby": canSwipe ? "speaker-swipe-hint" : null, "aria-keyshortcuts": canSwipe ? "ArrowLeft ArrowRight" : null,
+      dataset: canSwipe ? {swipe: "speakers"} : {},
+    }, [copy, mediaBox]);
+    const pager = canSwipe ? h("div", {class: "speaker-pager"}, [
+      h("span", {class: "swipe-hint", id: "speaker-swipe-hint", text: "Vuốt để đổi loa"}),
+      h("span", {class: "speaker-count", "aria-live": "polite", "aria-atomic": "true", "aria-label": `Loa ${index + 1} trên ${serials.length}`, text: `${index + 1} / ${serials.length}`}),
+      h("button", {class: "iconbtn", type: "button", "aria-label": "Loa trước", disabled: this._busy || index <= 0, dataset: {action: "speaker-step", direction: "-1"}}, [svgIcon(ICONS.left)]),
+      h("button", {class: "iconbtn", type: "button", "aria-label": "Loa tiếp theo", disabled: this._busy || index >= serials.length - 1, dataset: {action: "speaker-step", direction: "1"}}, [svgIcon(ICONS.right)]),
+    ]) : null;
+    const card = this._card("hero span2", [
+      h("div", {class: "hero-heading"}, [h("span", {class: "eyebrow", text: "MAIKA SPEAKER"}), h("span", {class: "hero-account", text: entry?.title || "MAIKA", title: entry?.title || "MAIKA"})]),
+      showcase, this._chips(), pager,
+    ], delay);
+    card.toggleAttribute("data-connected", online);
+    return card;
   }
 
   _speakerName() {
@@ -1034,7 +1129,11 @@ class MaikaPanel extends HTMLElement {
 
     return this._card("span2", [
       this._sectionHead("cast", "Điều khiển MAIKA", "Phát nhạc, âm lượng và mute", "c-purple"),
-      h("div", {class: "media"}, [now, transport, slider, form]),
+      h("div", {class: "media"}, [now, transport, slider,
+        h("details", {class: "cast-drawer"}, [
+          h("summary", {}, [svgIcon(ICONS.cast), "Phát âm thanh từ đường dẫn"]), form,
+        ]),
+      ]),
     ], delay);
   }
 
@@ -1303,7 +1402,7 @@ class MaikaPanel extends HTMLElement {
       h("div", {class: "toolbar-main"}, [
         this._narrow ? h("button", {class: "iconbtn", type: "button", "aria-label": "Mở menu Home Assistant", dataset: {action: "menu"}}, [svgIcon(ICONS.menu)]) : null,
         h("div", {class: "brand"}, [
-          h("span", {class: "mark"}, [svgIcon(ICONS.speaker)]),
+          h("span", {class: "mark", "aria-hidden": "true"}, [h("span", {class: "brand-wave"}, [h("i"), h("i"), h("i"), h("i")])]),
           h("span", {class: "txt"}, [
             h("b", {text: "MAIKA"}),
             h("small", {text: this._speakerName(), title: this._speakerName()}),
@@ -1329,6 +1428,7 @@ class MaikaPanel extends HTMLElement {
   }
 
   _reducedMotion() {
+    if (this._motionQuery) return this._motionQuery.matches;
     return typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
       : false;
@@ -1352,6 +1452,15 @@ class MaikaPanel extends HTMLElement {
       if (active) pill.setAttribute("aria-current", "location");
       else pill.removeAttribute("aria-current");
     }
+    const activePill = this.shadowRoot.querySelector('.nav [aria-current="location"]');
+    const nav = activePill?.parentElement;
+    if (nav) {
+      const pillRect = activePill.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      if (pillRect.left < navRect.left || pillRect.right > navRect.right) {
+        nav.scrollTo({left: nav.scrollLeft + pillRect.left - navRect.left - (nav.clientWidth - pillRect.width) / 2, behavior: this._reducedMotion() ? "instant" : "smooth"});
+      }
+    }
     if (!scroll) return;
     const target = this._stage.querySelector(`[data-sec="${this._activeSection}"]`);
     if (target) {
@@ -1371,7 +1480,15 @@ class MaikaPanel extends HTMLElement {
       }
     }
     this._sectionObserver?.disconnect();
+    this._motionObserver?.disconnect();
     if (typeof IntersectionObserver !== "function") return;
+    this._motionObserver = new IntersectionObserver((records) => {
+      for (const record of records) {
+        record.target.toggleAttribute("data-motion-paused", !record.isIntersecting);
+        if (!record.isIntersecting && record.target.dataset.card === "overview") this._onMotionChange();
+      }
+    }, {root: this, rootMargin: "40px"});
+    for (const card of this._stage.querySelectorAll(".card:not(.toolbar)")) this._motionObserver.observe(card);
     const targets = [...this._stage.querySelectorAll("[data-sec]")];
     if (!targets.length) return;
     const intersections = new Map();
@@ -1474,7 +1591,7 @@ class MaikaPanel extends HTMLElement {
     }
     const focused = current === this.shadowRoot.activeElement;
     if (current.tagName === "IMG" && current.getAttribute("src") === next.getAttribute("src")) return current;
-    const preserveAttribute = (name) => (current.tagName === "DETAILS" && name === "open") || (focused && name === "value");
+    const preserveAttribute = (name) => name === "data-motion-paused" || (current.tagName === "DETAILS" && name === "open") || (focused && name === "value");
     for (const {name} of [...current.attributes]) {
       if (!next.hasAttribute(name) && !preserveAttribute(name)) current.removeAttribute(name);
     }
@@ -1581,6 +1698,105 @@ class MaikaPanel extends HTMLElement {
     this._maybeUpdate();
   }
 
+  _selectDevice(serial) {
+    const serials = this._serials();
+    const current = this._activeSerial();
+    if (this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy || !serials.includes(serial) || serial === current) return false;
+    const direction = serials.indexOf(serial) > serials.indexOf(current) ? 1 : -1;
+    this._cancelGesture();
+    this._deviceAnimation?.cancel();
+    this._deviceSerial = serial;
+    for (const field of Object.keys(this._draft)) {
+      if (["volume", "cast_url", "cast_type"].includes(field) || field.startsWith("text:")) delete this._draft[field];
+    }
+    this._lastSignature = "";
+    this._maybeUpdate();
+    this._setActiveSection("overview", false);
+    const showcase = this.shadowRoot.querySelector(".hero-showcase");
+    if (!this._reducedMotion() && !document.hidden && !showcase?.closest("[data-motion-paused]") && showcase?.animate) {
+      const animation = showcase.animate([
+        {opacity: .65, transform: `translate3d(${direction * 22}px,0,0)`},
+        {opacity: 1, transform: "translate3d(0,0,0)"},
+      ], {duration: 280, easing: "cubic-bezier(.22,1,.36,1)"});
+      this._deviceAnimation = animation;
+      animation.finished.catch(() => {}).then(() => { if (this._deviceAnimation === animation) this._deviceAnimation = null; });
+    }
+    return true;
+  }
+
+  _stepSpeaker(direction) {
+    if (![1, -1].includes(direction)) return false;
+    const serials = this._serials();
+    return this._selectDevice(serials[serials.indexOf(this._activeSerial()) + direction]);
+  }
+
+  _onSpeakerKey(event) {
+    if (!event.target.matches?.("[data-swipe]") || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    this._stepSpeaker(event.key === "ArrowRight" ? 1 : -1);
+  }
+
+  _onPointerDown(event) {
+    if (!event.isPrimary) { this._cancelGesture(); return; }
+    const surface = event.target.closest?.("[data-swipe]");
+    if (!surface || event.button !== 0 || this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy || event.target.closest("button,input,select,textarea,a,summary")) return;
+    this._cancelGesture();
+    this._deviceAnimation?.cancel();
+    this._gesture = {
+      pointerId: event.pointerId, surface, startX: event.clientX, startY: event.clientY,
+      deltaX: 0, deltaY: 0, horizontal: false, startedAt: event.timeStamp,
+      entryId: this._entry()?.entry_id, serial: this._activeSerial(),
+    };
+  }
+
+  _onPointerMove(event) {
+    const gesture = this._gesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    gesture.deltaX = event.clientX - gesture.startX;
+    gesture.deltaY = event.clientY - gesture.startY;
+    if (!gesture.horizontal) {
+      if (Math.max(Math.abs(gesture.deltaX), Math.abs(gesture.deltaY)) < 10) return;
+      if (Math.abs(gesture.deltaY) >= Math.abs(gesture.deltaX) / 1.4) { this._cancelGesture(); return; }
+      gesture.horizontal = true;
+      try { gesture.surface.setPointerCapture(event.pointerId); } catch {}
+    }
+    if (this._reducedMotion() || this._gestureFrame !== null) return;
+    this._gestureFrame = requestAnimationFrame(() => {
+      this._gestureFrame = null;
+      if (this._gesture !== gesture) return;
+      const serials = this._serials();
+      const nextIndex = serials.indexOf(gesture.serial) + (gesture.deltaX < 0 ? 1 : -1);
+      const resistance = serials[nextIndex] ? .28 : .08;
+      const offset = Math.max(-65, Math.min(65, gesture.deltaX * resistance));
+      this.style.setProperty("--swipe-offset", `${offset}px`);
+      this.setAttribute("data-swiping", "");
+    });
+  }
+
+  _onPointerEnd(event) {
+    const gesture = this._gesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    if (event.type === "lostpointercapture" && (event.target !== gesture.surface || gesture.surface.hasPointerCapture?.(event.pointerId))) return;
+    this._cancelGesture();
+    if (event.type !== "pointerup" || !gesture.horizontal || gesture.entryId !== this._entry()?.entry_id || gesture.serial !== this._activeSerial()) return;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    const threshold = Math.min(80, Math.max(48, gesture.surface.clientWidth * .16));
+    if (Math.abs(deltaX) < threshold || Math.abs(deltaX) < Math.abs(deltaY) * 1.4 || event.timeStamp - gesture.startedAt > 1200) return;
+    this._stepSpeaker(deltaX < 0 ? 1 : -1);
+  }
+
+  _cancelGesture() {
+    const gesture = this._gesture;
+    this._gesture = null;
+    if (this._gestureFrame !== null) cancelAnimationFrame(this._gestureFrame);
+    this._gestureFrame = null;
+    this.removeAttribute("data-swiping");
+    this.style.removeProperty("--swipe-offset");
+    if (gesture?.surface.hasPointerCapture?.(gesture.pointerId)) gesture.surface.releasePointerCapture(gesture.pointerId);
+  }
+
   _onInput(event) {
     const el = event.target;
     const field = el?.dataset?.field;
@@ -1639,6 +1855,7 @@ class MaikaPanel extends HTMLElement {
       const editor = this.shadowRoot.querySelector("maika-voice-editor");
       if (editor?.isBusy) return;
       if (editor?.hasUnsavedChanges && !window.confirm("Đổi tài khoản và bỏ bản nháp giọng nói chưa lưu?")) return;
+      this._onMotionChange();
       this._activeIndex = Number(target.dataset.index) || 0;
       this._deviceSerial = "";
       this._draft = {};
@@ -1650,14 +1867,17 @@ class MaikaPanel extends HTMLElement {
     }
 
     if (action === "device") {
-      if (this._busy) return;
-      this._deviceSerial = target.dataset.serial || "";
-      for (const field of Object.keys(this._draft)) {
-        if (["volume", "cast_url", "cast_type"].includes(field) || field.startsWith("text:")) delete this._draft[field];
-      }
-      this._lastSignature = "";
-      this._maybeUpdate();
-      this._setActiveSection("overview", false);
+      this._selectDevice(target.dataset.serial);
+      return;
+    }
+
+    if (action === "speaker-step") {
+      this._stepSpeaker(Number(target.dataset.direction));
+      return;
+    }
+
+    if (action === "open-voice") {
+      this._setActiveSection("voice", true);
       return;
     }
 

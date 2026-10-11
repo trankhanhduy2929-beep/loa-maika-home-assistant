@@ -167,7 +167,7 @@ class MaikaVoiceEditor extends HTMLElement {
         h2,h3,p { margin:0; } h2 { font-size:1.3rem; letter-spacing:-.02em; } h3 { font-size:1rem; }
         .intro { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
         .intro-copy { flex:1; min-width:160px; } .intro p,.muted { font-size:.84rem; color:var(--muted); }
-        .emblem { width:50px; height:50px; border-radius:18px; display:grid; place-items:center; background:var(--accent); color:var(--accent-ink); font-size:1.5rem; }
+        .emblem { width:50px; height:50px; border-radius:18px; display:grid; place-items:center; background:linear-gradient(145deg,#76ecd8,#28bcae); color:#073a33; font-size:1.5rem; box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 18px rgba(30,191,170,.12); }
         .eyebrow { color:var(--accent); font-size:.7rem; font-weight:750; letter-spacing:.1em; margin-bottom:4px; }
         .layout { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:20px; align-items:start; }
         .box { padding:18px; border-radius:20px; border:1px solid var(--line); background:var(--surface-2); min-width:0; }
@@ -180,7 +180,10 @@ class MaikaVoiceEditor extends HTMLElement {
         input,select,textarea { width:100%; min-height:46px; border:1px solid var(--line); border-radius:13px; padding:10px 12px; background:var(--surface); }
         input::placeholder { color:var(--muted); opacity:.8; } select option { background:var(--surface); }
         button { min-height:44px; cursor:pointer; border:1px solid var(--line); border-radius:13px; padding:9px 13px; background:var(--surface); font-size:.85rem; font-weight:650; transition:transform .15s, background .15s; touch-action:manipulation; }
-        button:hover { background:var(--surface-3); } button:active { transform:scale(.97); }
+        button { position:relative; isolation:isolate; -webkit-tap-highlight-color:transparent; }
+        button::after { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:currentColor; opacity:0; transform:scale(.7); transition:opacity .32s,transform .4s var(--ease,ease); }
+        button:active:not(:disabled)::after { opacity:.12; transform:scale(1); transition-duration:.08s; }
+        button:hover { background:var(--surface-3); } button:active:not(:disabled) { transform:scale(.97); }
         button:disabled { opacity:.55; cursor:wait; } .primary { background:var(--accent); border-color:transparent; color:var(--accent-ink); }
         .primary:hover { background:var(--accent); filter:brightness(1.08); } .danger { color:var(--bad); }
         button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
@@ -190,13 +193,14 @@ class MaikaVoiceEditor extends HTMLElement {
         .note { color:var(--muted); font-size:.78rem; font-weight:400; line-height:1.5; overflow-wrap:anywhere; }
         details { border:1px solid var(--line); border-radius:14px; padding:0 12px; } summary { cursor:pointer; padding:12px 0; font-size:.83rem; min-height:46px; }
         details>.params { padding-bottom:12px; } .commands { display:grid; gap:10px; max-height:520px; overflow:auto; padding:3px; }
-        .command { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:13px; display:grid; gap:8px; overflow-wrap:anywhere; }
+        .command { background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:14px; display:grid; gap:8px; overflow-wrap:anywhere; transition:border-color .2s,box-shadow .2s; }
+        @media(hover:hover) { .command:hover { border-color:var(--accent); box-shadow:var(--shadow); } }
         .command-title { font-weight:700; font-size:.96rem; } .command .note { line-height:1.6; }
         .command-actions { display:flex; flex-wrap:wrap; gap:8px; } .command-actions button { font-size:.8rem; }
         .count { padding:5px 10px; border-radius:999px; background:var(--surface-3); color:var(--accent); font-size:.8rem; font-weight:700; }
         .toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--surface-2); padding:12px; border-radius:15px; }
         input[type=checkbox] { width:24px; height:24px; min-height:24px; accent-color:var(--accent); flex:none; }
-        .notice { padding:12px; border-radius:14px; background:var(--surface-3); font-size:.85rem; overflow-wrap:anywhere; }
+        .notice { padding:12px; border-radius:14px; background:var(--surface-3); font-size:.85rem; overflow-wrap:anywhere; animation:notice-in .24s var(--ease,ease); }
         .notice[data-kind=error] { color:var(--bad); } .notice[data-kind=success] { color:var(--ok); }
         .preview { padding:12px; border:1px dashed var(--line); border-radius:14px; font-size:.9rem; overflow-wrap:anywhere; }
         .preview strong { color:var(--accent); } .empty { text-align:center; padding:25px 10px; }
@@ -212,6 +216,7 @@ class MaikaVoiceEditor extends HTMLElement {
           .intro .eyebrow { font-size:.64rem; } .emblem { width:38px; height:38px; border-radius:14px; }
           .count { grid-column:2; justify-self:start; }
         }
+        @keyframes notice-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
         @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; } }
       </style>
       <header class="intro">

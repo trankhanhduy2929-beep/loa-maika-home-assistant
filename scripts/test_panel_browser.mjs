@@ -21,8 +21,8 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({executablePath: process.env.MAIKA_BROWSER_EXECUTABLE, headless: true, args: ["--no-sandbox"]});
 const context = await browser.newContext();
-const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlSAAAAAASUVORK5CYII=", "base64");
-await context.route("**/olli-maika-2.jpg", (route) => route.fulfill({contentType: "image/png", body: image}));
+const image = process.env.MAIKA_TEST_HERO_IMAGE ? await readFile(process.env.MAIKA_TEST_HERO_IMAGE) : Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlSAAAAAASUVORK5CYII=", "base64");
+await context.route("**/olli-maika-2.jpg", (route) => route.fulfill({contentType: process.env.MAIKA_TEST_HERO_IMAGE ? "image/jpeg" : "image/png", body: image}));
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (error) => errors.push(String(error)));
@@ -221,7 +221,142 @@ async function verifyVoiceEditor() {
   console.log("PASS generated browser rules round-trip through the actual Python backend validator");
 }
 
+async function verifySpeakerGestures() {
+  const touchContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+  await touchContext.route("**/olli-maika-2.jpg", (route) => route.fulfill({contentType: process.env.MAIKA_TEST_HERO_IMAGE ? "image/jpeg" : "image/png", body: image}));
+  const touchPage = await touchContext.newPage();
+  touchPage.on("pageerror", (error) => errors.push(String(error)));
+  const touchSession = await touchContext.newCDPSession(touchPage);
+  const activeSpeaker = () => touchPage.evaluate(() => panel._activeSerial());
+  const overview = async () => {
+    await touchPage.locator('[data-action="jump"][data-section="overview"]').click();
+    await touchPage.waitForTimeout(600);
+  };
+  const swipe = async (deltaX, deltaY = 0, selector = ".hero-showcase") => {
+    const rect = await touchPage.locator(selector).boundingBox();
+    const startX = rect.x + rect.width * (deltaX < 0 ? .8 : .2);
+    const startY = rect.y + (selector === ".hero-showcase" ? Math.min(rect.height * .25, 32) : rect.height / 2);
+    await touchSession.send("Input.dispatchTouchEvent", {type: "touchStart", touchPoints: [{x: startX, y: startY}]});
+    for (let step = 1; step <= 6; step += 1) {
+      await touchSession.send("Input.dispatchTouchEvent", {type: "touchMove", touchPoints: [{x: startX + deltaX * step / 6, y: startY + deltaY * step / 6}]});
+      await touchPage.waitForTimeout(20);
+    }
+    await touchSession.send("Input.dispatchTouchEvent", {type: "touchEnd", touchPoints: []});
+    await touchPage.waitForTimeout(400);
+  };
+  try {
+    await touchPage.goto(base);
+    await touchPage.locator(".speaker-pager").waitFor();
+    await touchPage.locator('[name="license_key"]').fill("MAIKA-UNSAVED-KEY");
+    await touchPage.locator('[name="scan_interval"]').fill("91");
+    await touchPage.locator("maika-voice-editor").locator("#phrase").fill("bản nháp giọng nói");
+    await overview();
+    const initial = await activeSpeaker();
+    const initialImage = await touchPage.locator(".hero-media").boundingBox();
+    assert(initialImage.width <= 180 && initialImage.height <= 200);
+    assert.match(await touchPage.locator(".hero-showcase").evaluate((element) => getComputedStyle(element).touchAction), /pan-y/);
+    await swipe(-150);
+    const second = await activeSpeaker();
+    assert.notEqual(second, initial, "A horizontal touch swipe selects the next speaker");
+    assert.equal(await touchPage.locator('[name="license_key"]').inputValue(), "MAIKA-UNSAVED-KEY");
+    assert.equal(await touchPage.locator('[name="scan_interval"]').inputValue(), "91");
+    assert.equal(await touchPage.locator("maika-voice-editor").locator("#phrase").inputValue(), "bản nháp giọng nói");
+    await swipe(-150);
+    assert.equal(await activeSpeaker(), second, "The last speaker does not wrap unexpectedly");
+    await swipe(20);
+    assert.equal(await activeSpeaker(), second, "A short movement is not a swipe");
+    await swipe(150);
+    assert.equal(await activeSpeaker(), initial);
+    assert.equal(await touchPage.locator('[data-action="speaker-step"][data-direction="-1"]').isDisabled(), true);
+    await touchPage.locator(".hero-showcase").focus();
+    await touchPage.keyboard.press("ArrowRight");
+    assert.equal(await activeSpeaker(), second);
+    await touchPage.keyboard.press("ArrowLeft");
+    assert.equal(await activeSpeaker(), initial);
+    await touchPage.locator('[data-action="speaker-step"][data-direction="1"]').click();
+    assert.equal(await activeSpeaker(), second);
+    await touchPage.locator('[data-action="speaker-step"][data-direction="-1"]').click();
+    assert.equal(await activeSpeaker(), initial);
+    console.log("PASS real touch swipe, edge limits, small-movement rejection, arrow keys/buttons and key/settings/voice drafts");
+
+    const scrollBefore = await touchPage.evaluate(() => panel.scrollTop);
+    await swipe(2, -120);
+    assert.equal(await activeSpeaker(), initial, "Vertical gestures do not switch speakers");
+    assert(await touchPage.evaluate(() => panel.scrollTop) > scrollBefore + 20, "Native vertical scrolling remains available");
+    await overview();
+    await swipe(-150, 0, ".nav");
+    assert(await touchPage.locator(".nav").evaluate((element) => element.scrollLeft) > 0, "Navigation chips scroll with touch");
+    assert.equal(await activeSpeaker(), initial);
+    await overview();
+    await touchPage.evaluate(() => {
+      const surface = panel.shadowRoot.querySelector(".hero-showcase");
+      const send = (type, values = {}) => surface.dispatchEvent(new PointerEvent(type, {bubbles: true, pointerId: 77, pointerType: "touch", isPrimary: true, button: 0, clientX: 200, clientY: 360, ...values}));
+      send("pointerdown"); send("pointermove", {clientX: 80}); send("pointercancel");
+      send("pointerdown"); send("pointermove", {clientX: 80}); send("pointerdown", {pointerId: 78, isPrimary: false}); send("pointerup", {clientX: 80});
+    });
+    assert.equal(await activeSpeaker(), initial);
+    assert(await touchPage.evaluate(() => panel._gesture === null && panel._gestureFrame === null && !panel.hasAttribute("data-swiping")));
+    await touchPage.evaluate(() => { panel._busy = true; });
+    await swipe(-150);
+    assert.equal(await activeSpeaker(), initial);
+    await touchPage.evaluate(() => { panel._busy = false; panel.shadowRoot.querySelector("maika-voice-editor")._saving = true; });
+    await swipe(-150);
+    assert.equal(await activeSpeaker(), initial);
+    await touchPage.evaluate(() => { panel.shadowRoot.querySelector("maika-voice-editor")._saving = false; });
+    assert.equal(await touchPage.evaluate(() => calls.filter((call) => call.service || call.method === "POST").length), 0);
+    console.log("PASS native vertical/nav scrolling, pointer cancellation, multitouch, busy guards and no device actions from gestures");
+
+    await touchPage.emulateMedia({reducedMotion: "reduce"});
+    await swipe(-150);
+    assert.equal(await activeSpeaker(), second);
+    assert.equal(await touchPage.locator(".hero-media").evaluate((element) => getComputedStyle(element, "::before").animationName), "none");
+    assert(await touchPage.evaluate(() => panel._deviceAnimation === null));
+    await touchPage.emulateMedia({reducedMotion: "no-preference"});
+    await touchPage.waitForTimeout(100);
+    await touchPage.locator('[data-action="open-voice"]').click();
+    await touchPage.waitForTimeout(650);
+    assert.equal(await touchPage.locator('[data-action="jump"][data-section="voice"]').getAttribute("aria-current"), "location");
+    await touchPage.locator('[data-action="jump"][data-section="settings"]').click();
+    await touchPage.waitForTimeout(650);
+    assert.equal(await touchPage.locator(".hero-media").evaluate((element) => getComputedStyle(element, "::before").animationPlayState), "paused");
+    await overview();
+    await touchPage.waitForFunction(() => getComputedStyle(panel.shadowRoot.querySelector(".hero-media"), "::before").animationPlayState === "running");
+    assert.equal(await touchPage.locator(".hero-media").evaluate((element) => getComputedStyle(element, "::before").animationPlayState), "running");
+    await touchPage.evaluate(() => {
+      Object.defineProperty(document, "hidden", {configurable: true, value: true});
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    assert.equal(await touchPage.locator(".hero-media").evaluate((element) => getComputedStyle(element, "::before").animationPlayState), "paused");
+    await touchPage.evaluate(() => {
+      delete document.hidden;
+      document.dispatchEvent(new Event("visibilitychange"));
+      const root = panel.parentElement;
+      panel.remove();
+      if (panel._gestureFrame !== null || panel._gesture !== null) throw new Error("Gesture resources not cleaned up");
+      root.append(panel); tick();
+    });
+    await touchPage.waitForTimeout(150);
+    await swipe(150);
+    assert.equal(await activeSpeaker(), initial);
+    await touchPage.evaluate(() => {
+      const entry = snapshot.entries[0];
+      const serial = panel._activeSerial();
+      entry.devices = {[serial]: entry.devices[serial]};
+      entry.device_entities = {[serial]: entry.device_entities[serial]};
+    });
+    await touchPage.locator('[data-action="refreshdata"]').click();
+    await touchPage.waitForTimeout(150);
+    assert.equal(await touchPage.locator(".speaker-pager").count(), 0);
+    assert.equal(await touchPage.locator("[data-swipe]").count(), 0);
+    assert.equal(await touchPage.evaluate(() => calls.filter((call) => call.service || call.method === "POST").length), 0);
+    console.log("PASS reduced motion, offscreen/background pause, reconnection cleanup and single-speaker layout");
+  } finally {
+    await touchContext.close();
+  }
+}
+
 try {
+  await verifySpeakerGestures();
   await verifyVoiceEditor();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
@@ -232,6 +367,8 @@ try {
       const result = await page.evaluate(() => ({
         width: panel.clientWidth, scroll: panel.scrollWidth, theme: panel.dataset.theme,
         color: getComputedStyle(panel).backgroundColor,
+        imageWidth: panel.shadowRoot.querySelector(".hero-media").clientWidth,
+        imageHeight: panel.shadowRoot.querySelector(".hero-media").clientHeight,
         columns: getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length,
         overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
           const rect = node.getBoundingClientRect();
@@ -242,6 +379,7 @@ try {
       assert.equal(result.theme, theme);
       assert.deepEqual(result.overflow, [], `Overflow ${width}`);
       assert.equal(result.columns, width > 1100 ? 4 : width > 620 ? 2 : 1);
+      assert(result.imageWidth <= 180 && result.imageHeight <= 200, `Compact speaker image ${width} ${theme}`);
       metrics.push({viewport: width, ...result});
       if ([390, 1440].includes(width)) {
         await page.waitForTimeout(1000);
@@ -266,12 +404,13 @@ try {
   assert.equal(await page.locator("maika-panel").getAttribute("data-theme"), "light");
   await page.locator('[data-action="theme"]').selectOption("dark");
   await page.waitForTimeout(450);
-  assert.equal(await page.evaluate(() => getComputedStyle(panel).backgroundColor), "rgb(11, 18, 32)");
+  assert.equal(await page.evaluate(() => getComputedStyle(panel).backgroundColor), "rgb(9, 23, 28)");
   await load();
   assert.equal(await page.locator("maika-panel").getAttribute("data-theme"), "dark");
   console.log("PASS automatic HA theme, manual override, persistence after reload");
 
   await page.locator('[data-action="theme"]').selectOption("light");
+  await page.locator(".cast-drawer summary").click();
   const cast = page.locator('[name="cast_url"]');
   await cast.fill("https://example.test/nhac.mp3");
   const before = await page.evaluate(() => {
