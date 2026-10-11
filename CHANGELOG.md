@@ -2,6 +2,20 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.9.1] - 2026-10-10
+
+### Changed
+
+- Làm lại giao diện panel theo phong cách dashboard sections (4 cột, tự co giãn
+  trên điện thoại): ảnh loa lớn, chip trạng thái, thẻ điều khiển media, lưới
+  tile trạng thái, thẻ trợ lý, tên/vị trí, thông tin thiết bị, firmware, bảo
+  hành, bản quyền, cấu hình và công cụ.
+- Thêm ảnh loa MAIKA thật, hiệu ứng chuyển động nhẹ, màu nhấn xanh ngọc/tím và
+  theme sáng/tối theo Home Assistant.
+- Ô nhập trong panel giữ nguyên nội dung đang gõ khi dữ liệu loa cập nhật.
+- Sửa tên trường khớp entity thực tế (Wi-Fi SSID, ngày kích hoạt, ngày hết hạn
+  bảo hành) và ẩn thẻ Bảo hành khi loa không có dữ liệu.
+
 ## [1.9.0] - 2026-10-10
 
 ### Added
