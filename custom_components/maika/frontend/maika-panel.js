@@ -388,13 +388,24 @@ class MaikaPanel extends HTMLElement {
     return entry?.entities?.[domain] || [];
   }
 
-  _entity(domain, ...parts) {
+  _entity(domain, key) {
     const list = this._entities(domain);
-    const matches = (id) => {
-      const flat = id.replace(/_/g, "");
-      return parts.every((part) => id.includes(part) || flat.includes(part.replace(/_/g, "")));
+    if (!key) return list[0] || "";
+    const keys = this._entry()?.entity_keys || {};
+    const serial = String(this._activeSerial() || "");
+    const normalize = (value) => {
+      const text = String(value || "");
+      return serial && text.startsWith(`${serial}_`) ? text.slice(serial.length + 1) : text;
     };
-    return list.find(matches) || "";
+    const exact = list.find((id) => normalize(keys[id]) === key);
+    if (exact) return exact;
+    const flat = String(key).replace(/_/g, "");
+    return (
+      list.find((id) => {
+        const tail = id.slice(id.indexOf(".") + 1);
+        return tail.includes(key) || tail.replace(/_/g, "").includes(flat);
+      }) || ""
+    );
   }
 
   _state(entityId) {
@@ -472,8 +483,8 @@ class MaikaPanel extends HTMLElement {
 
   _chips() {
     const online = this._entity("binary_sensor", "online");
-    const wifi = this._entity("binary_sensor", "wifi");
-    const mic = this._entity("switch", "microphone");
+    const wifi = this._entity("binary_sensor", "wifi_connected");
+    const mic = this._entity("switch", "microphone_mute");
     const volume = this._entity("sensor", "volume");
     const chips = [];
 
@@ -561,10 +572,10 @@ class MaikaPanel extends HTMLElement {
   _statusSection(delay) {
     const rows = [
       ["online", "c-ok", "Trực tuyến", this._entity("binary_sensor", "online"), "access-point"],
-      ["wifi", "c-blue", "Wi-Fi", this._entity("binary_sensor", "wifi"), "wifi"],
+      ["wifi", "c-blue", "Wi-Fi", this._entity("binary_sensor", "wifi_connected"), "wifi"],
       ["volume", "c-blue", "Âm lượng", this._entity("sensor", "volume"), "volume"],
-      ["playback", "c-purple", "Đang phát", this._entity("sensor", "playback"), "play"],
-      ["calls", "c-cyan", "Cuộc gọi", this._entity("binary_sensor", "call"), "phone"],
+      ["playback", "c-purple", "Đang phát", this._entity("sensor", "playback_status"), "play"],
+      ["calls", "c-cyan", "Cuộc gọi", this._entity("binary_sensor", "available_to_call"), "phone"],
       ["favorite", "c-pink", "Yêu thích", this._entity("binary_sensor", "favorite"), "heart"],
     ];
     const tiles = rows.map(([key, tone, label, entityId, icon]) => {
@@ -647,14 +658,14 @@ class MaikaPanel extends HTMLElement {
 
   _assistantSection(delay) {
     const rows = [];
-    const voice = this._entity("select", "voice");
-    const sensitivity = this._entity("select", "sensitivity");
-    const response = this._entity("select", "response");
+    const voice = this._entity("select", "tts_voice");
+    const sensitivity = this._entity("select", "wakeword_sensitivity");
+    const response = this._entity("select", "wakeword_response");
     rows.push(this._selectRow("Giọng đọc Maika", voice, "mic"));
     rows.push(this._selectRow("Độ nhạy đánh thức", sensitivity, "tune"));
     rows.push(this._selectRow("Phản hồi khi gọi", response, "phone"));
 
-    const mic = this._entity("switch", "microphone");
+    const mic = this._entity("switch", "microphone_mute");
     if (mic) {
       const muted = this._isOn(mic);
       const box = h("label", {class: "sw"}, [
@@ -718,10 +729,10 @@ class MaikaPanel extends HTMLElement {
     const rows = [
       ["Model", this._value(this._entity("sensor", "model"), device.model || "—")],
       ["Phòng", this._value(this._entity("sensor", "room"), "—")],
-      ["Ngôn ngữ", this._value(this._entity("sensor", "language"), "—")],
-      ["Wi-Fi SSID", this._value(this._entity("sensor", "ssid"), "—")],
-      ["Serial", this._value(this._entity("sensor", "serial"), device.serial_number || "—")],
-      ["Ngày kích hoạt", fmtDate(this._value(this._entity("sensor", "activated"), ""))],
+      ["Ngôn ngữ", this._value(this._entity("sensor", "default_language"), "—")],
+      ["Wi-Fi SSID", this._value(this._entity("sensor", "wifi_ssid"), "—")],
+      ["Serial", this._value(this._entity("sensor", "serial_number"), device.serial_number || "—")],
+      ["Ngày kích hoạt", fmtDate(this._value(this._entity("sensor", "activated_at"), ""))],
       ["Trạng thái", device.status || "—"],
     ];
     return this._card("span1", [
@@ -732,7 +743,7 @@ class MaikaPanel extends HTMLElement {
 
   _firmwareSection(delay) {
     const version = this._value(this._entity("sensor", "firmware_version"), "—");
-    const status = this._value(this._entity("sensor", "firmware_update"), "—");
+    const status = this._value(this._entity("sensor", "firmware_update_status"), "—");
     const device = this._activeDevice();
     const rows = [
       this._row("Phiên bản firmware", version, "c-blue"),
@@ -746,8 +757,8 @@ class MaikaPanel extends HTMLElement {
   }
 
   _warrantySection(delay) {
-    const active = this._entity("binary_sensor", "warranty");
-    const expires = this._entity("sensor", "warranty");
+    const active = this._entity("binary_sensor", "warranty_active");
+    const expires = this._entity("sensor", "warranty_expire_date");
     if (!active && !expires) return null;
     const on = this._isOn(active);
     return this._card("span1", [
@@ -760,7 +771,7 @@ class MaikaPanel extends HTMLElement {
   }
 
   _toolsSection(delay) {
-    const refresh = this._entity("button", "refresh");
+    const refresh = this._entity("button", "refresh_status");
     const restart = this._entity("button", "restart");
     const buttons = [];
     if (refresh) {

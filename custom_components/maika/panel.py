@@ -247,6 +247,7 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
 
     entities: dict[str, list[str]] = {}
     device_entities: dict[str, dict[str, list[str]]] = {}
+    entity_keys: dict[str, str] = {}
     registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
@@ -254,6 +255,9 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
             continue
         entities.setdefault(registry_entry.domain, []).append(registry_entry.entity_id)
         serial = _serial_for_device(device_registry, registry_entry.device_id)
+        unique_id = registry_entry.unique_id or ""
+        if serial and unique_id.startswith(f"{serial}_"):
+            entity_keys[registry_entry.entity_id] = unique_id[len(serial) + 1 :]
         if not serial:
             continue
         grouped = device_entities.setdefault(serial, {})
@@ -276,6 +280,7 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
             serial: {domain: sorted(ids) for domain, ids in grouped.items()}
             for serial, grouped in device_entities.items()
         },
+        "entity_keys": entity_keys,
     }
 
 

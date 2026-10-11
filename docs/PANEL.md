@@ -2,8 +2,10 @@
 
 Từ bản `1.9.0`, tích hợp MAIKA tự đăng ký một mục **MAIKA** trong sidebar Home
 Assistant. Từ `1.9.1`, panel dùng giao diện dashboard dạng sections; từ `1.9.2`,
-panel hỗ trợ nhiều loa trong cùng tài khoản. Layout: lưới 4 cột
-trên máy tính, tự co về 2 cột trên tablet và 1 cột trên điện thoại.
+panel hỗ trợ nhiều loa trong cùng tài khoản; từ `1.9.3`, panel ghép thực thể theo
+`unique_id` nên tên loa đặt kiểu nào (`wifi_relay`, `amply_ke_sach`,…) cũng không
+read nhầm thực thể. Layout: lưới 4 cột trên máy tính, tự co về 2 cột trên tablet
+và 1 cột trên điện thoại.
 
 ## Bố cục
 

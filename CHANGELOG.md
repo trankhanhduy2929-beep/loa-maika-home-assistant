@@ -2,6 +2,20 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.9.3] - 2026-10-11
+
+### Fixed
+
+- Panel ghép thực thể theo `unique_id` (key dịch của integration) thay vì khớp chuỗi
+  trong `entity_id`. Trước đây tên loa đặt trùng keyword (vd `wifi_relay`,
+  `a_volume`) làm chip Wi-Fi, âm lượng, trạng thái đọc nhầm thực thể khác.
+- Snapshot panel bổ sung `entity_keys` (entity_id -> key thực thể) cho mọi entry.
+
+### Changed
+
+- Cách khớp vẫn tương thích ngược: nếu snapshot không có `entity_keys`, panel quay
+  về khớp theo tên thực thể như cũ.
+
 ## [1.9.2] - 2026-10-11
 
 ### Added
