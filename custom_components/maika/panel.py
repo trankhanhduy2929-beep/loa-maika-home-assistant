@@ -146,7 +146,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
 
 async def async_remove_panel(hass: HomeAssistant) -> None:
-    """Remove the sidebar panel when the last MAIKA entry unloads."""
+    """Remove the sidebar panel when the last MAIKA account is deleted."""
     if not hass.data.pop(_REGISTERED_KEY, False):
         return
     try:

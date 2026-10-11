@@ -41,6 +41,7 @@ _LICENSE_NOTIFICATION_ID = "maika_license_activation"
 
 async def async_setup_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bool:
     """Set up MAIKA from a config entry."""
+    await async_register_panel(hass)
     try:
         license_manager = await MaikaLicenseManager.async_create(hass)
     except MaikaLicenseUnavailableError as err:
@@ -85,7 +86,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> boo
         entry,
         lambda err: _async_handle_invalid_license(hass, entry, err),
     )
-    await async_register_panel(hass)
     return True
 
 
@@ -96,14 +96,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bo
         await entry.runtime_data.license_manager.async_stop()
         await entry.runtime_data.coordinator.async_stop_voice_subscriptions()
         await entry.runtime_data.client.async_stop()
-        remaining = [
-            other
-            for other in hass.config_entries.async_entries(DOMAIN)
-            if other.entry_id != entry.entry_id
-        ]
-        if not remaining:
-            await async_remove_panel(hass)
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> None:
+    """Remove the management panel only when the final account is deleted."""
+    if not any(
+        other.entry_id != entry.entry_id
+        for other in hass.config_entries.async_entries(DOMAIN)
+    ):
+        await async_remove_panel(hass)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bool:
@@ -144,8 +146,9 @@ def _show_license_notification(
     persistent_notification.async_create(
         hass,
         (
-            "MAIKA chưa kích hoạt. Mở Cài đặt > Thiết bị & dịch vụ > MAIKA > "
-            f"Cấu hình. Mã máy: {err.activation_code}. Trạng thái: {err.code}."
+            "MAIKA chưa kích hoạt. Mở [MAIKA → Bản quyền](/maika-panel) "
+            f"để nhập hoặc thay key. Mã máy: {err.activation_code}. "
+            f"Trạng thái: {err.code}."
             f"{portal_message}"
         ),
         title="Kích hoạt MAIKA",

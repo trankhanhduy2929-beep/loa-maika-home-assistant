@@ -55,13 +55,16 @@ APK MAIKA 3.2.3 gửi `StartListening` với payload `deviceId` và `type: conve
 
 Câu mới nhất được đưa vào sensor `last_voice_command`. Frame hiện không cung cấp serial loa đủ tin cậy nên đây là sensor cấp tài khoản, không gắn vào một loa cụ thể.
 
-## Cách cấu hình cũ (vẫn tương thích)
+## Nâng cấp từ cấu hình cũ
 
-1. Mở **Settings → Devices & services → MAIKA Speaker**.
-2. Chọn **Configure**.
-3. Bật **Sensor câu lệnh mới nhất và rule điều khiển**.
-4. Nhập rule, mỗi rule một dòng.
-5. Lưu để config entry reload.
+Từ `1.10.1`, màn hình **Configure / Tùy chọn MAIKA** đã được bỏ. Mở
+**MAIKA → Giọng nói** để bật điều khiển, thêm/sửa câu lệnh và chọn âm phản
+hồi. Không cần viết rule hoặc JSON trong giao diện.
+
+Các rule, thông số nâng cao, âm báo và tuỳ chọn đã lưu từ bản cũ được giữ
+nguyên. Trình tạo câu lệnh đọc trực tiếp cấu hình đang dùng; không cần tạo
+lại hoặc xoá dữ liệu. Cú pháp ở phần sau chỉ là tài liệu tham khảo cho rule
+cũ, không phải bước thiết lập bắt buộc.
 
 Tính năng mặc định tắt. Khi bật, state sensor và attributes có thể được Home Assistant Recorder lưu vào lịch sử.
 

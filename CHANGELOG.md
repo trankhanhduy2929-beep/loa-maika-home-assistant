@@ -2,6 +2,24 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.10.1] - 2026-10-11
+
+### Changed
+
+- Bỏ nút **Configure / Tùy chọn MAIKA** bên trang tích hợp Home Assistant.
+  Nhập/thay key trong **MAIKA → Bản quyền**; chỉnh chu kỳ cập nhật, cast,
+  câu lệnh và âm phản hồi tại **Cấu hình loa** / **Giọng nói**.
+- Giữ nguyên key, tài khoản, thiết bị, rule và mọi tuỳ chọn đã lưu. Luồng cài
+  mới, kích hoạt lần đầu và đăng nhập lại tài khoản MAIKA không thay đổi.
+- Hướng dẫn và thông báo lỗi dẫn tới panel thay vì màn hình tuỳ chọn cũ.
+
+### Fixed
+
+- Đăng ký panel trước khi kiểm tra license/kết nối cloud, để vẫn thay key
+  được khi license hết hạn ngay lúc Home Assistant khởi động.
+- Không gỡ panel khi tải lại tích hợp; chỉ gỡ khi xoá tài khoản MAIKA cuối
+  cùng. Kiểm tra license vẫn bắt buộc trước khi loa được kết nối.
+
 ## [1.10.0] - 2026-10-11
 
 ### Added

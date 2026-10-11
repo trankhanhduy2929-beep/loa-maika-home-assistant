@@ -55,71 +55,12 @@
       "unique_id_mismatch": "Thông tin đăng nhập thuộc một tài khoản MAIKA khác."
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Tùy chọn MAIKA",
-        "menu_options": {
-          "license": "License và kích hoạt",
-          "features": "Tính năng loa"
-        }
-      },
-      "license": {
-        "title": "License và kích hoạt",
-        "description": "Mã máy: **{activation_code}** · Trạng thái: **{license_status}**. [Mua hoặc xem key]({portal_url}), nhập key rồi bấm Gửi. Chỉ để trống khi muốn kiểm tra lại key hiện tại.",
-        "data": {
-          "license_server_url": "URL máy chủ kích hoạt",
-          "license_key": "License key mới (không bắt buộc)"
-        }
-      },
-      "license_pending": {
-        "title": "Đang chờ duyệt",
-        "description": "Mã máy: **{activation_code}**. Chờ người bán duyệt rồi bấm Gửi."
-      },
-      "features": {
-        "title": "Tùy chọn MAIKA",
-        "description": "Rule: câu lệnh | entity_id | action | JSON tùy chọn. Dùng JSON cho độ sáng, nhiệt độ, phần trăm quạt hoặc vị trí rèm. Chế độ Ưu tiên gửi MP3 sớm để che câu mặc định. Portal: {portal_url}.",
-        "data": {
-          "scan_interval": "Chu kỳ cập nhật (giây)",
-          "enable_experimental_cloud_cast": "Bật cast âm thanh cloud thử nghiệm",
-          "enable_voice_command_sensor": "Bật sensor câu lệnh mới nhất và rule điều khiển",
-          "voice_command_rules": "Mỗi dòng: câu lệnh | entity_id | action | JSON tùy chọn",
-          "voice_success_audio_source": "Nguồn âm báo thành công",
-          "voice_success_audio_timing": "Thời điểm phát âm báo",
-          "voice_success_audio_url": "URL MP3 thành công tùy chỉnh",
-          "voice_success_media_player_entity_id": "Loa MAIKA phát âm báo thành công"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect_license": "Không thể kết nối tới máy chủ kích hoạt.",
-      "invalid_license": "License key không hợp lệ.",
-      "invalid_license_key": "Hãy nhập license key hợp lệ.",
-      "invalid_license_response": "Máy chủ kích hoạt trả về giấy phép không hợp lệ hoặc không có chữ ký đúng.",
-      "invalid_server_url": "Hãy nhập URL HTTPS máy chủ kích hoạt bằng tên miền hợp lệ.",
-      "invalid_voice_command_rules": "Rule câu lệnh không hợp lệ: {rule_error}",
-      "license_activation_limit": "License này đã đạt giới hạn số Home Assistant được kích hoạt.",
-      "license_deactivated": "Bản cài đặt này đã được hủy kích hoạt.",
-      "license_expired": "License đã hết hạn.",
-      "license_inactive": "License đang bị khóa.",
-      "license_key_required": "Hãy nhập license key để kích hoạt bản cài đặt này.",
-      "license_pending": "Bản cài đặt vẫn đang chờ người bán duyệt.",
-      "license_rejected": "Máy đã bị từ chối. Nhờ người bán xóa máy rồi nhập lại key.",
-      "license_revoked": "Bản cài đặt này đã bị thu hồi.",
-      "voice_success_audio_requires_voice_sensor": "Hãy bật sensor câu lệnh mới nhất và rule điều khiển trước.",
-      "voice_success_audio_requires_cloud_cast": "Hãy bật cast âm thanh cloud MAIKA thử nghiệm trước.",
-      "voice_success_audio_bundled_unavailable": "Bản integration này chưa có URL portal nên chưa dùng được MP3 MAIKA tích hợp.",
-      "voice_success_audio_url_invalid": "Hãy nhập URL âm thanh HTTP(S) hợp lệ, không có khoảng trắng hoặc thông tin đăng nhập trong URL.",
-      "voice_success_audio_media_player_required": "Hãy chọn loa MAIKA khi config entry có nhiều hơn một loa.",
-      "voice_success_audio_media_player_invalid": "Hãy chọn media player MAIKA thuộc đúng config entry này."
-    }
-  },
   "exceptions": {
     "license_unavailable": {
-      "message": "MAIKA chưa kích hoạt ({license_error}). Mã máy: {activation_code}. Mở Cấu hình, chọn gói hoặc xem key tại {portal_url}, rồi nhập key."
+      "message": "MAIKA chưa kích hoạt ({license_error}). Mã máy: {activation_code}. Mở MAIKA → Bản quyền để nhập hoặc thay key. Chọn gói hoặc xem key tại {portal_url}."
     },
     "cloud_cast_disabled": {
-      "message": "Cloud cast MAIKA thử nghiệm đang tắt trong tùy chọn integration."
+      "message": "Cast âm thanh cloud đang tắt. Mở MAIKA → Cấu hình loa để bật."
     },
     "cloud_cast_failed": {
       "message": "Cloud MAIKA không chấp nhận yêu cầu cast âm thanh."
@@ -132,21 +73,6 @@
     },
     "cloud_cast_unsupported_mode": {
       "message": "Cloud cast MAIKA chưa hỗ trợ enqueue=add hoặc enqueue=next."
-    }
-  },
-  "selector": {
-    "voice_success_audio_source": {
-      "options": {
-        "disabled": "Tắt",
-        "bundled": "MP3 MAIKA tích hợp",
-        "custom": "URL MP3 tùy chỉnh"
-      }
-    },
-    "voice_success_audio_timing": {
-      "options": {
-        "priority": "Ưu tiên: che giọng mặc định",
-        "after_success": "Sau khi HASS thành công"
-      }
     }
   },
   "entity": {

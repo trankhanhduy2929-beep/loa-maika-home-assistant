@@ -403,6 +403,35 @@ try {
   await blockedPage.locator('[data-sec="overview"]').waitFor();
   console.log("PASS first-load failure, visible error and working retry");
   await blockedContext.close();
+  await page.setViewportSize({width: 390, height: 844});
+  await load();
+  const recoveryOptions = await page.evaluate(() => {
+    const entry = snapshot.entries[0];
+    snapshot.entries = [entry];
+    entry.devices = {};
+    entry.entities = {};
+    entry.device_entities = {};
+    entry.entity_keys = {};
+    entry.license = {status: "unavailable", key_hint: "", activation_code: ""};
+    window.states = {};
+    hass.states = states;
+    tick();
+    return structuredClone(entry.options);
+  });
+  await page.locator('[data-action="refreshdata"]').click();
+  await waitRender();
+  await page.locator('[data-action="jump"][data-section="license"]').click();
+  const recoveryKey = page.locator('[name="license_key"]');
+  assert.ok(await recoveryKey.isVisible());
+  await recoveryKey.fill("MAIKA-RECOVERY-TEST-ONLY");
+  await page.locator('[data-form="license"] button[type="submit"]').click();
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelector('[name="license_key"]').value === "");
+  assert.deepEqual(await page.evaluate(() => calls.findLast((call) => call.path === "maika/panel/license").data), {entry_id: "account-0", license_key: "MAIKA-RECOVERY-TEST-ONLY"});
+  assert.deepEqual(await page.evaluate(() => snapshot.entries[0].options), recoveryOptions);
+  assert.equal(await page.evaluate(() => calls.filter((call) => call.service).length), 0);
+  assert.equal(await page.evaluate(() => panel.scrollWidth - panel.clientWidth), 0);
+  await page.screenshot({path: join(output, "license-recovery-mobile.png"), fullPage: true});
+  console.log("PASS license replacement without loaded speaker runtime or entities");
   assert.deepEqual(errors, []);
   await writeFile(join(output, "metrics.json"), JSON.stringify(metrics, null, 2));
 } finally {

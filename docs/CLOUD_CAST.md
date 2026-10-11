@@ -45,9 +45,9 @@ APK dùng `ConstApp` device ID làm `fromDeviceId`, danh sách serial loa đư�
 
 ## Bật tính năng
 
-1. Mở **Settings → Devices & services → MAIKA Speaker → Configure**.
-2. Bật **Cast âm thanh cloud thử nghiệm**.
-3. Lưu tùy chọn; config entry sẽ reload.
+1. Mở **MAIKA → Cấu hình loa** trong sidebar Home Assistant.
+2. Bật **Cast âm thanh cloud**.
+3. Bấm **Lưu cấu hình**; tích hợp tự tải lại.
 4. Kiểm tra entity loa có feature `PLAY_MEDIA` và `BROWSE_MEDIA`.
 
 ## Phát URL MP3

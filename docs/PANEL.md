@@ -8,7 +8,9 @@ panel hỗ trợ nhiều loa trong cùng tài khoản; từ `1.9.3`, panel ghép
 2 cột từ 621–1100px và 1 cột khi rộng tối đa 620px. Bố cục tính theo vùng
 panel còn lại, không chỉ theo màn hình, nên vẫn phù hợp khi mở sidebar HA.
 Từ `1.10.0`, mục **Giọng nói** có trình tạo câu lệnh trực quan và panel không
-hiện ô URL máy chủ kích hoạt.
+hiện ô URL máy chủ kích hoạt. Từ `1.10.1`, panel là nơi cấu hình sau khi
+cài đặt; nút **Configure / Tùy chọn MAIKA** bên trang tích hợp đã được bỏ.
+Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lại.
 
 ## Giao diện sáng / tối và điều hướng
 
@@ -81,9 +83,22 @@ chung cho mọi loa.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.
 
+## Khi key hết hạn hoặc loa chưa kết nối
+
+Panel vẫn đăng ký ngay khi Home Assistant bắt đầu tải tài khoản MAIKA,
+trước khi kiểm tra license và kết nối loa. Mở **MAIKA → Bản quyền** để
+nhập/thay key kể cả khi tích hợp đang báo cần kích hoạt. Một số trạng thái
+loa có thể chưa có dữ liệu; không cần xoá thiết bị hoặc nhờ admin xoá máy.
+Panel không bị gỡ khi tải lại; chỉ gỡ khi xoá tài khoản MAIKA cuối cùng.
+
+Trang **Settings → Devices & services** vẫn dùng để thêm/xoá, bật/tắt, tải
+lại tích hợp và đăng nhập lại khi Home Assistant yêu cầu. Lần cài đầu tiên
+vẫn có bước kích hoạt và nhập tài khoản MAIKA; chỉ bỏ màn hình tuỳ chọn
+bị trùng với panel, không bỏ xác thực license.
+
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.10.0`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.10.1`, khởi động lại Home Assistant rồi tải
 lại trang/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các

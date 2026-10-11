@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.10.0**.
+Bản hiện tại: **v1.10.1**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -59,7 +59,12 @@ chuyển mục nhanh và lựa chọn **Tự động / Sáng / Tối** ở góc 
 giữ nội dung đang nhập khi loa cập nhật, hỗ trợ giảm chuyển động; không cần
 cài thêm Mushroom hoặc card-mod. Bản `1.10.0` có mục **Giọng nói** riêng:
 chọn thiết bị/automation, chọn thao tác và nhập câu nói — không cần viết rule.
-Kích hoạt chỉ cần dán key, không còn ô URL máy chủ. Chi tiết xem
+Kích hoạt chỉ cần dán key, không còn ô URL máy chủ. Từ `1.10.1`, bỏ nút
+**Configure / Tùy chọn MAIKA** bên trang tích hợp: nhập/thay key tại
+**MAIKA → Bản quyền**, chỉnh tính năng tại **Cấu hình loa** và **Giọng nói**.
+Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết nối để bạn tự
+thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
+và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
 
 ## Cài bằng HACS
@@ -82,13 +87,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.10.0
+## File phát hành v1.10.1
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.10.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.10.0-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.10.1-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.10.1-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.10.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.10.1-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
@@ -168,7 +173,7 @@ hình bị redact khỏi diagnostics. Xem [Câu lệnh giọng nói](docs/VOICE_
 
 ## Cloud cast thử nghiệm
 
-Trong **Devices & services → MAIKA Speaker → Configure**, bật **Cast âm thanh cloud thử nghiệm** rồi reload integration. Entity loa sẽ có thêm feature `PLAY_MEDIA` và `BROWSE_MEDIA`.
+Trong **MAIKA → Cấu hình loa**, bật **Cast âm thanh cloud** rồi bấm **Lưu cấu hình**; tích hợp tự tải lại. Entity loa sẽ có thêm feature `PLAY_MEDIA` và `BROWSE_MEDIA`.
 
 Ví dụ phát MP3 trực tiếp:
 

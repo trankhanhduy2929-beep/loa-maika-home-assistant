@@ -223,7 +223,7 @@ def _validate_licensing_config(
 
 
 def _validate_voice_success_audio(errors: list[str]) -> None:
-    """Validate success audio source/timing wiring and translations."""
+    """Validate success audio source/timing wiring in the panel and runtime."""
     const_values = _string_constants(ROOT / f"custom_components/{DOMAIN}/const.py")
     expected_sources = {
         const_values.get("VOICE_SUCCESS_AUDIO_SOURCE_DISABLED"),
@@ -252,21 +252,39 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
         if marker not in resolver:
             errors.append(f"Voice success audio resolver is missing {marker}")
 
-    config_flow = (ROOT / f"custom_components/{DOMAIN}/config_flow.py").read_text(
-        encoding="utf-8"
-    )
+    panel = (ROOT / f"custom_components/{DOMAIN}/panel.py").read_text(encoding="utf-8")
+    editor = (
+        ROOT / f"custom_components/{DOMAIN}/frontend/maika-voice-editor.js"
+    ).read_text(encoding="utf-8")
     coordinator = (ROOT / f"custom_components/{DOMAIN}/coordinator.py").read_text(
         encoding="utf-8"
     )
     for marker in (
         "CONF_VOICE_SUCCESS_AUDIO_SOURCE",
         "CONF_VOICE_SUCCESS_AUDIO_TIMING",
+        "resolve_voice_success_audio_source",
+        "resolve_voice_success_audio_timing",
+    ):
+        if marker not in panel:
+            errors.append(f"Panel is missing voice audio marker {marker}")
+    for marker in (
         "voice_success_audio_source",
         "voice_success_audio_timing",
-        "BUNDLED_VOICE_SUCCESS_AUDIO_URL",
+        "voice_success_audio_url",
+        "voice_success_media_player_entity_id",
     ):
-        if marker not in config_flow:
-            errors.append(f"Config flow is missing voice audio marker {marker}")
+        if marker not in editor:
+            errors.append(f"Voice editor is missing audio option {marker}")
+    for field, expected in (
+        ("audio-source", expected_sources),
+        ("audio-timing", expected_timings),
+    ):
+        select = re.search(rf'<select id="{field}">(.*?)</select>', editor, re.DOTALL)
+        choices = set(
+            re.findall(r'<option value="([^"]+)"', select[1] if select else "")
+        )
+        if choices != expected:
+            errors.append(f"Voice editor has invalid {field} choices")
     if "resolve_voice_success_audio_url" not in coordinator:
         errors.append("Coordinator must resolve bundled/custom success audio")
     for marker in (
@@ -281,27 +299,6 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
     for marker in ("server_message_id", 'event_header["serverMessageId"]'):
         if marker not in api:
             errors.append(f"MAIKA cast API is missing conversation marker {marker}")
-
-    for relative in (
-        f"custom_components/{DOMAIN}/strings.json",
-        f"custom_components/{DOMAIN}/translations/en.json",
-        f"custom_components/{DOMAIN}/translations/vi.json",
-    ):
-        data = _load_json(ROOT / relative)
-        options = (
-            data.get("selector", {})
-            .get("voice_success_audio_source", {})
-            .get("options", {})
-        )
-        if set(options) != {"disabled", "bundled", "custom"}:
-            errors.append(f"Invalid voice audio selector translations in {relative}")
-        timing_options = (
-            data.get("selector", {})
-            .get("voice_success_audio_timing", {})
-            .get("options", {})
-        )
-        if set(timing_options) != {"after_success", "priority"}:
-            errors.append(f"Invalid voice audio timing translations in {relative}")
 
 
 def _validate_voice_rules(errors: list[str]) -> None:
@@ -422,7 +419,12 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
     namespace["HomeAssistantView"] = View
     selected = {
         "resolve_voice_success_audio_source",
+        "resolve_voice_success_audio_url",
         "resolve_voice_success_audio_timing",
+        "has_voice_success_audio",
+        "_serialize_entry",
+        "_serialize_license",
+        "_serial_for_device",
         "_public_options",
         "_validate_options",
         "_entry_by_id",
@@ -454,6 +456,7 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
     scan_key = namespace["CONF_SCAN_INTERVAL"]
     entry = types.SimpleNamespace(
         entry_id="maika-test",
+        title="MAIKA test",
         options={
             rules_key: "# legacy\nbật đèn | light.demo | turn_on",
             audio_key: "bundled",
@@ -526,6 +529,43 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
 
     async def check() -> None:
         original = dict(entry.options)
+        namespace.update(
+            er=types.SimpleNamespace(
+                async_get=lambda home_assistant: None,
+                async_entries_for_config_entry=lambda registry, entry_id: [],
+            ),
+            dr=types.SimpleNamespace(async_get=lambda home_assistant: None),
+            BUNDLED_VOICE_SUCCESS_AUDIO_URL="https://example.test/maika.mp3",
+        )
+        snapshot = namespace["_serialize_entry"](hass, entry)
+        assert snapshot["entry_id"] == entry.entry_id
+        assert snapshot["license"]["status"] == "unavailable"
+        assert snapshot["options"][rules_key] == original[rules_key]
+        assert snapshot["devices"] == {}
+        resolve_audio = namespace["resolve_voice_success_audio_url"]
+        timing_key = namespace["CONF_VOICE_SUCCESS_AUDIO_TIMING"]
+        url_key = namespace["CONF_VOICE_SUCCESS_AUDIO_URL"]
+        legacy_audio = {url_key: "https://example.test/legacy.mp3"}
+        assert resolve_audio(legacy_audio) == legacy_audio[url_key]
+        assert (
+            resolve_audio({audio_key: "bundled"})
+            == namespace["BUNDLED_VOICE_SUCCESS_AUDIO_URL"]
+        )
+        assert resolve_audio({**legacy_audio, audio_key: "disabled"}) == ""
+        assert (
+            resolve_audio({**legacy_audio, audio_key: "custom"})
+            == legacy_audio[url_key]
+        )
+        assert not namespace["has_voice_success_audio"]({audio_key: "disabled"})
+        for timing in ("priority", "after_success"):
+            assert (
+                namespace["resolve_voice_success_audio_timing"]({timing_key: timing})
+                == timing
+            )
+        assert (
+            namespace["resolve_voice_success_audio_timing"]({timing_key: "invalid"})
+            == namespace["DEFAULT_VOICE_SUCCESS_AUDIO_TIMING"]
+        )
         status, _ = await request(
             {"entry_id": entry.entry_id, "options": {scan_key: 90}}
         )
@@ -600,6 +640,197 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
         )
 
 
+def _validate_panel_configuration(errors: list[str]) -> None:
+    """Keep panel-only configuration reachable without bypassing activation."""
+    directory = ROOT / f"custom_components/{DOMAIN}"
+    tree = ast.parse((directory / "config_flow.py").read_text())
+    flow = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "MaikaConfigFlow"
+    )
+    methods = {
+        node.name
+        for node in flow.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    required = {
+        "async_step_user",
+        "async_step_activation_pending",
+        "async_step_account",
+        "async_step_reauth",
+        "async_step_reauth_confirm",
+    }
+    if not required <= methods:
+        errors.append(
+            "Initial activation, account setup and reauthentication must remain available"
+        )
+    if methods & {"async_get_options_flow", "async_supports_options_flow"} or any(
+        isinstance(node, ast.ClassDef) and node.name == "MaikaOptionsFlow"
+        for node in tree.body
+    ):
+        errors.append(
+            "Integration Configure must be removed; ongoing settings belong in the panel"
+        )
+    for relative in ("strings.json", "translations/en.json", "translations/vi.json"):
+        data = _load_json(directory / relative)
+        if "options" in data or "selector" in data:
+            errors.append(f"Obsolete options UI translations in {relative}")
+        if not {"user", "activation_pending", "account", "reauth_confirm"} <= set(
+            data.get("config", {}).get("step", {})
+        ):
+            errors.append(
+                f"Missing installation/reauthentication translations in {relative}"
+            )
+        message = (
+            data.get("exceptions", {}).get("license_unavailable", {}).get("message", "")
+        )
+        if set(re.findall(r"\{([a-z_]+)\}", message)) != {
+            "license_error",
+            "activation_code",
+            "portal_url",
+        }:
+            errors.append(f"License recovery message lost placeholders in {relative}")
+
+    namespace: dict[str, Any] = {
+        "DOMAIN": DOMAIN,
+        "PLATFORMS": [],
+        "LICENSE_PORTAL_URL": "",
+        "_LICENSE_NOTIFICATION_ID": "maika-test",
+    }
+    path = directory / "__init__.py"
+    tree = ast.parse(path.read_text(), filename=str(path))
+    selected = {
+        "async_setup_entry",
+        "async_unload_entry",
+        "async_remove_entry",
+        "_show_license_notification",
+        "_async_handle_invalid_license",
+    }
+    tree.body = [
+        node
+        for node in tree.body
+        if getattr(node, "name", "") in selected
+        or (isinstance(node, ast.ImportFrom) and node.module == "__future__")
+    ]
+    exec(compile(tree, str(path), "exec"), namespace)
+    events: list[str] = []
+    notifications: list[str] = []
+    entry = types.SimpleNamespace(
+        entry_id="existing",
+        data={"account": "unchanged"},
+        options={
+            "scan_interval": 90,
+            "voice_command_rules": "bật đèn | light.demo | turn_on",
+        },
+    )
+    entries = [entry]
+    hass = types.SimpleNamespace(
+        data={},
+        config_entries=types.SimpleNamespace(async_entries=lambda domain: entries),
+        unload_ok=True,
+    )
+
+    class LicenseUnavailableError(Exception):
+        code = "license_expired"
+        activation_code = "MAIKA-TEST"
+
+    class EntryNotReady(Exception):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(kwargs)
+            self.placeholders = kwargs["translation_placeholders"]
+
+    async def register_panel(home_assistant: Any) -> None:
+        events.append("panel")
+        home_assistant.data["panel"] = True
+
+    async def remove_panel(home_assistant: Any) -> None:
+        events.append("remove_panel")
+        home_assistant.data.pop("panel", None)
+
+    async def create_license(home_assistant: Any) -> None:
+        events.append("license")
+        raise LicenseUnavailableError
+
+    async def unload_platforms(target: Any, platforms: Any) -> bool:
+        events.append("unload")
+        return hass.unload_ok
+
+    async def record_stop(component: str) -> None:
+        events.append(component)
+
+    async def reload_entry(entry_id: str) -> None:
+        assert entry_id == entry.entry_id
+        events.append("reload")
+
+    hass.config_entries.async_unload_platforms = unload_platforms
+    hass.config_entries.async_reload = reload_entry
+    namespace.update(
+        async_register_panel=register_panel,
+        async_remove_panel=remove_panel,
+        MaikaLicenseManager=types.SimpleNamespace(async_create=create_license),
+        MaikaLicenseUnavailableError=LicenseUnavailableError,
+        ConfigEntryNotReady=EntryNotReady,
+        persistent_notification=types.SimpleNamespace(
+            async_create=lambda home_assistant, message, **kwargs: notifications.append(
+                message
+            )
+        ),
+    )
+
+    async def check() -> None:
+        original_data, original_options = dict(entry.data), dict(entry.options)
+        try:
+            await namespace["async_setup_entry"](hass, entry)
+        except EntryNotReady as err:
+            assert err.placeholders["license_error"] == "license_expired"
+        else:
+            raise AssertionError("Expired license must not start the speaker")
+        assert events == ["panel", "license"]
+        assert hass.data["panel"]
+        assert "/maika-panel" in notifications[-1]
+        assert not hasattr(entry, "runtime_data")
+        await namespace["_async_handle_invalid_license"](
+            hass, entry, LicenseUnavailableError()
+        )
+        assert events[-1] == "reload" and hass.data["panel"]
+        entry.runtime_data = types.SimpleNamespace(
+            license_manager=types.SimpleNamespace(
+                async_stop=lambda: record_stop("license_stop")
+            ),
+            coordinator=types.SimpleNamespace(
+                async_stop_voice_subscriptions=lambda: record_stop("voice_stop")
+            ),
+            client=types.SimpleNamespace(async_stop=lambda: record_stop("client_stop")),
+        )
+        events.clear()
+        hass.unload_ok = False
+        assert not await namespace["async_unload_entry"](hass, entry)
+        assert events == ["unload"] and hass.data["panel"]
+        events.clear()
+        hass.unload_ok = True
+        assert await namespace["async_unload_entry"](hass, entry)
+        assert events == ["unload", "license_stop", "voice_stop", "client_stop"]
+        assert hass.data["panel"]
+        del entry.runtime_data
+        other = types.SimpleNamespace(entry_id="other")
+        for remaining in ([entry, other], [other]):
+            entries[:] = remaining
+            await namespace["async_remove_entry"](hass, entry)
+            assert hass.data["panel"]
+        for remaining in ([entry], []):
+            entries[:] = remaining
+            hass.data["panel"] = True
+            await namespace["async_remove_entry"](hass, entry)
+            assert "panel" not in hass.data
+        assert entry.data == original_data and entry.options == original_options
+
+    try:
+        asyncio.run(check())
+    except Exception as err:
+        errors.append(f"Panel-only configuration lifecycle validation failed: {err!r}")
+
+
 def validate(
     *,
     allow_template: bool,
@@ -672,6 +903,7 @@ def validate(
             _validate_licensing_config(version, errors, expected_public_key_file)
             _validate_voice_success_audio(errors)
             _validate_voice_rules(errors)
+            _validate_panel_configuration(errors)
 
     if hacs_path.is_file():
         try:

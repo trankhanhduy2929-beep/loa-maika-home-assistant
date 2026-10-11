@@ -16,7 +16,7 @@ Luồng khách hàng:
 
 1. Người bán tạo license lifetime, mặc định một máy.
 2. Khách cài integration qua HACS hoặc ZIP.
-3. Khách nhập URL máy chủ kích hoạt và license key.
+3. Khách nhập license key; máy chủ kích hoạt được chọn tự động.
 4. Home Assistant đầu tiên dùng key được chuyển thẳng sang trạng thái `active`.
 5. Server trả signed lease ngay, không cần gửi mã chờ người bán duyệt.
 6. Khách nhập tài khoản MAIKA và sử dụng.
@@ -43,7 +43,7 @@ Khi đó luồng khách hàng là:
 
 1. Người bán tạo customer và license trên server riêng.
 2. Khách cài integration qua HACS hoặc ZIP.
-3. Khách nhập URL máy chủ kích hoạt và license key.
+3. Khách nhập license key; máy chủ kích hoạt được chọn tự động.
 4. Integration tạo mã dạng `MAIKA-XXXX-XXXX-XXXX-XXXX`.
 5. Server lưu yêu cầu ở trạng thái `pending`.
 6. Khách gửi mã cài đặt cho người bán.
@@ -51,8 +51,10 @@ Khi đó luồng khách hàng là:
 8. Khách bấm kiểm tra lại, sau đó mới nhập tài khoản MAIKA.
 
 Entry đã tạo trước `1.6.0` sẽ không tải cho đến khi được kích hoạt tại
-**Settings → Devices & services → MAIKA Speaker → Configure → License và kích
-hoạt**.
+**MAIKA → Bản quyền** trong sidebar. Từ `1.10.1`, không còn màn hình
+**Configure / Tùy chọn MAIKA**. Panel vẫn mở được khi license hết hạn hoặc
+tích hợp chưa tải thành công; dán key mới rồi bấm **Kích hoạt / thay key**.
+Không cần xoá integration, key cũ, tài khoản hoặc thiết bị.
 
 ## Dữ liệu gửi tới activation server
 
