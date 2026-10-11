@@ -93,13 +93,9 @@ def main() -> int:
         "from __future__ import annotations\n\n"
         f"DEFAULT_LICENSE_SERVER_URL = {json.dumps(server_url)}\n"
         f"PORTAL_PUBLIC_URL = {json.dumps(portal_url)}\n"
-        "LICENSE_PORTAL_URL = (\n"
-        '    f"{PORTAL_PUBLIC_URL}/portal" if PORTAL_PUBLIC_URL else ""\n'
-        ")\n"
+        'LICENSE_PORTAL_URL = f"{PORTAL_PUBLIC_URL}/portal" if PORTAL_PUBLIC_URL else ""\n'
         "BUNDLED_VOICE_SUCCESS_AUDIO_URL = (\n"
-        '    f"{PORTAL_PUBLIC_URL}/mp3/maika.mp3"\n'
-        "    if PORTAL_PUBLIC_URL\n"
-        '    else ""\n'
+        '    f"{PORTAL_PUBLIC_URL}/mp3/maika.mp3" if PORTAL_PUBLIC_URL else ""\n'
         ")\n"
         f"LICENSE_PUBLIC_KEY_B64 = {json.dumps(public_key)}\n"
     )
