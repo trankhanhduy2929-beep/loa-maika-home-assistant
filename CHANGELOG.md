@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.11.1] - 2026-10-11
+
+### Fixed
+
+- Sửa panel không cuộn được bằng con lăn chuột khi khung custom panel của
+  Home Assistant không có chiều cao cố định. Giới hạn chiều cao panel theo
+  viewport để nội dung cuộn bên trong, thay vì kéo dài khỏi màn hình.
+- Giữ cuộn tự nhiên trên ảnh loa, thanh chọn mục/loa và các thẻ; không chặn
+  wheel bằng JavaScript, không ảnh hưởng cuộn ngang trackpad, danh sách câu
+  lệnh, vuốt chạm đổi loa hay điều hướng tới từng mục.
+- Không thay đổi key, tài khoản, câu lệnh và cấu hình đã lưu.
+
+### Tests
+
+- Mô phỏng lớp khung `partial-panel-resolver` / `ha-panel-custom` không đặt
+  chiều cao như khi nhúng trong HA; kiểm thử con lăn thật qua Chromium ở
+  đầu/cuối trang, khi đổi kích thước và mở sidebar, cùng cuộn lồng nhau.
+- Kiểm tra lại thao tác vuốt trên điện thoại, sáng/tối, bản nháp và đổi key
+  trên HA giả lập; chưa kiểm thử trên thiết bị Home Assistant/loa thực tế.
+
 ## [1.11.0] - 2026-10-11
 
 ### Added

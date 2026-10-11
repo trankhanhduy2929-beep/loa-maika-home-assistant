@@ -6,15 +6,21 @@
   <title>MAIKA panel verification</title>
   <style>
     html, body { margin: 0; width: 100%; height: 100%; font-family: system-ui; }
-    body { display: flex; background: #101010; }
+    body { display: flex; overflow: hidden; background: #101010; }
     #sidebar { display: none; flex: none; width: 256px; }
+    #app { flex: 1; min-width: 0; overflow: hidden; }
+    ha-panel-custom { display: block; }
     maika-panel { flex: 1; min-width: 0; }
   </style>
   <script type="module" src="/maika-panel.js"></script>
 </head>
 <body>
   <aside id="sidebar"></aside>
-  <maika-panel id="panel"></maika-panel>
+  <main id="app">
+    <partial-panel-resolver>
+      <ha-panel-custom><maika-panel id="panel"></maika-panel></ha-panel-custom>
+    </partial-panel-resolver>
+  </main>
   <script>
     window.calls = [];
     window.failApi = false;

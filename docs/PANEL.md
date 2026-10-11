@@ -33,6 +33,12 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 
 ## Giao diện sáng / tối và điều hướng
 
+- Từ `1.11.1`, panel giới hạn chiều cao theo vùng nhìn ngay cả khi khung HA
+  không có chiều cao cố định. Lăn chuột trên ảnh, thanh chọn hay các thẻ đều
+  cuộn được trang; danh sách câu lệnh cuộn riêng và chuyển sang cuộn trang
+  khi tới đầu/cuối. Không dùng listener chặn wheel, nên cuộn ngang trackpad
+  và cử chỉ trên điện thoại vẫn giữ nguyên.
+
 - Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
   sáng/tối của Home Assistant; lựa chọn được nhớ riêng trong trình duyệt.
   Nếu trình duyệt chặn lưu trữ, vẫn đổi được cho phiên đang mở.
@@ -117,8 +123,8 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.11.0`, khởi động lại Home Assistant rồi tải
-lại trang/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
+Cập nhật custom integration lên `1.11.1`, khởi động lại Home Assistant rồi tải
+lại trang bằng **Ctrl+F5**/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các
 kích thước 320–1920px; cần kiểm tra thêm trên loa và ứng dụng HA thực tế.

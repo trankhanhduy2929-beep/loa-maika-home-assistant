@@ -348,6 +348,8 @@ class MaikaPanel extends HTMLElement {
 
         display: block;
         height: 100%;
+        max-height: 100vh;
+        max-height: 100dvh;
         min-height: 0;
         min-width: 0;
         overflow: auto;

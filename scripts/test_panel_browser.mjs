@@ -221,6 +221,82 @@ async function verifyVoiceEditor() {
   console.log("PASS generated browser rules round-trip through the actual Python backend validator");
 }
 
+async function verifyDesktopScrolling() {
+  await page.setViewportSize({width: 1440, height: 900});
+  await load();
+  const geometry = await page.evaluate(() => ({height: panel.clientHeight, content: panel.scrollHeight, viewport: innerHeight}));
+  assert(geometry.height <= geometry.viewport, "The panel stays within the viewport when HA wrappers have auto height");
+  assert(geometry.content > geometry.height, "The panel owns the vertical scroll area instead of expanding to its content");
+  const activeSpeaker = await page.evaluate(() => panel._activeSerial());
+  const pointAt = async (locator) => {
+    const rect = await locator.boundingBox();
+    await page.mouse.move(rect.x + Math.min(rect.width / 2, 100), rect.y + Math.min(rect.height / 2, 40));
+  };
+  const top = async () => {
+    await page.evaluate(() => panel.scrollTo({top: 0, behavior: "instant"}));
+    await page.waitForTimeout(150);
+  };
+  for (const selector of [".hero-media", ".hero-showcase", ".nav", ".chips--scroll", '[data-card="media"]']) {
+    await top();
+    await pointAt(page.locator(selector).first());
+    await page.mouse.wheel(0, 360);
+    await page.waitForFunction(() => panel.scrollTop > 200);
+    await page.waitForTimeout(150);
+    await pointAt(page.locator(".nav"));
+    await page.mouse.wheel(0, -360);
+    await page.waitForFunction(() => panel.scrollTop < 5);
+  }
+  await pointAt(page.locator(".nav"));
+  await page.mouse.wheel(0, 20000);
+  await page.waitForFunction(() => Math.abs(panel.scrollHeight - panel.clientHeight - panel.scrollTop) < 2);
+  assert(await page.locator('[name="scan_interval"]').isVisible());
+  await page.waitForTimeout(150);
+  await page.mouse.wheel(0, -20000);
+  await page.waitForFunction(() => panel.scrollTop < 5);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollTop), 0);
+  assert.equal(await page.evaluate(() => panel._activeSerial()), activeSpeaker);
+  console.log("PASS desktop wheel over image, swipe surface, navigation, speaker rails and cards; reach bottom and return to top in HA wrappers");
+
+  await page.evaluate(() => { document.querySelector("#sidebar").style.display = "block"; });
+  await page.setViewportSize({width: 1024, height: 720});
+  await top();
+  assert.equal(await page.evaluate(() => panel.clientHeight), 720);
+  const nav = page.locator(".nav");
+  assert(await nav.evaluate((element) => element.scrollWidth > element.clientWidth));
+  await pointAt(nav);
+  await page.mouse.wheel(240, 0);
+  await page.waitForFunction(() => panel.shadowRoot.querySelector(".nav").scrollLeft > 50);
+  assert.equal(await page.evaluate(() => panel.scrollTop), 0, "Horizontal trackpad scrolling stays in the navigation rail");
+  await page.waitForTimeout(150);
+  await page.mouse.wheel(0, 360);
+  await page.waitForFunction(() => panel.scrollTop > 200);
+  await page.evaluate(() => { document.querySelector("ha-panel-custom").style.height = "540px"; });
+  assert.equal(await page.evaluate(() => panel.clientHeight), 540, "A shorter explicit HA container still constrains the panel");
+  await page.evaluate(() => { document.querySelector("ha-panel-custom").style.height = ""; });
+  console.log("PASS resized desktop, HA sidebar, horizontal trackpad and vertical wheel over overflowing navigation");
+
+  await page.setViewportSize({width: 1440, height: 900});
+  await load();
+  await page.evaluate(async () => {
+    snapshot.entries[0].options.voice_command_rules += Array.from({length: 40}, (_, index) => `bật đèn thử ${index} | light.phong_khach | turn_on`).join("\n");
+    await panel._load();
+  });
+  const commands = page.locator("maika-voice-editor").locator("#commands");
+  await commands.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  await pointAt(commands);
+  const outerTop = await page.evaluate(() => panel.scrollTop);
+  await page.mouse.wheel(0, 200);
+  await page.waitForFunction(() => panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelector("#commands").scrollTop > 100);
+  assert.equal(await page.evaluate(() => panel.scrollTop), outerTop, "Nested command list scrolls before the outer panel");
+  await commands.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await page.waitForTimeout(200);
+  await page.mouse.wheel(0, 240);
+  await page.waitForFunction((previous) => panel.scrollTop > previous + 100, outerTop);
+  assert.equal(await page.evaluate(() => calls.filter((call) => call.service || call.method === "POST").length), 0);
+  console.log("PASS native nested command scrolling and scroll chaining at the list edge without device actions or saves");
+}
+
 async function verifySpeakerGestures() {
   const touchContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
   await touchContext.route("**/olli-maika-2.jpg", (route) => route.fulfill({contentType: process.env.MAIKA_TEST_HERO_IMAGE ? "image/jpeg" : "image/png", body: image}));
@@ -356,6 +432,7 @@ async function verifySpeakerGestures() {
 }
 
 try {
+  await verifyDesktopScrolling();
   await verifySpeakerGestures();
   await verifyVoiceEditor();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
@@ -530,9 +607,10 @@ try {
   console.log("PASS touch browser, blocked storage, failed image fallback and form labels");
 
   await blockedPage.evaluate(async () => {
+    const root = panel.parentElement;
     panel.remove();
     window.failedPanel = document.createElement("maika-panel");
-    document.body.append(failedPanel);
+    root.append(failedPanel);
     failedPanel.hass = {...hass, callApi: async () => { throw new Error("Offline at startup"); }};
   });
   await blockedPage.locator('[data-card="message"]').waitFor();
