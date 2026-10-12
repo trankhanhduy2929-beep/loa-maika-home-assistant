@@ -202,6 +202,16 @@ async function verifyVoiceEditor() {
   await input("audio-url").fill("invalid-url");
   await input("audio-source").selectOption("disabled");
   assert(await input("audio-url").isDisabled());
+  await input("audio-source").selectOption("library");
+  await page.waitForFunction(() => panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll("#audio-library option").length === 3);
+  const libraryOptions = await input("audio-library").locator("option").evaluateAll((nodes) => nodes.map((node) => node.value));
+  assert.deepEqual(libraryOptions, ["", "mp3/maika.mp3", "www/thanh-cong.mp3"]);
+  assert(await input("audio-url").isDisabled());
+  await input("audio-library").selectOption("mp3/maika.mp3");
+  await input("voice-settings").locator('button[type="submit"]').click(); await waitSaved();
+  assert.equal((await serverOptions()).voice_success_audio_source, "library");
+  assert.equal((await serverOptions()).voice_success_audio_path, "mp3/maika.mp3");
+  await input("audio-source").selectOption("disabled");
   await input("voice-settings").locator('button[type="submit"]').click(); await waitSaved();
   await input("voice-enabled").uncheck();
   await input("voice-settings").locator('button[type="submit"]').click(); await waitSaved();
@@ -544,15 +554,46 @@ async function verifyLifetimeLicense() {
   assert.equal(await page.evaluate(() => snapshot.entries[0].license.plan), "lifetime");
   assert.deepEqual(await labels(), ["Gói hiện tại", "Key đang dùng", "Mã cài đặt"]);
   assert.match(await page.locator('[data-sec="license"] .sec-head span').innerText(), /vĩnh viễn/);
+  assert.equal(await page.locator('[data-sec="license"] .reminder').count(), 0);
+  const soon = await page.evaluate(() => {
+    const licenseExpiresAt = Math.floor(Date.now() / 1000) + 3 * 86400;
+    snapshot.entries[0].license = {...snapshot.entries[0].license, plan: "month_1", expires_at: licenseExpiresAt, license_expires_at: licenseExpiresAt};
+    tick();
+    return licenseExpiresAt;
+  });
+  assert.ok(soon);
+  await page.locator('[data-action="refreshdata"]').click();
+  await waitRender();
+  await page.locator('[data-action="jump"][data-section="license"]').click();
+  assert.deepEqual(await labels(), ["Gói hiện tại", "Hạn dùng", "Key đang dùng", "Mã cài đặt"]);
+  assert.match(await page.locator('[data-sec="license"] .reminder').innerText(), /còn 3 ngày/);
   await page.evaluate(() => {
-    snapshot.entries[0].license = {...snapshot.entries[0].license, plan: "month_1", expires_at: "2026-12-31T00:00:00Z"};
+    const licenseExpiresAt = Math.floor(Date.now() / 1000) + 40 * 86400;
+    snapshot.entries[0].license = {...snapshot.entries[0].license, license_expires_at: licenseExpiresAt, expires_at: licenseExpiresAt};
     tick();
   });
   await page.locator('[data-action="refreshdata"]').click();
   await waitRender();
   await page.locator('[data-action="jump"][data-section="license"]').click();
-  assert.deepEqual(await labels(), ["Gói hiện tại", "Hạn dùng", "Key đang dùng", "Mã cài đặt"]);
-  console.log("PASS lifetime key hides the expiry row while dated plans still show it");
+  assert.equal(await page.locator('[data-sec="license"] .reminder').count(), 0);
+  console.log("PASS lifetime key hides the expiry row; paid plans show it with a near-expiry reminder");
+}
+
+async function verifyCommandHistory() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  await page.locator('[data-action="jump"][data-section="history"]').click();
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelectorAll('[data-sec="history"] .history-row').length === 3);
+  const rows = page.locator('[data-sec="history"] .history-row');
+  assert.equal(await rows.first().locator(".history-text").innerText(), "bật đèn phòng khách");
+  assert.equal(await rows.first().locator(".badge").innerText(), "Đã thực hiện");
+  assert.equal(await rows.nth(1).locator(".badge").innerText(), "Chưa có rule");
+  assert.equal(await rows.nth(2).locator(".badge").innerText(), "Lỗi");
+  await page.evaluate(() => { delete states["sensor.loa_last_voice_command"]; tick(); });
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelector('[data-sec="history"] .history-text')?.textContent === "từ snapshot");
+  assert.equal(await rows.count(), 1);
+  assert.equal(await rows.first().locator(".badge").innerText(), "Đã thực hiện");
+  console.log("PASS recent command history from live sensor attributes with snapshot fallback");
 }
 
 try {
@@ -561,6 +602,7 @@ try {
   await verifySpeakerGestures();
   await verifyVoiceEditor();
   await verifyLifetimeLicense();
+  await verifyCommandHistory();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
     await load();

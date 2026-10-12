@@ -43,6 +43,22 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   khi ra khỏi vùng nhìn, tab bị ẩn hoặc thiết bị bật **Giảm chuyển động**.
   Không cần cài thêm thư viện giao diện và không có vòng lặp JS khi đứng yên.
 
+## Lịch sử, nhắc hạn và thư viện âm phản hồi từ v1.14.0
+
+- Mục **Lịch sử** hiện các câu lệnh gần đây: câu nói, thiết bị/thao tác,
+  thời gian và kết quả (Đã thực hiện / Lỗi / Đang chạy / Chưa có rule).
+  Panel ưu tiên thuộc tính `recent_commands` của cảm biến câu lệnh để cập
+  nhật ngay, dự phòng bằng snapshot; giữ tối đa 20 câu lệnh.
+- **Nhắc hạn key**: mục **Bản quyền** hiện băng nhắc khi key còn ≤ 7 ngày
+  hoặc đã hết hạn, và Home Assistant tạo thông báo hệ thống một lần mỗi
+  ngày. Key vĩnh viễn không nhắc. Dòng **Hạn dùng** dùng hạn thật
+  `license_expires_at` do máy chủ ký kèm (cần worker cấp phép đã cập nhật).
+- **Thư viện âm phản hồi**: chọn nguồn "Thư viện MP3 trên Home Assistant",
+  panel quét `/config/www`, `/config/mp3`, `/config/media` (mp3, m4a, aac,
+  wav, ogg, flac) và phục vụ file qua `/maika_media/...`. Đường dẫn được
+  kiểm tra trong danh sách cho phép, không cho thoát thư mục. Home Assistant
+  phải truy cập được từ Internet (Settings → System → Network) để loa tải.
+
 ## Giao diện sáng / tối và điều hướng
 
 - Từ `1.11.1`, panel giới hạn chiều cao theo vùng nhìn ngay cả khi khung HA
@@ -135,7 +151,7 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.13.0`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.14.0`, khởi động lại Home Assistant rồi tải
 lại trang bằng **Ctrl+F5**/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các

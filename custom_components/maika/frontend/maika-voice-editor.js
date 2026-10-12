@@ -3,6 +3,7 @@ const ENABLED_KEY = "enable_voice_command_sensor";
 const AUDIO_KEYS = {
   source: "voice_success_audio_source", timing: "voice_success_audio_timing",
   url: "voice_success_audio_url", player: "voice_success_media_player_entity_id",
+  path: "voice_success_audio_path",
 };
 const DOMAIN_NAMES = {
   light: "Đèn", switch: "Công tắc", fan: "Quạt", cover: "Rèm / cửa",
@@ -261,8 +262,11 @@ class MaikaVoiceEditor extends HTMLElement {
             <h3>Giọng nói & âm phản hồi</h3>
             <form id="voice-settings" class="stack">
               <label class="toggle" for="voice-enabled"><span>Bật điều khiển thiết bị HASS<br><small class="note">Lắng nghe câu nói từ loa MAIKA</small></span><input id="voice-enabled" type="checkbox"></label>
-              <label for="audio-source">Âm báo khi thành công<select id="audio-source"><option value="disabled">Không phát âm báo</option><option value="bundled">Âm MAIKA có sẵn</option><option value="custom">File MP3 của bạn (URL)</option></select></label>
+              <label for="audio-source">Âm báo khi thành công<select id="audio-source"><option value="disabled">Không phát âm báo</option><option value="bundled">Âm MAIKA có sẵn</option><option value="library">Thư viện MP3 trên Home Assistant</option><option value="custom">File MP3 của bạn (URL)</option></select></label>
               <label for="audio-url" id="audio-url-field" hidden>URL file MP3<input id="audio-url" type="url" placeholder="https://…/thanh-cong.mp3"></label>
+              <label for="audio-library" id="audio-library-field" hidden>Chọn file trong thư viện<select id="audio-library"><option value="">Đang tải danh sách…</option></select></label>
+              <button id="audio-library-refresh" type="button" hidden>Tải lại danh sách MP3</button>
+              <p id="audio-library-note" class="note" hidden>Đặt file vào /config/www, /config/mp3 hoặc /config/media (mp3, m4a, aac, wav, ogg, flac). Home Assistant phải truy cập được từ Internet để loa tải file.</p>
               <label for="audio-player">Phát âm phản hồi qua<select id="audio-player"><option value="">Tự chọn khi tài khoản chỉ có một loa</option></select></label>
               <p id="audio-note" class="note"></p>
               <label for="audio-timing">Thời điểm phản hồi<select id="audio-timing"><option value="priority">Ưu tiên che giọng mặc định của loa</option><option value="after_success">Sau khi điều khiển thành công</option></select></label>
@@ -289,6 +293,7 @@ class MaikaVoiceEditor extends HTMLElement {
     this._query("voice-settings").addEventListener("change", () => { this._dirty = true; this._audioVisibility(); this._status(); });
     this._query("voice-settings").addEventListener("input", () => { this._dirty = true; this._status(); });
     this._query("voice-settings").addEventListener("submit", (event) => { event.preventDefault(); this._persist(); });
+    this._query("audio-library-refresh").addEventListener("click", () => { this._libraryLoaded = false; this._loadAudioLibrary(); });
     this._query("retry-save").addEventListener("click", () => this._persist());
     this._query("reload-rules").addEventListener("click", () => this._reload());
   }
@@ -501,20 +506,62 @@ class MaikaVoiceEditor extends HTMLElement {
     this._query("audio-source").value = options[AUDIO_KEYS.source] || "disabled";
     this._query("audio-timing").value = options[AUDIO_KEYS.timing] || "priority";
     this._query("audio-url").value = options[AUDIO_KEYS.url] || "";
+    this._retainedPath = options[AUDIO_KEYS.path] || "";
+    this._libraryLoaded = false;
     this._retainOption(this._query("audio-player"), options[AUDIO_KEYS.player] || "");
+    this._retainAudioPath();
     this._dirty = false;
     this._audioVisibility();
     this._renderList();
     this._status();
   }
 
+  _retainAudioPath() {
+    const select = this._query("audio-library");
+    const value = this._retainedPath || "";
+    if (value && ![...select.options].some((option) => option.value === value)) select.append(element("option", {value, text: `${value} (đã lưu / không tìm thấy)`}));
+    select.value = value;
+  }
+
+  async _loadAudioLibrary() {
+    if (this._libraryLoading) return;
+    this._libraryLoading = true;
+    const select = this._query("audio-library");
+    const previous = select.value || this._retainedPath || "";
+    select.disabled = true;
+    try {
+      const response = await this._hass.callApi("GET", "maika/panel/audio");
+      const files = Array.isArray(response?.files) ? response.files : [];
+      select.replaceChildren(element("option", {value: "", text: files.length ? "Chọn file MP3…" : "Không tìm thấy MP3 trong /config/www, /config/mp3 hoặc /config/media"}));
+      for (const file of files) select.append(element("option", {value: file.path, text: file.path}));
+    } catch (error) {
+      select.replaceChildren(element("option", {value: "", text: "Không tải được danh sách MP3"}));
+    } finally {
+      this._libraryLoaded = true;
+      this._libraryLoading = false;
+      this._retainedPath = previous;
+      this._retainAudioPath();
+      this._audioVisibility();
+    }
+  }
+
   _audioVisibility() {
-    this._query("audio-url-field").hidden = this._query("audio-source").value !== "custom";
-    this._query("audio-url").required = this._query("audio-source").value === "custom";
-    this._query("audio-url").disabled = this.isBusy || this._query("audio-source").value !== "custom";
+    const source = this._query("audio-source").value;
+    this._query("audio-url-field").hidden = source !== "custom";
+    this._query("audio-url").required = source === "custom";
+    this._query("audio-url").disabled = this.isBusy || source !== "custom";
+    const libraryField = this._query("audio-library-field");
+    const librarySelect = this._query("audio-library");
+    libraryField.hidden = source !== "library";
+    this._query("audio-library-refresh").hidden = source !== "library";
+    this._query("audio-library-note").hidden = source !== "library";
+    librarySelect.required = source === "library";
+    librarySelect.disabled = this.isBusy || source !== "library";
+    if (source === "library" && !this._libraryLoaded && !this._libraryLoading && !this.isBusy) this._loadAudioLibrary();
     const notes = [];
-    if (this._query("audio-source").value !== "disabled") {
+    if (source !== "disabled") {
       if (!this._entry?.options?.enable_experimental_cloud_cast) notes.push("Bật ‘Cast âm thanh cloud’ trong Cấu hình loa để phát âm báo.");
+      if (source === "library" && !this._query("audio-library").value) notes.push("Chọn một file MP3 trong thư viện.");
       if ((this._entry?.entities?.media_player || []).length > 1 && !this._query("audio-player").value) notes.push("Tài khoản có nhiều loa: chọn loa phát âm phản hồi.");
     }
     this._query("audio-note").textContent = notes.join(" ");
@@ -591,6 +638,7 @@ class MaikaVoiceEditor extends HTMLElement {
       [AUDIO_KEYS.source]: this._query("audio-source").value,
       [AUDIO_KEYS.timing]: this._query("audio-timing").value,
       [AUDIO_KEYS.url]: this._query("audio-url").value.trim(),
+      [AUDIO_KEYS.path]: this._query("audio-library").value,
       [AUDIO_KEYS.player]: this._query("audio-player").value,
     };
     this._saving = true;
@@ -606,7 +654,7 @@ class MaikaVoiceEditor extends HTMLElement {
     } catch (error) {
       const code = error?.body?.message || error?.body?.error || error?.message || "";
       const errors = Object.values(error?.body?.errors || {});
-      const hint = errors.includes("voice_success_audio_media_player_invalid") ? "Chọn lại loa phát âm phản hồi." : errors.includes("invalid_voice_success_audio_url") ? "Kiểm tra URL MP3." : "Kiểm tra kết nối, câu nói trùng hoặc thông số của thiết bị rồi thử lại.";
+      const hint = errors.includes("voice_success_audio_media_player_invalid") ? "Chọn lại loa phát âm phản hồi." : errors.includes("invalid_voice_success_audio_url") ? "Kiểm tra URL MP3." : errors.includes("invalid_voice_success_audio_path") ? "File MP3 không còn trong thư viện, hãy chọn lại." : "Kiểm tra kết nối, câu nói trùng hoặc thông số của thiết bị rồi thử lại.";
       this._message(code === "voice_rules_changed" ? "Cấu hình đã đổi ở nơi khác. Tải lại cấu hình đã lưu trước khi sửa tiếp; bản nháp hiện tại vẫn được giữ." : `Chưa lưu được. ${hint} Bản nháp vẫn được giữ.`, "error");
       this._query("reload-rules").hidden = false;
       return false;

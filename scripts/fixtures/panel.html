@@ -39,8 +39,9 @@
     for (let account = 0; account < 2; account += 1) {
       const entry = {
         entry_id: `account-${account}`, title: `Nhà ${account + 1}`, devices: {}, entities: {}, device_entities: {}, entity_keys: {},
-        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_media_player_entity_id: ""},
-        license: {status: "active", plan: "lifetime", expires_at: null, key_hint: "MAIKA-DEMO-…-1234", activation_code: "MAIKA-DEMO-TEST-ONLY-0000", server_url: "https://license.example.test"},
+        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_audio_path: "", voice_success_media_player_entity_id: ""},
+        license: {status: "active", plan: "lifetime", expires_at: null, license_expires_at: null, key_hint: "MAIKA-DEMO-…-1234", activation_code: "MAIKA-DEMO-TEST-ONLY-0000", server_url: "https://license.example.test"},
+        command_history: [{text: "từ snapshot", normalized: "từ snapshot", received_at: "2026-10-12T10:00:00+00:00", matched_phrase: "bật đèn phòng khách", target_entity_id: "light.phong_khach", action: "turn_on", service: "light.turn_on", executed: true, entity_state_after: "on"}],
       };
       for (let speaker = 0; speaker < 2; speaker += 1) {
         const serial = `SERIAL-${account}-${speaker}`;
@@ -64,7 +65,14 @@
       }
       entries.push(entry);
     }
-    window.snapshot = {entries, portal_url: "https://portal.example.test", scan_interval_bounds: [15, 3600], audio_source_options: ["disabled", "bundled", "custom"], audio_timing_options: ["priority", "after_success"]};
+    window.snapshot = {entries, portal_url: "https://portal.example.test", scan_interval_bounds: [15, 3600], audio_source_options: ["disabled", "bundled", "library", "custom"], audio_timing_options: ["priority", "after_success"], audio_library_path: "maika/panel/audio", audio_library_url_path: "/maika_media"};
+    states["sensor.loa_last_voice_command"] = {entity_id: "sensor.loa_last_voice_command", state: "bật đèn phòng khách", attributes: {friendly_name: "Câu lệnh gần đây", recent_commands: [
+      {text: "bật đèn phòng khách", received_at: "2026-10-12T11:00:00+00:00", matched_phrase: "bật đèn phòng khách", target_entity_id: "light.phong_khach", action: "turn_on", service: "light.turn_on", executed: true},
+      {text: "mở cửa nhà kho", received_at: "2026-10-12T10:55:00+00:00"},
+      {text: "tắt quạt", received_at: "2026-10-12T10:50:00+00:00", matched_phrase: "tắt quạt", target_entity_id: "fan.phong_khach", action: "turn_off", error: "ServiceNotFound"},
+    ]}};
+    entries[0].entities.sensor = [...(entries[0].entities.sensor || []), "sensor.loa_last_voice_command"];
+    for (const serial of Object.keys(entries[0].device_entities)) entries[0].device_entities[serial].sensor = [...(entries[0].device_entities[serial].sensor || []), "sensor.loa_last_voice_command"];
     const demoEntities = {
       "light.phong_khach": ["Đèn phòng khách", {supported_color_modes: ["brightness", "rgb"]}],
       "fan.phong_khach": ["Quạt phòng khách", {preset_modes: ["auto", "sleep"]}],
@@ -86,6 +94,7 @@
         calls.push({method, path, data});
         await new Promise((resolve) => setTimeout(resolve, 40));
         if (failApi) throw new Error("Thử mất kết nối");
+        if (method === "GET" && path === "maika/panel/audio") return {url_path: "/maika_media", files: [{path: "mp3/maika.mp3", name: "maika.mp3", root: "mp3"}, {path: "www/thanh-cong.mp3", name: "thanh-cong.mp3", root: "www"}]};
         if (method === "GET") return structuredClone(snapshot);
         if (path === "maika/panel/options") {
           if (failSave) throw new Error("Lưu thất bại giả lập");

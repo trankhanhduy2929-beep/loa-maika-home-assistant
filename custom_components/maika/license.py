@@ -84,6 +84,7 @@ class MaikaLicenseEntitlement:
     expires_at: int
     grace_until: int
     key_hint: str = ""
+    license_expires_at: int | None = None
 
     def state_at(self, timestamp: int | None = None) -> str:
         """Return active, grace or expired at a Unix timestamp."""
@@ -235,6 +236,7 @@ class MaikaLicenseClient:
                 expires_at=_required_int(payload, "expires_at"),
                 grace_until=_required_int(payload, "grace_until"),
                 key_hint=_optional_string(payload.get("key_hint")),
+                license_expires_at=_optional_int(payload.get("license_expires_at")),
             )
         except (TypeError, ValueError) as err:
             raise MaikaLicenseTokenError("invalid_lease_payload") from err
@@ -336,6 +338,14 @@ def _required_string(payload: dict[str, Any], key: str) -> str:
         raise ValueError(key)
     if key == "installation_hash" and not _INSTALLATION_HASH_PATTERN.fullmatch(value):
         raise ValueError(key)
+    return value
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise MaikaLicenseTokenError("invalid_lease_payload")
     return value
 
 

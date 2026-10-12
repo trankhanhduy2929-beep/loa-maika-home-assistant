@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -20,9 +20,43 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import MaikaConfigEntry
-from .const import CONF_ENABLE_VOICE_COMMAND_SENSOR
+from .const import CONF_ENABLE_VOICE_COMMAND_SENSOR, MAX_VOICE_COMMAND_HISTORY
 from .coordinator import MaikaDataUpdateCoordinator
 from .entity import MaikaEntity
+
+_HISTORY_ATTRIBUTE_KEYS = (
+    "text",
+    "received_at",
+    "matched_phrase",
+    "target_entity_id",
+    "action",
+    "service",
+    "executed",
+    "error",
+    "entity_state_after",
+    "success_audio_status",
+)
+
+
+def _recent_commands(data: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return a compact, bounded copy of the recent command history."""
+    history = data.get("voice_command_history")
+    if not isinstance(history, list):
+        return []
+    recent: list[dict[str, Any]] = []
+    for item in history[:MAX_VOICE_COMMAND_HISTORY]:
+        if not isinstance(item, dict):
+            continue
+        row = {
+            key: item[key]
+            for key in _HISTORY_ATTRIBUTE_KEYS
+            if item.get(key) is not None
+        }
+        text = row.get("text")
+        if isinstance(text, str):
+            row["text"] = text[:200]
+        recent.append(row)
+    return recent
 
 
 def _wifi_ssid(device: dict[str, Any]) -> str | None:
@@ -233,6 +267,7 @@ class MaikaLastVoiceCommandSensor(
             "voice_subscription_count": int(
                 self.coordinator.data.get("voice_subscription_count", 0)
             ),
+            "recent_commands": _recent_commands(self.coordinator.data),
         }
         for key in (
             "last_stream_frame_kind",

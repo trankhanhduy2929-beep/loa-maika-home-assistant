@@ -14,11 +14,20 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from .audio_library import (
+    AUDIO_LIBRARY_PANEL_PATH,
+    AUDIO_LIBRARY_URL_PATH,
+    async_ensure_audio_library_paths,
+    list_audio_files,
+    normalize_audio_path,
+    resolve_audio_file,
+)
 from .const import (
     CONF_ENABLE_CLOUD_CAST,
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_SCAN_INTERVAL,
     CONF_VOICE_COMMAND_RULES,
+    CONF_VOICE_SUCCESS_AUDIO_PATH,
     CONF_VOICE_SUCCESS_AUDIO_SOURCE,
     CONF_VOICE_SUCCESS_AUDIO_TIMING,
     CONF_VOICE_SUCCESS_AUDIO_URL,
@@ -29,6 +38,7 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
     VOICE_SUCCESS_AUDIO_SOURCE_CUSTOM,
+    VOICE_SUCCESS_AUDIO_SOURCE_LIBRARY,
     VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS,
     VOICE_SUCCESS_AUDIO_TIMING_OPTIONS,
 )
@@ -52,6 +62,7 @@ from .voice_rules import (
     voice_action_catalog,
 )
 from .voice_success_audio import (
+    resolve_voice_success_audio_path,
     resolve_voice_success_audio_source,
     resolve_voice_success_audio_timing,
 )
@@ -74,6 +85,7 @@ _OPTION_KEYS = (
     CONF_VOICE_SUCCESS_AUDIO_SOURCE,
     CONF_VOICE_SUCCESS_AUDIO_TIMING,
     CONF_VOICE_SUCCESS_AUDIO_URL,
+    CONF_VOICE_SUCCESS_AUDIO_PATH,
     CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID,
 )
 
@@ -118,11 +130,14 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     except Exception as err:  # pragma: no cover - defensive only
         _LOGGER.warning("Không đăng ký được tài nguyên panel MAIKA: %s", err)
 
+    await async_ensure_audio_library_paths(hass)
+
     for view in (
         MaikaPanelStateView(hass),
         MaikaPanelLicenseView(hass),
         MaikaPanelOptionsView(hass),
         MaikaPanelActionView(hass),
+        MaikaPanelAudioLibraryView(hass),
     ):
         hass.http.register_view(view)
 
@@ -195,6 +210,7 @@ def _public_options(options: dict[str, Any]) -> dict[str, Any]:
         CONF_VOICE_SUCCESS_AUDIO_URL: str(
             options.get(CONF_VOICE_SUCCESS_AUDIO_URL, "") or ""
         ),
+        CONF_VOICE_SUCCESS_AUDIO_PATH: resolve_voice_success_audio_path(options),
         CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID: str(
             options.get(CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID, "") or ""
         ),
@@ -211,6 +227,7 @@ def _serialize_license(manager: Any) -> dict[str, Any]:
         "plan": getattr(entitlement, "plan", None),
         "features": list(getattr(entitlement, "features", ()) or ()),
         "expires_at": getattr(entitlement, "expires_at", None),
+        "license_expires_at": getattr(entitlement, "license_expires_at", None),
         "grace_until": getattr(entitlement, "grace_until", None),
         "key_hint": getattr(entitlement, "key_hint", "") or "",
         "license_id": getattr(record, "license_id", None),
@@ -280,6 +297,9 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
         "title": entry.title,
         "options": _public_options(dict(entry.options)),
         "license": _serialize_license(manager),
+        "command_history": _json_safe(
+            list(getattr(coordinator, "voice_command_history", ()) or ())
+        ),
         "devices": devices,
         "entities": {domain: sorted(ids) for domain, ids in entities.items()},
         "device_entities": {
@@ -337,6 +357,7 @@ def _validate_options(
         CONF_VOICE_SUCCESS_AUDIO_SOURCE,
         CONF_VOICE_SUCCESS_AUDIO_TIMING,
         CONF_VOICE_SUCCESS_AUDIO_URL,
+        CONF_VOICE_SUCCESS_AUDIO_PATH,
     )
     if any(key in incoming for key in audio_keys):
         merged = dict(values)
@@ -356,6 +377,13 @@ def _validate_options(
         ):
             errors[CONF_VOICE_SUCCESS_AUDIO_URL] = "invalid_voice_success_audio_url"
         values[CONF_VOICE_SUCCESS_AUDIO_URL] = audio_url
+        audio_path = str(merged.get(CONF_VOICE_SUCCESS_AUDIO_PATH, "") or "").strip()
+        normalized_path = normalize_audio_path(audio_path) if audio_path else ""
+        if audio_source == VOICE_SUCCESS_AUDIO_SOURCE_LIBRARY and (
+            not normalized_path or resolve_audio_file(hass, normalized_path) is None
+        ):
+            errors[CONF_VOICE_SUCCESS_AUDIO_PATH] = "invalid_voice_success_audio_path"
+        values[CONF_VOICE_SUCCESS_AUDIO_PATH] = normalized_path
 
     return values, errors
 
@@ -392,6 +420,8 @@ class MaikaPanelStateView(MaikaPanelMixin, HomeAssistantView):
                 "default_server_url": DEFAULT_LICENSE_SERVER_URL,
                 "scan_interval_bounds": [MIN_SCAN_INTERVAL, MAX_SCAN_INTERVAL],
                 "audio_source_options": list(VOICE_SUCCESS_AUDIO_SOURCE_OPTIONS),
+                "audio_library_path": AUDIO_LIBRARY_PANEL_PATH,
+                "audio_library_url_path": AUDIO_LIBRARY_URL_PATH,
                 "audio_timing_options": list(VOICE_SUCCESS_AUDIO_TIMING_OPTIONS),
                 "voice_actions": voice_action_catalog(),
                 "voice_limits": {
@@ -513,6 +543,22 @@ class MaikaPanelActionView(MaikaPanelMixin, HomeAssistantView):
             )
             return self.json({"reloaded": True})
         return self.json_message("invalid_action", 400)
+
+
+class MaikaPanelAudioLibraryView(MaikaPanelMixin, HomeAssistantView):
+    """List the local audio files selectable for voice feedback."""
+
+    url = "/api/maika/panel/audio"
+    name = "api:maika:panel:audio"
+
+    async def get(self, request: web.Request) -> web.Response:
+        await async_ensure_audio_library_paths(self.hass)
+        return self.json(
+            {
+                "url_path": AUDIO_LIBRARY_URL_PATH,
+                "files": list_audio_files(self.hass),
+            }
+        )
 
 
 async def _read_json(request: web.Request) -> dict[str, Any]:

@@ -2,6 +2,41 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.14.0] - 2026-10-12
+
+### Added
+
+- Mục **Lịch sử** trong panel: liệt kê các câu lệnh gần đây MAIKA đã nghe
+  (câu nói, thiết bị/ thao tác, thời gian, kết quả Đã thực hiện / Lỗi /
+  Đang chạy / Chưa có rule). Lấy trực tiếp từ cảm biến câu lệnh để cập nhật
+  ngay, có bản dự phòng từ snapshot. Giữ tối đa 20 câu lệnh gần nhất.
+- **Nhắc hạn key**: panel hiện băng nhắc khi key còn ≤ 7 ngày (hoặc đã hết
+  hạn); Home Assistant tạo thông báo hệ thống một lần mỗi ngày. Key vĩnh
+  viễn không nhắc và không hiện hạn.
+- **Thư viện âm phản hồi**: nguồn âm báo mới "Thư viện MP3 trên Home
+  Assistant". Panel quét `/config/www`, `/config/mp3`, `/config/media` cho
+  các file mp3/m4a/aac/wav/ogg/flac và phục vụ qua `/maika_media/...` để
+  loa tải về.
+
+### Changed
+
+- Dòng **Hạn dùng** dùng hạn thật của key (`license_expires_at`) do máy chủ
+  ký kèm, thay vì hạn lease ngắn hạn. Cần cập nhật worker cấp phép để có
+  trường này; nếu chưa cập nhật, panel giữ cách hiển thị cũ.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp; không đổi API
+  đã có (chỉ thêm tham số mới). Người đã có key dùng bình thường.
+
+### Tests
+
+- Bộ trình duyệt kiểm tra chọn file thư viện và lưu `voice_success_audio_path`,
+  lịch sử câu lệnh (ưu tiên cảm biến, dự phòng snapshot) và nhắc hạn theo
+  gói. Worker cấp phép: `npm run check` (32 test) gồm kiểm tra
+  `license_expires_at` trong lease. HA giả lập/Chromium, chưa kiểm thử trên
+  loa và Home Assistant thực tế.
+
 ## [1.13.0] - 2026-10-12
 
 ### Changed

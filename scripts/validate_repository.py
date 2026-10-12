@@ -228,10 +228,16 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
     expected_sources = {
         const_values.get("VOICE_SUCCESS_AUDIO_SOURCE_DISABLED"),
         const_values.get("VOICE_SUCCESS_AUDIO_SOURCE_BUNDLED"),
+        const_values.get("VOICE_SUCCESS_AUDIO_SOURCE_LIBRARY"),
         const_values.get("VOICE_SUCCESS_AUDIO_SOURCE_CUSTOM"),
     }
-    if expected_sources != {"disabled", "bundled", "custom"}:
+    if expected_sources != {"disabled", "bundled", "library", "custom"}:
         errors.append("Voice success audio source constants are invalid")
+    const_source = (ROOT / f"custom_components/{DOMAIN}/const.py").read_text(
+        encoding="utf-8"
+    )
+    if 'VOICE_SUCCESS_AUDIO_LIBRARY_DIRS = ("www", "mp3", "media")' not in const_source:
+        errors.append("Voice success audio library folders are invalid")
     expected_timings = {
         const_values.get("VOICE_SUCCESS_AUDIO_TIMING_AFTER_SUCCESS"),
         const_values.get("VOICE_SUCCESS_AUDIO_TIMING_PRIORITY"),
@@ -271,6 +277,7 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
         "voice_success_audio_source",
         "voice_success_audio_timing",
         "voice_success_audio_url",
+        "voice_success_audio_path",
         "voice_success_media_player_entity_id",
     ):
         if marker not in editor:
@@ -421,6 +428,9 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
         "resolve_voice_success_audio_source",
         "resolve_voice_success_audio_url",
         "resolve_voice_success_audio_timing",
+        "resolve_voice_success_audio_path",
+        "normalize_audio_path",
+        "resolve_audio_file",
         "has_voice_success_audio",
         "_serialize_entry",
         "_serialize_license",
@@ -429,11 +439,24 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
         "_validate_options",
         "_entry_by_id",
         "_read_json",
+        "_json_safe",
         "MaikaPanelMixin",
         "MaikaPanelOptionsView",
         "MaikaPanelLicenseView",
     }
-    for filename in ("voice_success_audio.py", "panel.py"):
+    namespace["Path"] = Path
+    namespace["json"] = json
+    namespace["HomeAssistant"] = object
+    namespace["StaticPathConfig"] = object
+    namespace["get_url"] = lambda home_assistant, prefer_external=False: (
+        "https://ha.test"
+    )
+
+    class NoURLAvailableError(Exception):
+        """Stub for the Home Assistant network helper."""
+
+    namespace["NoURLAvailableError"] = NoURLAvailableError
+    for filename in ("audio_library.py", "voice_success_audio.py", "panel.py"):
         path = directory / filename
         tree = ast.parse(path.read_text(), filename=str(path))
         tree.body = [
@@ -535,6 +558,9 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
                 async_entries_for_config_entry=lambda registry, entry_id: [],
             ),
             dr=types.SimpleNamespace(async_get=lambda home_assistant: None),
+            config=types.SimpleNamespace(
+                path=lambda *parts: str(Path("/config").joinpath(*parts))
+            ),
             BUNDLED_VOICE_SUCCESS_AUDIO_URL="https://example.test/maika.mp3",
         )
         snapshot = namespace["_serialize_entry"](hass, entry)

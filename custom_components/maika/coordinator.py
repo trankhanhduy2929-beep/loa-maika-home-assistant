@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, Platform
 from homeassistant.core import Context, HomeAssistant, callback
@@ -20,6 +22,7 @@ from .api import (
     MaikaApiError,
     MaikaAuthenticationError,
 )
+from .audio_library import async_ensure_audio_library_paths, library_audio_url
 from .const import (
     CONF_ENABLE_CLOUD_CAST,
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
@@ -29,8 +32,11 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_VOICE_COMMAND_RULES,
     DOMAIN,
+    LICENSE_EXPIRY_REMINDER_DAYS,
+    MAX_VOICE_COMMAND_HISTORY,
     VOICE_SUCCESS_AUDIO_TIMING_PRIORITY,
 )
+from .license_config import LICENSE_PORTAL_URL
 from .media_url import is_valid_http_media_url
 from .voice_rules import (
     VoiceCommandRule,
@@ -40,6 +46,7 @@ from .voice_rules import (
 )
 from .voice_success_audio import (
     has_voice_success_audio,
+    resolve_voice_success_audio_path,
     resolve_voice_success_audio_timing,
     resolve_voice_success_audio_url,
 )
@@ -62,6 +69,8 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self.client = client
         self._processed_speech: dict[str, float] = {}
         self._last_voice_command: dict[str, Any] | None = None
+        self._voice_command_history: list[dict[str, Any]] = []
+        self._license_reminder_date: str | None = None
         self._voice_command_sequence = 0
         self._stream_frame_count = 0
         self._stream_directive_count = 0
@@ -152,13 +161,76 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         if not voice_options and self.data:
             voice_options = dict(self.data.get("voices", {}))
 
+        self._async_check_license_expiry()
         return {
             "devices": devices,
             "voices": voice_options,
             "voice_command_rule_count": len(self._voice_command_rules),
             "last_voice_command": self._last_voice_command,
+            "voice_command_history": list(self._voice_command_history),
             **self._stream_diagnostics_data(),
         }
+
+    @property
+    def voice_command_history(self) -> list[dict[str, Any]]:
+        """Return recent recognized commands, newest first."""
+        return list(self._voice_command_history)
+
+    @callback
+    def _remember_voice_command(self) -> None:
+        """Keep the latest finalized command in the recent-history list."""
+        command = self._last_voice_command
+        if not isinstance(command, dict) or command.get("executed") is None:
+            return
+        stored = {
+            key: value
+            for key, value in command.items()
+            if key not in {"message_id", "source_session", "service_data"}
+        }
+        identity = f"{command.get('received_at')}|{command.get('normalized')}"
+        for index, existing in enumerate(self._voice_command_history):
+            existing_identity = (
+                f"{existing.get('received_at')}|{existing.get('normalized')}"
+            )
+            if existing_identity == identity:
+                self._voice_command_history[index] = stored
+                break
+        else:
+            self._voice_command_history.insert(0, stored)
+        del self._voice_command_history[MAX_VOICE_COMMAND_HISTORY:]
+
+    @callback
+    def _async_check_license_expiry(self) -> None:
+        """Raise one daily reminder while a paid key is close to expiring."""
+        runtime = getattr(self.entry, "runtime_data", None)
+        entitlement = getattr(
+            getattr(runtime, "license_manager", None), "entitlement", None
+        )
+        expires_at = getattr(entitlement, "license_expires_at", None)
+        notification_id = f"maika_license_expiry_{self.entry.entry_id}"
+        if not isinstance(expires_at, int):
+            return
+        remaining_seconds = expires_at - int(time.time())
+        if remaining_seconds > LICENSE_EXPIRY_REMINDER_DAYS * 86_400:
+            if self._license_reminder_date is not None:
+                self._license_reminder_date = None
+                persistent_notification.async_dismiss(self.hass, notification_id)
+            return
+        today = datetime.now(UTC).date().isoformat()
+        if self._license_reminder_date == today:
+            return
+        self._license_reminder_date = today
+        if remaining_seconds < 0:
+            summary = "Key MAIKA đã hết hạn."
+        else:
+            days_left = max(1, math.ceil(remaining_seconds / 86_400))
+            summary = f"Key MAIKA còn khoảng {days_left} ngày."
+        persistent_notification.async_create(
+            self.hass,
+            f"{summary} Mở panel MAIKA → Bản quyền để gia hạn: {LICENSE_PORTAL_URL}",
+            title="MAIKA: key sắp hết hạn",
+            notification_id=notification_id,
+        )
 
     async def _async_get_detail(self, listed_device: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -581,7 +653,13 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         audio_url = resolve_voice_success_audio_url(self.entry.options)
         if not audio_url:
-            return "failed", "audio_url_not_configured"
+            library_path = resolve_voice_success_audio_path(self.entry.options)
+            if not library_path:
+                return "failed", "audio_url_not_configured"
+            await async_ensure_audio_library_paths(self.hass)
+            audio_url = library_audio_url(self.hass, library_path)
+            if not audio_url:
+                return "failed", "audio_library_unavailable"
         if not is_valid_http_media_url(audio_url):
             return "failed", "audio_url_invalid"
 
@@ -682,10 +760,12 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         """Notify coordinator entities about the latest voice command."""
         if not self.data:
             return
+        self._remember_voice_command()
         self.async_set_updated_data(
             {
                 **self.data,
                 "last_voice_command": self._last_voice_command,
+                "voice_command_history": list(self._voice_command_history),
                 **self._stream_diagnostics_data(),
             }
         )

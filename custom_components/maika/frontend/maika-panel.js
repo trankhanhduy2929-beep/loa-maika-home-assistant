@@ -28,12 +28,15 @@ const OPTION_KEYS = {
 };
 
 const UNKNOWN = new Set(["unknown", "unavailable", "none", "", "None", "null"]);
+const LICENSE_REMINDER_DAYS = 7;
+const HISTORY_RESULT_LABELS = {executed: "Đã thực hiện", failed: "Lỗi", pending: "Đang chạy", not_matched: "Chưa có rule"};
 const THEME_STORE_KEY = "maika.panel.theme";
 const THEME_MODES = ["auto", "light", "dark"];
 const THEME_MODE_LABELS = {auto: "Tự động", light: "Sáng", dark: "Tối"};
 const SECTIONS = [
   {id: "overview", label: "Tổng quan"},
   {id: "voice", label: "Giọng nói"},
+  {id: "history", label: "Lịch sử"},
   {id: "status", label: "Trạng thái"},
   {id: "assistant", label: "Trợ lý"},
   {id: "identity", label: "Tên & vị trí"},
@@ -115,6 +118,8 @@ const ICONS = {
   speaker: "M12 3a6 6 0 0 0-6 6v5a6 6 0 0 0 12 0V9a6 6 0 0 0-6-6m0 15a9 9 0 0 1-9-9H1a11 11 0 0 0 10 10.9V22h2v-2.1A11 11 0 0 0 23 9h-2a9 9 0 0 1-9 9",
   home: "M12 3 2 12h3v8h6v-5h2v5h6v-8h3z",
   clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m1 5h-2v6l5 3 1-1.7-4-2.3z",
+  check: "M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z",
+  alert: "M12 2 1 21h22zm1 14h-2v2h2zm0-6h-2v4h2z",
   cloud: "M6 18a4 4 0 0 1 0-8 6 6 0 0 1 11.6-1.5A4.5 4.5 0 0 1 18 18z",
   info: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m1 15h-2v-6h2zm0-8h-2V7h2z",
   cast: "M2 17v3h3a3 3 0 0 0-3-3m0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7m0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 2 9m19-6H9a2 2 0 0 0-2 2v3h2V5h12v14h-6v2h6a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2",
@@ -681,6 +686,29 @@ class MaikaPanel extends HTMLElement {
       .sec-head .ico.c-amber, .tile .ico.c-amber { background: rgba(255, 199, 117, .16); color: var(--amber); }
       .sec-head .ico.c-pink, .tile .ico.c-pink { background: rgba(255, 158, 196, .16); color: var(--pink); }
       .sec-head .ico.c-cyan, .tile .ico.c-cyan { background: rgba(111, 230, 240, .16); color: var(--cyan); }
+
+      .reminder {
+        display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: var(--radius-sm);
+        background: rgba(255, 199, 117, .14); border: 1px solid rgba(255, 199, 117, .32);
+        color: var(--text); font-size: .86rem; margin-bottom: 10px;
+      }
+      .reminder--bad { background: rgba(255, 124, 138, .16); border-color: rgba(255, 124, 138, .36); }
+      .reminder .ico { flex: none; }
+      .history { display: grid; gap: 8px; }
+      .history-row {
+        display: flex; align-items: center; gap: 11px; padding: 10px 13px; border-radius: var(--radius-sm);
+        background: var(--surface-2); border: 1px solid transparent;
+        transition: background .2s ease, border-color .2s ease, transform .2s ease;
+      }
+      .history-row:hover { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 26%, var(--line)); transform: translateY(-1px); }
+      .history-row .history-icon { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: rgba(143, 125, 255, .16); color: var(--purple); }
+      .history-row--executed .history-icon { background: rgba(62, 227, 155, .18); color: var(--ok); }
+      .history-row--failed .history-icon { background: rgba(255, 124, 138, .18); color: var(--bad); }
+      .history-row--pending .history-icon { background: rgba(255, 199, 117, .18); color: var(--amber); }
+      .history-row .history-icon svg { width: 17px; height: 17px; fill: currentColor; }
+      .history-row .history-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+      .history-row .history-text { font-weight: 620; font-size: .93rem; overflow-wrap: anywhere; }
+      .history-row .history-meta { font-size: .76rem; color: var(--muted); overflow-wrap: anywhere; }
 
       .rows { display: grid; gap: 8px; }
       .row {
@@ -1393,17 +1421,66 @@ class MaikaPanel extends HTMLElement {
     return btn;
   }
 
+  _historySection(delay) {
+    const entry = this._entry();
+    const live = this._state(this._entity("sensor", "last_voice_command"))?.attributes?.recent_commands;
+    const commands = Array.isArray(live) && live.length ? live : (entry?.command_history || []);
+    const body = h("div", {class: "history"});
+    if (!commands.length) {
+      body.append(h("p", {class: "hint", text: "Chưa có câu lệnh nào. Hãy gọi “Maika” rồi ra một câu lệnh đã cấu hình trong mục Giọng nói."}));
+    } else {
+      commands.forEach((command) => body.append(this._historyRow(command)));
+    }
+    return this._card("span4", [
+      this._sectionHead("clock", "Lịch sử câu lệnh", "Câu lệnh gần đây MAIKA đã nghe và thực hiện", "c-purple"),
+      body,
+    ], delay);
+  }
+
+  _historyRow(command) {
+    const result = command?.error ? "failed" : command?.executed ? "executed" : command?.matched_phrase ? "pending" : "not_matched";
+    const icon = {executed: "check", failed: "alert", pending: "clock", not_matched: "info"}[result];
+    const meta = [];
+    if (command?.action && command?.target_entity_id) meta.push(`${command.action} · ${command.target_entity_id}`);
+    if (command?.received_at) meta.push(fmtTime(Date.parse(command.received_at) / 1000));
+    if (!meta.length) meta.push("Không tìm thấy câu lệnh phù hợp");
+    return h("div", {class: `history-row history-row--${result}`}, [
+      h("span", {class: "history-icon"}, [svgIcon(ICONS[icon])]),
+      h("div", {class: "history-body"}, [
+        h("span", {class: "history-text", text: command?.text || command?.matched_phrase || "—"}),
+        h("span", {class: "history-meta", text: meta.join(" · ")}),
+      ]),
+      h("span", {class: `badge badge--${result === "executed" ? "ok" : result === "failed" ? "bad" : "warn"}`, text: HISTORY_RESULT_LABELS[result]}),
+    ]);
+  }
+
+  _licenseReminder(license) {
+    if (!license || license.plan === "lifetime") return null;
+    const expiresAt = Number(license.license_expires_at ?? 0);
+    if (!Number.isFinite(expiresAt) || expiresAt <= 0) return null;
+    const days = Math.ceil((expiresAt * 1000 - Date.now()) / 86400000);
+    if (days > LICENSE_REMINDER_DAYS) return null;
+    const late = days <= 0;
+    return h("div", {class: ["reminder", late ? "reminder--bad" : ""].filter(Boolean).join(" ")}, [
+      this._icon(late ? "alert" : "clock", late ? "c-bad" : "c-amber"),
+      h("span", {text: late
+        ? "Key MAIKA đã hết hạn. Mua key mới rồi dán vào ô bên dưới để tiếp tục sử dụng."
+        : `Key MAIKA còn ${days} ngày. Dán key mới vào ô bên dưới để gia hạn.`}),
+    ]);
+  }
+
   _licenseSection(delay) {
     const entry = this._entry();
     const license = entry?.license || {};
     const plan = license.plan ? planLabel(license.plan) : "Chưa kích hoạt";
     const lifetime = license.plan === "lifetime";
-    const expires = license.expires_at ? fmtTime(license.expires_at) : "Không giới hạn";
+    const licenseExpiresAt = license.license_expires_at ?? license.expires_at ?? null;
+    const expires = licenseExpiresAt ? fmtTime(licenseExpiresAt) : "Không giới hạn";
     const draftKey = this._draft["license_key"] ?? "";
 
     const rows = [
       this._row("Gói hiện tại", plan, "c-cyan"),
-      lifetime ? null : this._row("Hạn dùng", expires, license.expires_at ? "c-amber" : "c-ok"),
+      lifetime ? null : this._row("Hạn dùng", expires, licenseExpiresAt ? "c-amber" : "c-ok"),
       this._row("Key đang dùng", license.key_hint || "—"),
       this._row("Mã cài đặt", license.activation_code || "—"),
     ];
@@ -1422,6 +1499,7 @@ class MaikaPanel extends HTMLElement {
 
     return this._card("span2", [
       this._sectionHead("key", "Bản quyền", lifetime ? "Key vĩnh viễn, không giới hạn thời gian" : "Key, gói và hạn sử dụng", "c-amber"),
+      this._licenseReminder(license),
       h("div", {style: "display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"}, [
         this._licenseBadge(license),
         h("span", {class: "badge", text: plan}),
@@ -1646,6 +1724,7 @@ class MaikaPanel extends HTMLElement {
         ["overview", this._heroCard(30)],
         ["media", this._mediaSection(60)],
         ["voice", this._card("span4", [h("maika-voice-editor")], 90)],
+        ["history", this._historySection(105)],
         ["status", this._statusSection(90)],
         ["assistant", this._assistantSection(120)],
         ["identity", this._identitySection(150)],
@@ -1800,6 +1879,8 @@ class MaikaPanel extends HTMLElement {
       invalid_voice_command_rules: "Rule câu lệnh không hợp lệ",
       voice_success_audio_media_player_invalid: "Media player không tồn tại",
       voice_success_audio_url_invalid: "URL MP3 không hợp lệ",
+      invalid_voice_success_audio_path: "File MP3 không còn trong thư viện",
+      audio_library_unavailable: "Không tạo được liên kết tới file MP3. Kiểm tra địa chỉ truy cập Home Assistant (Settings → System → Network) và Cast âm thanh cloud.",
       unknown_entry: "Không tìm thấy loa",
     };
     return labels[code] || code || "Lỗi không xác định";
