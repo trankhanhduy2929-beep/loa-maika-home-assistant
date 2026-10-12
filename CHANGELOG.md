@@ -2,6 +2,36 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.13.0] - 2026-10-12
+
+### Changed
+
+- Bỏ nút **Hoạt ảnh**: chuyển động bật tự động, chỉ tắt khi thiết bị bật
+  **Giảm chuyển động**. Không cần bật/tắt thủ công và không lưu lựa chọn.
+
+### Added
+
+- Key gói **Vĩnh viễn** không còn hiện dòng **Hạn dùng**; tiêu đề mục ghi rõ
+  "Key vĩnh viễn, không giới hạn thời gian". Gói theo tháng/năm vẫn hiện hạn.
+
+### Improved
+
+- Giao diện tông cam Liquid Glass mượt hơn: logo có nhịp sóng nhỏ, mục đang
+  chọn có vệt sáng, thẻ nổi nhẹ khi rê chuột, thanh cuộn tông cam, nút chính
+  chuyển sắc và badge/ô trạng thái có phản sáng.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp; không đổi API
+  hay dữ liệu license. Người đã có key dùng bình thường.
+
+### Tests
+
+- Chạy lại bộ trình duyệt ở 320–1920px: bỏ kiểm thử nút hoạt ảnh, thêm kiểm
+  tra hoạt ảnh tự động theo **Giảm chuyển động**, dừng khi khuất/ẩn tab, và
+  kiểm tra ẩn/hiện dòng hạn dùng theo gói. HA giả lập/Chromium, chưa kiểm thử
+  trên loa và Home Assistant thực tế.
+
 ## [1.12.0] - 2026-10-11
 
 ### Added

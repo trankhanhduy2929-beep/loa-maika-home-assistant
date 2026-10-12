@@ -29,7 +29,6 @@ const OPTION_KEYS = {
 
 const UNKNOWN = new Set(["unknown", "unavailable", "none", "", "None", "null"]);
 const THEME_STORE_KEY = "maika.panel.theme";
-const MOTION_STORE_KEY = "maika.panel.motion";
 const THEME_MODES = ["auto", "light", "dark"];
 const THEME_MODE_LABELS = {auto: "Tự động", light: "Sáng", dark: "Tối"};
 const SECTIONS = [
@@ -132,7 +131,6 @@ const ICONS = {
   menu: "M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z",
   left: "M15.4 5 8.4 12l7 7 1.4-1.4-5.6-5.6 5.6-5.6z",
   right: "m8.6 5-1.4 1.4 5.6 5.6-5.6 5.6L8.6 19l7-7z",
-  effects: "m12 2 2.7 6.6L21 11l-6.3 2.4L12 20l-2.7-6.6L3 11l6.3-2.4zM20 16l1.1 2.9L24 20l-2.9 1.1L20 24l-1.1-2.9L16 20l2.9-1.1z",
 };
 
 class MaikaPanel extends HTMLElement {
@@ -144,7 +142,6 @@ class MaikaPanel extends HTMLElement {
     this._activeIndex = 0;
     this._deviceSerial = "";
     this._themeMode = "auto";
-    this._effectsEnabled = true;
     this._activeSection = "overview";
     this._busy = false;
     this._message = null;
@@ -175,10 +172,6 @@ class MaikaPanel extends HTMLElement {
         this._themeMode = this._storedThemeMode();
         this._applyTheme();
       }
-      if (event.key === MOTION_STORE_KEY || event.key === null) {
-        this._effectsEnabled = this._storedEffectsEnabled();
-        this._onMotionChange();
-      }
     };
     this._onVisibility = () => {
       this.toggleAttribute("data-paused", document.hidden);
@@ -191,7 +184,6 @@ class MaikaPanel extends HTMLElement {
     this._colorQuery?.addEventListener("change", this._onThemeChange);
     this._motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     this._motionQuery?.addEventListener("change", this._onMotionChange);
-    this._effectsEnabled = this._storedEffectsEnabled();
     this._applyMotion();
     window.addEventListener("storage", this._onStorage);
     document.addEventListener("visibilitychange", this._onVisibility);
@@ -268,32 +260,10 @@ class MaikaPanel extends HTMLElement {
     } catch {}
   }
 
-  _storedEffectsEnabled() {
-    try {
-      return window.localStorage.getItem(MOTION_STORE_KEY) !== "off";
-    } catch {
-      return this._effectsEnabled;
-    }
-  }
-
   _applyMotion() {
     const reduced = this._reducedMotion();
     this.toggleAttribute("data-reduced-motion", reduced);
     this.shadowRoot.querySelector("maika-voice-editor")?.toggleAttribute("data-reduced-motion", reduced);
-    const button = this.shadowRoot.querySelector('[data-action="effects"]');
-    if (button) {
-      button.setAttribute("aria-pressed", String(!reduced));
-      button.disabled = Boolean(this._motionQuery?.matches);
-      button.title = button.disabled ? "Thiết bị đang bật Giảm chuyển động" : reduced ? "Bật hoạt ảnh giao diện" : "Tắt hoạt ảnh giao diện";
-    }
-  }
-
-  _toggleEffects() {
-    this._effectsEnabled = !this._effectsEnabled;
-    try {
-      window.localStorage.setItem(MOTION_STORE_KEY, this._effectsEnabled ? "on" : "off");
-    } catch {}
-    this._onMotionChange();
   }
 
   _themeLuminance(value) {
@@ -400,6 +370,8 @@ class MaikaPanel extends HTMLElement {
         overflow: auto;
         container-type: inline-size;
         overscroll-behavior-y: contain;
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--accent) 60%, transparent) transparent;
         font-family: var(--ha-font-family-body, system-ui, -apple-system, "Segoe UI", sans-serif);
         line-height: 1.5;
         color: var(--text);
@@ -488,9 +460,9 @@ class MaikaPanel extends HTMLElement {
         box-shadow: var(--shadow);
         animation: rise .42s cubic-bezier(.22, .9, .3, 1) both;
         animation-delay: var(--d, 0ms);
-        transition: box-shadow .25s ease, border-color .25s ease, background-color .3s ease;
+        transition: box-shadow .25s ease, border-color .25s ease, background-color .3s ease, transform .28s var(--ease);
       }
-      .card:hover { box-shadow: var(--shadow-hover); }
+      .card:hover { box-shadow: var(--shadow-hover); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); transform: translateY(-2px); }
       .card:has(:focus-visible) { border-color: var(--accent); }
 
       .toolbar {
@@ -512,6 +484,13 @@ class MaikaPanel extends HTMLElement {
         }
         .toolbar { background: linear-gradient(145deg, var(--glass-sheen), transparent 42%), var(--glass-toolbar); }
       }
+      :host::-webkit-scrollbar { width: 10px; height: 10px; }
+      :host::-webkit-scrollbar-track { background: transparent; }
+      :host::-webkit-scrollbar-thumb {
+        background: linear-gradient(var(--brand-start), var(--brand-end)); border-radius: 999px;
+        border: 3px solid transparent; background-clip: padding-box;
+      }
+      :host::-webkit-scrollbar-thumb:hover { border-width: 2px; }
       .toolbar-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; min-width: 0; flex: 1; }
       .brand .mark {
@@ -521,7 +500,10 @@ class MaikaPanel extends HTMLElement {
       }
       .brand .mark svg { width: 18px; height: 18px; fill: currentColor; }
       .brand-wave { display: flex; align-items: center; gap: 3px; }
-      .brand-wave i { width: 3px; height: 15px; border-radius: 4px; background: currentColor; }
+      .brand-wave i { width: 3px; height: 15px; border-radius: 4px; background: currentColor; transform-origin: center; animation: brand-wave 1.6s ease-in-out infinite; }
+      .brand-wave i:nth-child(2) { animation-delay: .2s; }
+      .brand-wave i:nth-child(3) { animation-delay: .4s; }
+      .brand-wave i:nth-child(4) { animation-delay: .6s; }
       .brand-wave i:first-child, .brand-wave i:last-child { height: 8px; }
       .brand .txt { min-width: 0; }
       .brand b { display: block; font-size: .86rem; letter-spacing: .12em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -531,7 +513,10 @@ class MaikaPanel extends HTMLElement {
         background: var(--surface-2); color: var(--text); display: grid; place-items: center; cursor: pointer;
         transition: transform .16s ease, background .2s ease, border-color .2s ease;
       }
-      .iconbtn:hover { background: var(--surface-3); transform: translateY(-1px); }
+      .iconbtn:hover {
+        background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 16%, transparent), var(--surface-3));
+        border-color: color-mix(in srgb, var(--accent) 32%, var(--line)); transform: translateY(-1px);
+      }
       .iconbtn:active { transform: scale(.94); }
       .iconbtn svg { width: 19px; height: 19px; fill: currentColor; }
       .theme-picker { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); }
@@ -549,15 +534,6 @@ class MaikaPanel extends HTMLElement {
         scroll-snap-type: x proximity; overscroll-behavior-x: contain;
       }
       .nav::-webkit-scrollbar { display: none; }
-      .nav-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; min-width: 0; }
-      .nav-row .nav { margin-top: 0; flex: 1; min-width: 0; }
-      .effects-toggle { width: auto; display: inline-flex; gap: 7px; padding: 0 12px; font: inherit; font-size: .75rem; }
-      .effects-toggle[aria-pressed="true"] { color: var(--accent); background: var(--surface-3); }
-      .effects-toggle:disabled { cursor: default; }
-      @container (max-width: 620px) {
-        .effects-toggle { width: 44px; padding: 0; justify-content: center; }
-        .effects-toggle span { display: none; }
-      }
       .pill {
         flex: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted);
         font: inherit; font-size: .78rem; font-weight: 620; padding: 7px 13px; border-radius: 999px; cursor: pointer; min-height: 44px;
@@ -568,7 +544,7 @@ class MaikaPanel extends HTMLElement {
       .pill--on, .pill--on:hover {
         background: linear-gradient(145deg, var(--brand-start), var(--brand-end));
         border-color: transparent; color: var(--brand-ink);
-        box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 18%, transparent);
+        animation: pill-glow 3.6s ease-in-out infinite;
       }
 
       .titlecard { background: none; border: none; box-shadow: none; padding: 2px 4px 0; animation: none; }
@@ -578,7 +554,8 @@ class MaikaPanel extends HTMLElement {
       .sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
       .sec-head .ico {
         width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; flex: none;
-        background: var(--surface-3); color: var(--accent);
+        background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 20%, transparent), var(--surface-3));
+        color: var(--accent); box-shadow: inset 0 1px 0 var(--glass-sheen);
       }
       .sec-head .ico svg { width: 18px; height: 18px; fill: currentColor; }
       .sec-head h3 { margin: 0; font-size: clamp(.9rem, .84rem + .3vw, .98rem); font-weight: 660; }
@@ -599,7 +576,10 @@ class MaikaPanel extends HTMLElement {
         position: relative; width: clamp(114px, 21cqw, 180px); aspect-ratio: 1 / 1.08; overflow: hidden; isolation: isolate;
         background: var(--product-surface); border-radius: 30px; flex: none;
         box-shadow: 0 12px 30px rgba(73, 34, 8, .12);
+        transition: box-shadow .45s ease, transform .3s var(--ease);
       }
+      .hero:hover .hero-media { transform: translateY(-2px); }
+      .hero[data-playing] .hero-media { box-shadow: 0 16px 38px rgba(232, 118, 30, .28); }
       .hero-media::before {
         content: ""; position: absolute; inset: -35%; pointer-events: none;
         background: conic-gradient(from 20deg, transparent 15%, #ff8d36 40%, #ffd9a2 55%, transparent 80%);
@@ -676,11 +656,17 @@ class MaikaPanel extends HTMLElement {
       [data-sec="status"] .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       @container (max-width: 440px) { [data-sec="status"] .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       .tile {
-        display: flex; flex-direction: column; gap: 7px; padding: 12px; border-radius: var(--radius-sm);
-        background: var(--surface-2); border: 1px solid transparent;
+        position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 7px; padding: 12px 12px 12px 15px;
+        border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid transparent;
         transition: transform .18s ease, background .18s ease, border-color .18s ease;
       }
-      .tile:hover { transform: translateY(-2px); background: var(--surface-3); border-color: var(--line); }
+      .tile::before {
+        content: ""; position: absolute; inset: 10px auto 10px 0; width: 3px; border-radius: 999px;
+        background: linear-gradient(var(--brand-start), var(--brand-end)); opacity: .25;
+        transition: opacity .2s ease, inset .2s ease;
+      }
+      .tile:hover { transform: translateY(-2px); background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 26%, var(--line)); }
+      .tile:hover::before { opacity: 1; inset: 6px auto 6px 0; }
       .tile .ico { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; background: var(--surface-3); color: var(--muted); }
       .tile .ico svg { width: 17px; height: 17px; fill: currentColor; }
       .tile .k { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -697,7 +683,12 @@ class MaikaPanel extends HTMLElement {
       .sec-head .ico.c-cyan, .tile .ico.c-cyan { background: rgba(111, 230, 240, .16); color: var(--cyan); }
 
       .rows { display: grid; gap: 8px; }
-      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; border-radius: var(--radius-sm); background: var(--surface-2); }
+      .row {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px;
+        border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid transparent;
+        transition: background .2s ease, border-color .2s ease;
+      }
+      .row:hover { background: var(--surface-3); border-color: var(--line); }
       .row > * { min-width: 0; overflow-wrap: anywhere; }
       .row .lbl { font-size: .84rem; color: var(--muted); }
       .row .val { font-weight: 620; font-size: .92rem; text-align: right; max-width: 66%; }
@@ -789,7 +780,11 @@ class MaikaPanel extends HTMLElement {
       .btn:active:not(:disabled) { transform: scale(.97); }
       .btn:disabled { opacity: .55; cursor: not-allowed; }
       .btn svg { width: 17px; height: 17px; fill: currentColor; }
-      .btn--primary { background: var(--accent); color: var(--accent-ink); }
+      .btn--primary {
+        background: linear-gradient(145deg, var(--brand-start), var(--brand-end)); color: var(--brand-ink);
+        box-shadow: 0 8px 20px rgba(232, 118, 30, .22), inset 0 1px 0 rgba(255, 255, 255, .5);
+      }
+      .btn--primary:hover { box-shadow: 0 10px 26px rgba(232, 118, 30, .3), inset 0 1px 0 rgba(255, 255, 255, .55); }
       .btn--ghost { background: var(--surface-2); border-color: var(--line); }
       .btn--danger { background: rgba(255, 124, 138, .16); color: var(--bad); border-color: transparent; }
       .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -805,6 +800,7 @@ class MaikaPanel extends HTMLElement {
       .badge {
         display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .74rem;
         font-weight: 700; letter-spacing: .03em; background: var(--surface-3);
+        border: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--glass-sheen);
       }
       .badge--ok { background: rgba(62, 227, 155, .18); color: var(--ok); }
       .badge--warn { background: rgba(255, 199, 117, .18); color: var(--amber); }
@@ -845,6 +841,11 @@ class MaikaPanel extends HTMLElement {
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes shimmer { to { transform: translateX(100%); } }
       @keyframes eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+      @keyframes brand-wave { 0%, 100% { transform: scaleY(.5); } 50% { transform: scaleY(1); } }
+      @keyframes pill-glow {
+        0%, 100% { box-shadow: 0 3px 12px rgba(232, 118, 30, .24); }
+        50% { box-shadow: 0 7px 22px rgba(232, 118, 30, .42); }
+      }
       .is-loading svg { animation: spin .9s linear infinite; }
       :host([data-paused]) *, :host([data-paused]) *::before, :host([data-paused]) *::after,
       [data-motion-paused] *, [data-motion-paused] *::before, [data-motion-paused] *::after { animation-play-state: paused !important; }
@@ -861,7 +862,7 @@ class MaikaPanel extends HTMLElement {
 
       @container (max-width: 380px) { .toolbar .brand .mark { display: none; } }
       @media (hover: none) {
-        .card:hover { box-shadow: var(--shadow); }
+        .card:hover { box-shadow: var(--shadow); transform: none; border-color: var(--line); }
         .tile:hover, .chip:hover, .tbtn:hover, .btn:hover, .iconbtn:hover, .pill:hover { transform: none; }
       }
       @media (max-height: 560px) {
@@ -1396,12 +1397,13 @@ class MaikaPanel extends HTMLElement {
     const entry = this._entry();
     const license = entry?.license || {};
     const plan = license.plan ? planLabel(license.plan) : "Chưa kích hoạt";
+    const lifetime = license.plan === "lifetime";
     const expires = license.expires_at ? fmtTime(license.expires_at) : "Không giới hạn";
     const draftKey = this._draft["license_key"] ?? "";
 
     const rows = [
       this._row("Gói hiện tại", plan, "c-cyan"),
-      this._row("Hạn dùng", expires, license.expires_at ? "c-amber" : "c-ok"),
+      lifetime ? null : this._row("Hạn dùng", expires, license.expires_at ? "c-amber" : "c-ok"),
       this._row("Key đang dùng", license.key_hint || "—"),
       this._row("Mã cài đặt", license.activation_code || "—"),
     ];
@@ -1419,7 +1421,7 @@ class MaikaPanel extends HTMLElement {
     ]);
 
     return this._card("span2", [
-      this._sectionHead("key", "Bản quyền", "Key, gói và hạn sử dụng", "c-amber"),
+      this._sectionHead("key", "Bản quyền", lifetime ? "Key vĩnh viễn, không giới hạn thời gian" : "Key, gói và hạn sử dụng", "c-amber"),
       h("div", {style: "display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"}, [
         this._licenseBadge(license),
         h("span", {class: "badge", text: plan}),
@@ -1533,14 +1535,11 @@ class MaikaPanel extends HTMLElement {
         }, [svgIcon(ICONS.refresh)]),
       ]),
       groups.length ? h("div", {class: "toolbar-groups"}, groups) : null,
-      h("div", {class: "nav-row"}, [entry ? nav : null,
-        h("button", {class: "iconbtn effects-toggle", type: "button", "aria-label": "Hoạt ảnh giao diện", "aria-pressed": String(!this._reducedMotion()), dataset: {action: "effects"}}, [svgIcon(ICONS.effects), h("span", {text: "Hoạt ảnh"})]),
-      ]),
+      entry ? nav : null,
     ]);
   }
 
   _reducedMotion() {
-    if (!this._effectsEnabled) return true;
     if (this._motionQuery) return this._motionQuery.matches;
     return typeof window.matchMedia === "function"
       ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -1962,11 +1961,6 @@ class MaikaPanel extends HTMLElement {
     if (!target || target.tagName === "A") return;
     const action = target.dataset.action;
     const entity = target.dataset.entity;
-
-    if (action === "effects") {
-      if (!target.disabled) this._toggleEffects();
-      return;
-    }
 
     if (action === "entry") {
       if (this._busy) return;

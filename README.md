@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.12.0**.
+Bản hiện tại: **v1.13.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -67,16 +67,17 @@ thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tà
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
 
-Bản `1.12.0` dùng **tông cam MAIKA + Liquid Glass**: thẻ kính mờ, viền sáng
-và nút cam chuyển sắc, hỗ trợ sáng/tối. Khi loa đang phát, ảnh loa chuyển
+Bản `1.13.0` tiếp tục **tông cam MAIKA + Liquid Glass**: thẻ kính mờ, viền
+sáng và nút cam chuyển sắc, có thêm nhịp sóng nhỏ ở logo, vệt sáng trên mục
+đang chọn và thẻ nổi nhẹ khi rê chuột. Khi loa đang phát, ảnh loa chuyển
 động nhẹ, có vòng sóng và dải sóng trang trí; tạm dừng, tắt tiếng hoặc mất
 kết nối thì dừng hiệu ứng phát nhạc. Đây không phải sóng âm thu từ micro.
 
-Nút **Hoạt ảnh** (biểu tượng lấp lánh cạnh thanh chọn mục) bật/tắt chuyển
-động và nhớ lựa chọn trong trình duyệt. Tự giảm theo cài đặt hệ thống, dừng
-khi ra khỏi vùng nhìn/tab bị ẩn; dùng nền đặc khi cần giảm trong suốt hoặc
-tăng tương phản. **Vuốt ngang đổi loa** và các bản nháp/cài đặt vẫn giữ nguyên.
-Phần phát URL MP3/AAC mở bằng **Phát âm thanh từ đường dẫn**.
+Hoạt ảnh **tự động bật**, chỉ tắt khi thiết bị bật **Giảm chuyển động**; không
+còn nút bật/tắt hoạt ảnh. Với key **vĩnh viễn**, mục **Bản quyền** ẩn dòng
+**Hạn dùng** và ghi rõ không giới hạn thời gian; gói theo tháng/năm vẫn hiện
+hạn. **Vuốt ngang đổi loa**, bản nháp key/câu lệnh và mọi cài đặt vẫn giữ
+nguyên. Phần phát URL MP3/AAC mở bằng **Phát âm thanh từ đường dẫn**.
 
 Bản vá `1.11.1` sửa lỗi không cuộn được bằng con lăn chuột khi panel nhúng
 trong Home Assistant. Cuộn trang, cuộn danh sách câu lệnh và vuốt điện thoại
@@ -103,13 +104,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.12.0
+## File phát hành v1.13.0
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.12.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.12.0-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.13.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.13.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.12.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.13.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

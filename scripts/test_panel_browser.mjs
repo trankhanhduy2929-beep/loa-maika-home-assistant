@@ -227,7 +227,6 @@ async function verifyVoiceEditor() {
 async function verifyGlassAndMotion() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
-  const effects = page.locator('[data-action="effects"]');
   const wave = page.locator(".sound-wave i").first();
   const aura = page.locator(".hero-aura i").first();
   const animation = (locator) => locator.evaluate((element) => getComputedStyle(element).animationName);
@@ -285,30 +284,22 @@ async function verifyGlassAndMotion() {
   assert(await page.evaluate(() => savedHeroImage === panel.shadowRoot.querySelector(".hero-media img")));
   console.log("PASS orange glass themes, text/button palette contrast and live playback/muted/offline/unknown animations without reloading the image");
 
-  await page.locator('[name="license_key"]').fill("MAIKA-ANIMATION-DRAFT");
-  await page.locator("maika-voice-editor").locator("#phrase").fill("bản nháp không mất khi tắt hoạt ảnh");
-  await effects.click();
-  assert.equal(await effects.getAttribute("aria-pressed"), "false");
-  assert.equal(await animation(wave), "none");
-  assert.equal(await page.locator("maika-voice-editor").getAttribute("data-reduced-motion"), "");
-  assert.equal(await page.locator('[name="license_key"]').inputValue(), "MAIKA-ANIMATION-DRAFT");
-  assert.equal(await page.locator("maika-voice-editor").locator("#phrase").inputValue(), "bản nháp không mất khi tắt hoạt ảnh");
+  assert.equal(await page.locator('[data-action="effects"]').count(), 0, "Motion stays automatic, there is no animation toggle button");
+  await page.locator('[name="license_key"]').fill("MAIKA-MOTION-DRAFT");
+  await page.locator("maika-voice-editor").locator("#phrase").fill("bản nháp không mất khi đổi giao diện");
+  await page.locator('[data-action="theme"]').selectOption("light");
+  assert.equal(await page.locator('[name="license_key"]').inputValue(), "MAIKA-MOTION-DRAFT");
+  assert.equal(await page.locator("maika-voice-editor").locator("#phrase").inputValue(), "bản nháp không mất khi đổi giao diện");
   await load();
-  assert.equal(await effects.getAttribute("aria-pressed"), "false");
-  await effects.click();
   await page.emulateMedia({reducedMotion: "reduce"});
-  await page.waitForFunction(() => panel.shadowRoot.querySelector('[data-action="effects"]').disabled);
+  await page.waitForFunction(() => panel.hasAttribute("data-reduced-motion"));
   assert.equal(await animation(wave), "none");
-  assert.equal(await effects.getAttribute("aria-pressed"), "false");
+  assert.equal(await animation(aura), "none");
+  assert.equal(await page.locator("maika-voice-editor").getAttribute("data-reduced-motion"), "");
   await page.emulateMedia({reducedMotion: "no-preference"});
   await page.waitForFunction(() => !panel.hasAttribute("data-reduced-motion"));
   assert.equal(await animation(wave), "sound-wave");
-  await page.evaluate(() => {
-    localStorage.setItem("maika.panel.motion", "off");
-    window.dispatchEvent(new StorageEvent("storage", {key: "maika.panel.motion"}));
-  });
-  assert.equal(await effects.getAttribute("aria-pressed"), "false");
-  await effects.click();
+  await page.waitForFunction(() => !panel.shadowRoot.querySelector("maika-voice-editor").hasAttribute("data-reduced-motion"));
   await page.locator('[data-action="jump"][data-section="settings"]').click();
   await page.waitForFunction(() => panel.shadowRoot.querySelector(".hero").hasAttribute("data-motion-paused"));
   assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "paused");
@@ -321,7 +312,7 @@ async function verifyGlassAndMotion() {
   assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "paused");
   await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event("visibilitychange")); });
   assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "running");
-  console.log("PASS motion toggle persistence, draft preservation, cross-tab preference, system reduced motion and offscreen/background pause");
+  console.log("PASS automatic motion, draft preservation across theme change, system reduced motion and offscreen/background pause");
 
   const session = await context.newCDPSession(page);
   for (const feature of [{name: "prefers-reduced-transparency", value: "reduce"}, {name: "prefers-contrast", value: "more"}]) {
@@ -545,11 +536,31 @@ async function verifySpeakerGestures() {
   }
 }
 
+async function verifyLifetimeLicense() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  await page.locator('[data-action="jump"][data-section="license"]').click();
+  const labels = () => page.locator('[data-sec="license"] .row .lbl').allTextContents();
+  assert.equal(await page.evaluate(() => snapshot.entries[0].license.plan), "lifetime");
+  assert.deepEqual(await labels(), ["Gói hiện tại", "Key đang dùng", "Mã cài đặt"]);
+  assert.match(await page.locator('[data-sec="license"] .sec-head span').innerText(), /vĩnh viễn/);
+  await page.evaluate(() => {
+    snapshot.entries[0].license = {...snapshot.entries[0].license, plan: "month_1", expires_at: "2026-12-31T00:00:00Z"};
+    tick();
+  });
+  await page.locator('[data-action="refreshdata"]').click();
+  await waitRender();
+  await page.locator('[data-action="jump"][data-section="license"]').click();
+  assert.deepEqual(await labels(), ["Gói hiện tại", "Hạn dùng", "Key đang dùng", "Mã cài đặt"]);
+  console.log("PASS lifetime key hides the expiry row while dated plans still show it");
+}
+
 try {
   await verifyGlassAndMotion();
   await verifyDesktopScrolling();
   await verifySpeakerGestures();
   await verifyVoiceEditor();
+  await verifyLifetimeLicense();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
     await load();
@@ -715,11 +726,10 @@ try {
   await blockedPage.locator('[data-sec="overview"]').waitFor();
   await blockedPage.locator('[data-action="theme"]').selectOption("light");
   assert.equal(await blockedPage.locator("maika-panel").getAttribute("data-theme"), "light");
-  await blockedPage.locator('[data-action="effects"]').click();
-  assert.equal(await blockedPage.locator('[data-action="effects"]').getAttribute("aria-pressed"), "false");
+  assert.equal(await blockedPage.locator('[data-action="effects"]').count(), 0);
   await blockedPage.evaluate(() => { const root = panel.parentElement; panel.remove(); root.append(panel); tick(); });
-  assert.equal(await blockedPage.locator('[data-action="effects"]').getAttribute("aria-pressed"), "false");
-  await blockedPage.locator('[data-action="effects"]').click();
+  await blockedPage.locator('[data-action="theme"]').selectOption("light");
+  assert.equal(await blockedPage.locator("maika-panel").getAttribute("data-theme"), "light");
   await blockedPage.waitForTimeout(300);
   assert(await blockedPage.locator(".hero-media img").evaluate((element) => element.hidden));
   const unlabeled = await blockedPage.evaluate(() => [...panel.shadowRoot.querySelectorAll("input, select, textarea")].filter((element) => !element.getAttribute("aria-label") && !element.labels?.length).map((element) => element.outerHTML));
