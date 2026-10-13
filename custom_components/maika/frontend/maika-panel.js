@@ -766,6 +766,16 @@ class MaikaPanel extends HTMLElement {
       .slider { display: flex; align-items: center; gap: 12px; }
       .slider .ico svg { width: 18px; height: 18px; fill: var(--blue); }
       .slider .val { min-width: 44px; text-align: right; font-size: .84rem; font-weight: 650; color: var(--muted); }
+      .slider--seek { flex-wrap: wrap; row-gap: 8px; }
+      .slider--seek input[type="range"] { flex: 1 1 130px; }
+      .slider--seek .sbtn {
+        flex: none; min-width: 50px; height: 40px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line);
+        background: var(--surface-2); color: var(--text); font-size: .78rem; font-weight: 680; cursor: pointer;
+        transition: transform .14s var(--ease), background .16s var(--ease), border-color .16s var(--ease);
+      }
+      .slider--seek .sbtn:hover { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); transform: translateY(-1px); }
+      .slider--seek .sbtn:active { transform: scale(.93); }
+      .slider--seek .sbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       input[type="range"] {
         -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 44px; border-radius: 999px;
         background: linear-gradient(90deg, var(--accent) var(--p, 0%), var(--surface-3) var(--p, 0%)) center / 100% 8px no-repeat;
@@ -1294,20 +1304,35 @@ class MaikaPanel extends HTMLElement {
     return btn;
   }
 
-  _seekRow(attrs, entity, playing) {
-    const features = Number(attrs.supported_features) || 0;
-    if ((features & 2) !== 2 || !entity) return null;
-    const duration = Number(attrs.media_duration);
-    if (!Number.isFinite(duration) || duration <= 0) return null;
+  _playbackPosition(attrs, playing) {
     let current = Number(attrs.media_position);
     if (!Number.isFinite(current)) current = 0;
     const updatedAt = attrs.media_position_updated_at ? Date.parse(attrs.media_position_updated_at) : NaN;
     if (playing && Number.isFinite(updatedAt)) current += Math.max(0, (Date.now() - updatedAt) / 1000);
-    current = Math.min(Math.max(current, 0), duration);
-    const max = Math.max(1, Math.round(duration));
-    const range = h("input", {type: "range", min: "0", max: String(max), step: "1", value: String(Math.round(current)), "aria-label": "Vị trí phát", "aria-valuetext": `${fmtClock(current)} / ${fmtClock(duration)}`, dataset: {field: "seek", entity, duration: String(duration)}});
-    range.style.setProperty("--p", `${duration > 0 ? (current / duration) * 100 : 0}%`);
-    return h("div", {class: "slider"}, [h("span", {class: "ico"}, [svgIcon(ICONS.play)]), range, h("span", {class: "val", text: `${fmtClock(current)} / ${fmtClock(duration)}`})]);
+    return Math.max(0, current);
+  }
+
+  _seekRow(attrs, entity, playing) {
+    const features = Number(attrs.supported_features) || 0;
+    if ((features & 2) !== 2 || !entity) return null;
+    const duration = Number(attrs.media_duration);
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const current = hasDuration ? Math.min(this._playbackPosition(attrs, playing), duration) : this._playbackPosition(attrs, playing);
+    const items = [this._seekButton(-30, current, duration, entity, "Tua lại 30 giây")];
+    if (hasDuration) {
+      const max = Math.max(1, Math.round(duration));
+      const range = h("input", {type: "range", min: "0", max: String(max), step: "1", value: String(Math.round(current)), "aria-label": "Vị trí phát", "aria-valuetext": `${fmtClock(current)} / ${fmtClock(duration)}`, dataset: {field: "seek", entity, duration: String(duration)}});
+      range.style.setProperty("--p", `${(current / duration) * 100}%`);
+      items.push(range);
+      items.push(h("span", {class: "val", text: `${fmtClock(current)} / ${fmtClock(duration)}`}));
+    }
+    items.push(this._seekButton(30, current, duration, entity, "Tua tới 30 giây"));
+    return h("div", {class: "slider slider--seek"}, items);
+  }
+
+  _seekButton(delta, position, duration, entity, label) {
+    const text = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}s`;
+    return h("button", {class: "sbtn", type: "button", title: label, "aria-label": label, dataset: {action: "seek-step", entity, delta: String(delta), position: String(position), duration: Number.isFinite(duration) && duration > 0 ? String(duration) : ""}}, text);
   }
 
   _assistantSection(delay) {
@@ -2107,6 +2132,18 @@ class MaikaPanel extends HTMLElement {
 
     if (action === "device") {
       this._selectDevice(target.dataset.serial);
+      return;
+    }
+
+    if (action === "seek-step") {
+      if (!entity) return;
+      const position = Number(target.dataset.position) || 0;
+      const duration = Number(target.dataset.duration) || 0;
+      const delta = Number(target.dataset.delta) || 0;
+      let next = position + delta;
+      if (next < 0) next = 0;
+      if (duration > 0 && next > duration) next = duration;
+      this._callService("media_player", "media_seek", {entity_id: entity, seek_position: next}, "Đã tua tới vị trí mới.");
       return;
     }
 

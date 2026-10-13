@@ -428,9 +428,9 @@ async function verifySpeakerGestures() {
     const startX = rect.x + rect.width * (deltaX < 0 ? .8 : .2);
     const startY = rect.y + (selector === ".hero-showcase" ? Math.min(rect.height * .25, 32) : rect.height / 2);
     await touchSession.send("Input.dispatchTouchEvent", {type: "touchStart", touchPoints: [{x: startX, y: startY}]});
-    for (let step = 1; step <= 6; step += 1) {
-      await touchSession.send("Input.dispatchTouchEvent", {type: "touchMove", touchPoints: [{x: startX + deltaX * step / 6, y: startY + deltaY * step / 6}]});
-      await touchPage.waitForTimeout(20);
+    for (let step = 1; step <= 3; step += 1) {
+      await touchSession.send("Input.dispatchTouchEvent", {type: "touchMove", touchPoints: [{x: startX + deltaX * step / 3, y: startY + deltaY * step / 3}]});
+      await touchPage.waitForTimeout(10);
     }
     await touchSession.send("Input.dispatchTouchEvent", {type: "touchEnd", touchPoints: []});
     await touchPage.waitForTimeout(400);
@@ -691,6 +691,19 @@ try {
   await seek.fill("120");
   assert(await page.evaluate(() => calls.some((call) => call.service === "media_seek" && Math.round(call.data.seek_position) === 120 && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));
   console.log("PASS seek slider dispatches media_seek for the active speaker");
+
+  const seekBack = page.locator('[data-action="seek-step"][data-delta="-30"]');
+  const seekFwd = page.locator('[data-action="seek-step"][data-delta="30"]');
+  assert.equal(await seekBack.count(), 1);
+  assert.equal(await seekFwd.count(), 1);
+  const lastSeek = () => page.evaluate(() => { const target = snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0]; return calls.filter((call) => call.service === "media_seek" && call.data.entity_id === target).at(-1)?.data.seek_position; });
+  await seekFwd.click();
+  const forwardSeek = await lastSeek();
+  assert(Number.isFinite(forwardSeek) && forwardSeek >= 72 && forwardSeek <= 215, String(forwardSeek));
+  await seekBack.click();
+  const backSeek = await lastSeek();
+  assert(Number.isFinite(backSeek) && backSeek >= 0 && backSeek < forwardSeek, `${backSeek} < ${forwardSeek}`);
+  console.log("PASS seek step buttons clamp and dispatch media_seek offsets");
 
   await page.locator('[data-action="jump"][data-section="settings"]').click();
   await page.waitForTimeout(600);

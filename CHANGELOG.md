@@ -2,6 +2,30 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.16.0] - 2026-10-13
+
+### Added
+
+- **Nút tua nhanh ±30 giây** trong mục Điều khiển MAIKA, cạnh thanh thời gian.
+  Bấm để tua lùi/tới 30 giây quanh vị trí hiện tại; tự kẹp trong khoảng
+  0..thời lượng bài, gửi cùng cơ chế `mediaOffset` như thanh tua.
+
+### Changed
+
+- Bộ kiểm thử trình duyệt rút gọn số bước mô phỏng vuốt chạm để không phụ
+  thuộc tốc độ máy; vẫn kiểm tra vuốt chạm, giới hạn hai đầu và chống vuốt
+  quá ngắn.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp.
+
+### Tests
+
+- Bộ trình duyệt thêm kiểm tra nút tua ±30 giây gửi `media_seek` với giá trị
+  được kẹp đúng; toàn bộ kiểm thử cũ vẫn qua. HA giả lập/Chromium, chưa kiểm
+  thử trên loa và Home Assistant thực tế.
+
 ## [1.15.0] - 2026-10-13
 
 ### Fixed

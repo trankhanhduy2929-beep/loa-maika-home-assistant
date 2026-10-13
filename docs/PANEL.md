@@ -136,8 +136,9 @@ chung cho mọi loa.
   cấu hình đã lưu** yêu cầu xác nhận bỏ bản nháp trước khi nạp dữ liệu mới.
 - **Địa chỉ Home Assistant cho loa tải nhạc**: để trống cho integration tự dò;
   chỉ điền địa chỉ LAN khi cast nhạc local từ Home Assistant bị lỗi.
-- **Tua nhạc**: kéo thanh thời gian khi loa đang cast bài từ Home Assistant; lệnh
-  gửi lại luồng từ vị trí mới nên bài sẽ phát tiếp tại đó.
+- **Tua nhạc**: kéo thanh thời gian, hoặc bấm **−30s / +30s** để tua nhanh quanh vị
+  trí hiện tại, khi loa đang cast bài từ Home Assistant; lệnh gửi lại luồng từ vị
+  trí mới nên bài sẽ phát tiếp tại đó.
 - **Tải lại integration**: bấm nút trong mục Cấu hình nếu cần nạp lại thủ công.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.
