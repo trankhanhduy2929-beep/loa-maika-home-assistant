@@ -2,6 +2,48 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.15.0] - 2026-10-13
+
+### Fixed
+
+- **Cast nhạc local từ Home Assistant**: loa không tải được file khi Home
+  Assistant tạo URL bằng tên mDNS như `homeassistant.local`, tên nội bộ
+  `supervisor`/`hassio` hoặc địa chỉ loopback mà loa không phân giải được.
+  Integration giờ tự đổi scheme/host/port sang địa chỉ LAN mà loa truy cập
+  được, giữ nguyên đường dẫn và chữ ký `authSig`, nên `/local/...`,
+  `/media/local/...`, `media-source://` và TTS đều cast được.
+
+### Added
+
+- **Tua bài đang cast**: thêm feature `SEEK`; `media_player.media_seek` gửi lại
+  `CommandHandOver` kèm `mediaOffset` để loa phát tiếp từ vị trí mới. Panel có
+  thanh thời gian kéo tới/lui được cho loa đang cast từ Home Assistant.
+- Ô **Địa chỉ Home Assistant cho loa tải nhạc** trong Cấu hình để tự chỉ định
+  địa chỉ LAN; để trống thì integration tự dò.
+- Chấp nhận thêm MIME audio thường gặp khi cast (FLAC, WAV, OGG, Opus, WebM và
+  `application/ogg`); firmware tự nhận dạng nội dung từ URL.
+- `media_duration` đọc từ trường lượng phát nếu loa báo, giúp thanh thời gian
+  hiển thị đúng.
+
+### Changed
+
+- **Giảm độ trễ cast**: sau cast, play/pause, next/previous và đổi âm lượng,
+  integration cập nhật trạng thái ngay rồi làm mới dữ liệu loa ở chế độ nền
+  thay vì chờ thêm một vòng gọi cloud, nên phát nhạc YouTube/online vào loa
+  nhanh hơn và thanh âm lượng mượt hơn.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp; không đổi API đã
+  có (chỉ thêm option và tham số mới). Người đã có key dùng bình thường.
+
+### Tests
+
+- Ruff lint/format, `validate_repository.py` (thêm kiểm tra dò địa chỉ LAN,
+  viết lại URL cast, override, trường hợp TLS và ô cấu hình mới), `node --check`
+  hai file JS và bộ kiểm thử trình duyệt (thêm thanh tua gửi `media_seek`).
+  HA giả lập/Chromium, chưa kiểm thử trên loa và Home Assistant thực tế.
+
 ## [1.14.0] - 2026-10-12
 
 ### Added

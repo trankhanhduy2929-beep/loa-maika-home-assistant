@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "maika"
-INTEGRATION_VERSION = "1.14.0"
+INTEGRATION_VERSION = "1.15.0"
 
 APP_VERSION = "3.2.3"
 APP_DEVICE_TYPE = "android"
@@ -22,6 +22,7 @@ CONF_LICENSE_KEY = "license_key"
 CONF_LICENSE_SERVER_URL = "license_server_url"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_ENABLE_CLOUD_CAST = "enable_experimental_cloud_cast"
+CONF_CLOUD_CAST_BASE_URL = "cloud_cast_base_url"
 CONF_ENABLE_VOICE_COMMAND_SENSOR = "enable_voice_command_sensor"
 CONF_VOICE_COMMAND_RULES = "voice_command_rules"
 CONF_VOICE_SUCCESS_AUDIO_SOURCE = "voice_success_audio_source"

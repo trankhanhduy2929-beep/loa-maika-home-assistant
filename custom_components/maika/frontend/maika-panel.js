@@ -25,6 +25,7 @@ const STATUS_LABELS = {
 const OPTION_KEYS = {
   scanInterval: "scan_interval",
   cloudCast: "enable_experimental_cloud_cast",
+  castBaseUrl: "cloud_cast_base_url",
 };
 
 const UNKNOWN = new Set(["unknown", "unavailable", "none", "", "None", "null"]);
@@ -51,6 +52,13 @@ function fmtTime(value) {
   const date = new Date(Number(value) * 1000);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("vi-VN", {dateStyle: "short", timeStyle: "short"});
+}
+
+function fmtClock(value) {
+  const total = Math.max(0, Math.round(Number(value) || 0));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function fmtDate(value) {
@@ -1252,6 +1260,8 @@ class MaikaPanel extends HTMLElement {
       h("span", {class: "val", text: `${volume}%`}),
     ]);
 
+    const seek = this._seekRow(attrs, media, playing);
+
     const form = h("form", {class: "field", dataset: {form: "cast"}}, [
       h("label", {text: "Phát âm thanh qua cloud (URL MP3/AAC)"}),
       h("div", {class: "cast-fields"}, [
@@ -1269,6 +1279,7 @@ class MaikaPanel extends HTMLElement {
     return this._card("span2", [
       this._sectionHead("cast", "Điều khiển MAIKA", "Phát nhạc, âm lượng và mute", "c-purple"),
       h("div", {class: "media"}, [now, transport, slider,
+        seek,
         h("details", {class: "cast-drawer"}, [
           h("summary", {}, [svgIcon(ICONS.cast), "Phát âm thanh từ đường dẫn"]), form,
         ]),
@@ -1281,6 +1292,22 @@ class MaikaPanel extends HTMLElement {
     const btn = h("button", {class: ["tbtn", extra].filter(Boolean).join(" "), type: "button", title: labels[action], "aria-label": labels[action], "aria-pressed": action === "mute" ? String(extra === "tbtn--on") : null, dataset: {action, entity}});
     btn.append(svgIcon(ICONS[icon]));
     return btn;
+  }
+
+  _seekRow(attrs, entity, playing) {
+    const features = Number(attrs.supported_features) || 0;
+    if ((features & 2) !== 2 || !entity) return null;
+    const duration = Number(attrs.media_duration);
+    if (!Number.isFinite(duration) || duration <= 0) return null;
+    let current = Number(attrs.media_position);
+    if (!Number.isFinite(current)) current = 0;
+    const updatedAt = attrs.media_position_updated_at ? Date.parse(attrs.media_position_updated_at) : NaN;
+    if (playing && Number.isFinite(updatedAt)) current += Math.max(0, (Date.now() - updatedAt) / 1000);
+    current = Math.min(Math.max(current, 0), duration);
+    const max = Math.max(1, Math.round(duration));
+    const range = h("input", {type: "range", min: "0", max: String(max), step: "1", value: String(Math.round(current)), "aria-label": "Vị trí phát", "aria-valuetext": `${fmtClock(current)} / ${fmtClock(duration)}`, dataset: {field: "seek", entity, duration: String(duration)}});
+    range.style.setProperty("--p", `${duration > 0 ? (current / duration) * 100 : 0}%`);
+    return h("div", {class: "slider"}, [h("span", {class: "ico"}, [svgIcon(ICONS.play)]), range, h("span", {class: "val", text: `${fmtClock(current)} / ${fmtClock(duration)}`})]);
   }
 
   _assistantSection(delay) {
@@ -1527,6 +1554,11 @@ class MaikaPanel extends HTMLElement {
           h("span", {class: "sub", text: "Phát MP3/TTS từ Home Assistant tới loa"}),
         ]),
         h("input", {type: "checkbox", name: "cloud_cast", checked: Boolean(value("cloud_cast", options[OPTION_KEYS.cloudCast])), dataset: {field: "cloud_cast"}}),
+      ]),
+      h("div", {class: "field"}, [
+        h("label", {text: "Địa chỉ Home Assistant cho loa tải nhạc (tuỳ chọn)"}),
+        h("input", {type: "url", name: "cloud_cast_base_url", placeholder: "http://192.168.1.10:8123", value: String(value("cloud_cast_base_url", options[OPTION_KEYS.castBaseUrl] || "")), dataset: {field: "cloud_cast_base_url"}}),
+        h("p", {class: "hint", text: "Để trống để tự dò địa chỉ LAN. Chỉ nhập khi cast nhạc local từ Home Assistant bị lỗi."}),
       ]),
       h("div", {class: "btn-row"}, [
         h("button", {class: "btn btn--primary", type: "submit", text: "Lưu cấu hình", disabled: this._busy}),
@@ -1876,6 +1908,7 @@ class MaikaPanel extends HTMLElement {
       license_server_unavailable: "Không kết nối được máy chủ kích hoạt",
       invalid_license_response: "Máy chủ trả dữ liệu không hợp lệ",
       invalid_scan_interval: "Chu kỳ cập nhật không hợp lệ",
+      invalid_cloud_cast_base_url: "Địa chỉ Home Assistant không hợp lệ",
       invalid_voice_command_rules: "Rule câu lệnh không hợp lệ",
       voice_success_audio_media_player_invalid: "Media player không tồn tại",
       voice_success_audio_url_invalid: "URL MP3 không hợp lệ",
@@ -2005,6 +2038,12 @@ class MaikaPanel extends HTMLElement {
       const max = Number(el.max) || 100;
       const percent = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
       el.style.setProperty("--p", `${percent.toFixed(1)}%`);
+    } else if (field === "seek") {
+      const total = Number(el.dataset.duration) || 0;
+      const label = el.parentElement?.querySelector(".val");
+      if (label && total > 0) label.textContent = `${fmtClock(Number(el.value))} / ${fmtClock(total)}`;
+      const percent = total > 0 ? (Number(el.value) / total) * 100 : 0;
+      el.style.setProperty("--p", `${percent.toFixed(1)}%`);
     }
   }
 
@@ -2020,6 +2059,12 @@ class MaikaPanel extends HTMLElement {
       return;
     }
     if (!action) {
+      if (el.dataset.field === "seek" && el.dataset.entity) {
+        const position = Math.max(0, Number(el.value) || 0);
+        delete this._draft.seek;
+        this._callService("media_player", "media_seek", {entity_id: el.dataset.entity, seek_position: position}, "Đã tua tới vị trí mới.");
+        return;
+      }
       if (el.dataset.field === "volume" && el.dataset.entity) {
         const level = Math.min(1, Math.max(0, Number(el.value) / 100));
         delete this._draft.volume;
@@ -2172,6 +2217,7 @@ class MaikaPanel extends HTMLElement {
       const options = {
         [OPTION_KEYS.scanInterval]: num("scan_interval", entry.options?.[OPTION_KEYS.scanInterval] ?? 60),
         [OPTION_KEYS.cloudCast]: Boolean(form.elements.namedItem("cloud_cast")?.checked),
+        [OPTION_KEYS.castBaseUrl]: String(form.elements.namedItem("cloud_cast_base_url")?.value || "").trim(),
       };
       this._busy = true;
       this._maybeUpdate();
@@ -2180,6 +2226,7 @@ class MaikaPanel extends HTMLElement {
       if (result.ok) {
         delete this._draft.scan_interval;
         delete this._draft.cloud_cast;
+        delete this._draft.cloud_cast_base_url;
         this._notify("ok", "Đã lưu cấu hình. Integration đang tải lại.");
         await this._load();
       } else {

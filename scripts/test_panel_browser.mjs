@@ -686,16 +686,25 @@ try {
   assert(await page.evaluate(() => calls.some((call) => call.service === "media_play_pause" && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));
   console.log("PASS cast service payload and correct device despite unrelated entity names");
 
+  const seek = page.locator('[data-field="seek"]');
+  assert.equal(await seek.count(), 1);
+  await seek.fill("120");
+  assert(await page.evaluate(() => calls.some((call) => call.service === "media_seek" && Math.round(call.data.seek_position) === 120 && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));
+  console.log("PASS seek slider dispatches media_seek for the active speaker");
+
   await page.locator('[data-action="jump"][data-section="settings"]').click();
   await page.waitForTimeout(600);
   const positions = await page.evaluate(() => ({toolbar: panel.shadowRoot.querySelector(".toolbar").getBoundingClientRect().bottom, target: panel.shadowRoot.querySelector('[data-sec="settings"]').getBoundingClientRect().top}));
   assert(positions.target >= positions.toolbar, JSON.stringify(positions));
   const beforeOptions = await page.evaluate(() => ({...snapshot.entries[0].options}));
   await page.locator('[name="scan_interval"]').fill("90");
+  await page.locator('[name="cloud_cast_base_url"]').fill("http://192.168.1.42:8123");
   await page.locator('[data-form="options"] button[type="submit"]').click();
   await waitRender();
   const savedOptions = await page.evaluate(() => calls.filter((call) => call.path === "maika/panel/options").at(-1).data.options);
-  assert.deepEqual(Object.keys(savedOptions).sort(), ["enable_experimental_cloud_cast", "scan_interval"]);
+  assert.deepEqual(Object.keys(savedOptions).sort(), ["cloud_cast_base_url", "enable_experimental_cloud_cast", "scan_interval"]);
+  assert.equal(savedOptions.cloud_cast_base_url, "http://192.168.1.42:8123");
+  assert.equal(await page.evaluate(() => snapshot.entries[0].options.cloud_cast_base_url), "http://192.168.1.42:8123");
   assert.equal(await page.evaluate(() => snapshot.entries[0].options.voice_command_rules), beforeOptions.voice_command_rules);
   assert.equal(await page.locator('[name="license_server_url"]').count(), 0);
   assert.equal(await page.locator('[name="rules"]').count(), 0);

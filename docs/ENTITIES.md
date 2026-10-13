@@ -20,9 +20,10 @@ Entity ID thực tế có thể khác; cột `Key` là khóa unique nội bộ/t
 - `PREVIOUS_TRACK`: `PreviousCommandIssued`.
 - `PLAY_MEDIA`: chỉ bật khi option `enable_experimental_cloud_cast` được bật; gửi `CommandHandOver/SystemControl` chứa `Play/AudioPlayer` và `mediaCard` tới đúng serial loa.
 - `BROWSE_MEDIA`: chỉ bật cùng cloud cast; duyệt các nguồn audio từ Home Assistant media source.
+- `SEEK`: chỉ bật cùng cloud cast; gửi lại `CommandHandOver` với `mediaOffset` mới cho bài đang cast từ Home Assistant.
 - Metadata khi cloud cung cấp: content ID/URL, title, artist/narrator, album, playlist, artwork, media type và position.
 
-Cloud cast hỗ trợ URL HTTP(S), đường dẫn Home Assistant và `media-source://` cho MP3/MPEG hoặc MP4/AAC. Cờ `announce=true` dùng bởi `tts.speak` được chấp nhận theo kiểu thay thế nội dung đang phát; không hỗ trợ queue `add/next`, stop thật, seek theo giây, native announcement có khôi phục, video hoặc URL có username/password. Xem `docs/CLOUD_CAST.md`.
+Cloud cast hỗ trợ URL HTTP(S), đường dẫn Home Assistant và `media-source://` cho MP3/MPEG, MP4/AAC và các định dạng audio thường gặp khác (FLAC, WAV, OGG, Opus, WebM). Từ `1.15.0`, URL trỏ về Home Assistant nhưng dùng tên mDNS/tên nội bộ được tự đổi sang địa chỉ LAN mà loa truy cập được. Cờ `announce=true` dùng bởi `tts.speak` được chấp nhận theo kiểu thay thế nội dung đang phát. Tua theo giây hoạt động cho bài đang cast; không hỗ trợ queue `add/next`, stop thật, native announcement có khôi phục, video hoặc URL có username/password. Xem `docs/CLOUD_CAST.md`.
 
 ## Switch — 1 entity
 

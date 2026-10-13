@@ -73,6 +73,9 @@
     },
     "cloud_cast_unsupported_mode": {
       "message": "MAIKA cloud cast does not support enqueue=add or enqueue=next."
+    },
+    "cloud_cast_seek_unavailable": {
+      "message": "MAIKA can only seek the track it is currently casting from Home Assistant. Start a cloud cast, then drag the position slider."
     }
   },
   "entity": {

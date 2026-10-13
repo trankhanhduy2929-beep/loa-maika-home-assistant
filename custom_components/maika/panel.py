@@ -23,6 +23,7 @@ from .audio_library import (
     resolve_audio_file,
 )
 from .const import (
+    CONF_CLOUD_CAST_BASE_URL,
     CONF_ENABLE_CLOUD_CAST,
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_SCAN_INTERVAL,
@@ -80,6 +81,7 @@ _FRONTEND_DIR = Path(__file__).parent / "frontend"
 _OPTION_KEYS = (
     CONF_SCAN_INTERVAL,
     CONF_ENABLE_CLOUD_CAST,
+    CONF_CLOUD_CAST_BASE_URL,
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_VOICE_COMMAND_RULES,
     CONF_VOICE_SUCCESS_AUDIO_SOURCE,
@@ -199,6 +201,7 @@ def _public_options(options: dict[str, Any]) -> dict[str, Any]:
     return {
         CONF_SCAN_INTERVAL: options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         CONF_ENABLE_CLOUD_CAST: bool(options.get(CONF_ENABLE_CLOUD_CAST, False)),
+        CONF_CLOUD_CAST_BASE_URL: str(options.get(CONF_CLOUD_CAST_BASE_URL, "") or ""),
         CONF_ENABLE_VOICE_COMMAND_SENSOR: bool(
             options.get(CONF_ENABLE_VOICE_COMMAND_SENSOR, False)
         ),
@@ -332,6 +335,13 @@ def _validate_options(
     for key in (CONF_ENABLE_CLOUD_CAST, CONF_ENABLE_VOICE_COMMAND_SENSOR):
         if key in incoming:
             values[key] = bool(incoming[key])
+
+    if CONF_CLOUD_CAST_BASE_URL in incoming:
+        base_url = str(incoming[CONF_CLOUD_CAST_BASE_URL] or "").strip()
+        if base_url and not is_valid_http_media_url(base_url):
+            errors[CONF_CLOUD_CAST_BASE_URL] = "invalid_cloud_cast_base_url"
+        else:
+            values[CONF_CLOUD_CAST_BASE_URL] = base_url
 
     if CONF_VOICE_COMMAND_RULES in incoming:
         rules_text = str(incoming[CONF_VOICE_COMMAND_RULES] or "")

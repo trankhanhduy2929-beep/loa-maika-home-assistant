@@ -2,7 +2,7 @@
 
 ## Trạng thái
 
-Từ phiên bản `1.1.0`, integration có feature `media_player.play_media` thử nghiệm, mặc định tắt. Feature này dùng lệnh cast thật của ứng dụng MAIKA Android 3.2.3 thay vì Bluetooth hoặc giả lập nút resume. Phiên bản `1.1.1` cho phép cờ `announce=true`; phiên bản `1.2.0` thêm MP4/AAC, duyệt media source và mute âm lượng đầu ra; phiên bản `1.5.0` dùng cùng đường cast để phát một URL MP3 cố định sau rule HASS thành công; phiên bản `1.5.1` gửi phản hồi tự động trực tiếp qua MAIKA client để bỏ độ trễ service media player trung gian.
+Từ phiên bản `1.1.0`, integration có feature `media_player.play_media` thử nghiệm, mặc định tắt. Feature này dùng lệnh cast thật của ứng dụng MAIKA Android 3.2.3 thay vì Bluetooth hoặc giả lập nút resume. Phiên bản `1.1.1` cho phép cờ `announce=true`; phiên bản `1.2.0` thêm MP4/AAC, duyệt media source và mute âm lượng đầu ra; phiên bản `1.5.0` dùng cùng đường cast để phát một URL MP3 cố định sau rule HASS thành công; phiên bản `1.5.1` gửi phản hồi tự động trực tiếp qua MAIKA client để bỏ độ trễ service media player trung gian; phiên bản `1.15.0` tự đổi host URL cast sang địa chỉ LAN mà loa truy cập được, thêm tua bằng `mediaOffset` và bỏ vòng làm mới đồng bộ sau mỗi lệnh.
 
 Schema đã được xác minh bằng phân tích tĩnh APK. Bản build này chưa phát thử trên loa vật lý trong môi trường bàn giao, vì vậy cần bật có chủ đích và thử bằng clip ngắn trước khi dùng trong automation quan trọng.
 
@@ -77,14 +77,21 @@ Các `media_content_type` được chấp nhận:
 - `audio`
 - `music`
 - `url`
+- `audio/flac`, `audio/x-flac`
+- `audio/wav`, `audio/wave`, `audio/x-wav`, `audio/vnd.wave`
+- `audio/ogg`, `application/ogg`, `audio/opus`
+- `audio/webm`, `audio/aacp`, `audio/mpegurl`, `audio/x-mpegurl`
+- `application/octet-stream`
 
-APK nhận `streamFormat` động từ nội dung cloud nhưng chỉ chứa literal fallback `AUDIO_MPEG`. Integration dùng fallback này cho cả MP3/MPEG và MP4/AAC để firmware tự nhận dạng URL. WAV, FLAC, OGG, Opus, WebM và video chưa được quảng bá là hỗ trợ.
+APK nhận `streamFormat` động từ nội dung cloud nhưng chỉ chứa literal fallback `AUDIO_MPEG`. Integration dùng fallback này cho mọi định dạng audio để firmware tự nhận dạng URL. FLAC, WAV, OGG, Opus và WebM được chấp nhận ở mức MIME; kết quả phát thật còn phụ thuộc firmware loa. Video vẫn không được chấp nhận.
 
 Khi cloud cast bật, entity có thể duyệt các nguồn audio Home Assistant bằng `BROWSE_MEDIA`. Mute trên media player là mute âm thanh đầu ra bằng cách đặt volume về 0 và khôi phục mức trước đó; nó độc lập với switch tắt micro vật lý.
 
 ## Media source và TTS Home Assistant
 
 Integration resolve `media-source://` bằng API media source chính thức rồi dùng `async_process_play_media_url` để đổi đường dẫn Home Assistant thành URL phát được và ký URL khi cần.
+
+Sau đó integration kiểm tra host của URL. Nếu URL trỏ về Home Assistant nhưng dùng tên mDNS (`*.local`), tên nội bộ (`homeassistant`, `supervisor`, `hassio`) hoặc địa chỉ loopback mà loa không phân giải được, integration đổi scheme/host/port sang địa chỉ LAN Home Assistant đang lắng nghe, giữ nguyên đường dẫn và chữ ký `authSig`. Địa chỉ được chọn theo thứ tự: ô **Địa chỉ Home Assistant cho loa tải nhạc** nếu có, IP nội bộ của Home Assistant khi chạy HTTP, `internal_url` nếu phân giải được, rồi `external_url`/cloud. Nhờ vậy `/local/...`, `/media/local/...`, `media-source://` và TTS thường cast được mà không cần cấu hình thêm.
 
 Ví dụ dùng media source:
 
@@ -138,9 +145,9 @@ khi clip ưu tiên đã bắt đầu, sensor ghi
 
 ## Điều kiện mạng
 
-- URL public HTTPS thường dễ truy cập nhất.
 - URL local `http://<IP-HASS>:8123/...` chỉ hoạt động khi loa truy cập được Home Assistant trong cùng mạng.
-- Nếu Home Assistant tạo URL bằng hostname mà loa không phân giải được, hãy cấu hình **Internal URL** phù hợp trong Network settings.
+- Từ `1.15.0`, nếu Home Assistant tạo URL bằng hostname mà loa không phân giải được, integration tự đổi sang địa chỉ LAN; chỉ cần điền **Địa chỉ Home Assistant cho loa tải nhạc** khi mạng có nhiều dải hoặc địa chỉ tự dò không đúng.
+- URL public HTTPS vẫn hữu ích khi loa nằm ngoài mạng LAN của Home Assistant.
 - URL có query token hoặc chữ ký tạm được gửi nguyên vẹn trong metadata tới cloud MAIKA.
 - Không dùng URL chứa bí mật dài hạn. Ưu tiên URL tạm, file ngắn và quyền tối thiểu.
 
@@ -153,7 +160,7 @@ khi clip ưu tiên đã bắt đầu, sensor ghi
 - Không expose raw JSON hoặc raw MAIKA command.
 - Không hỗ trợ `enqueue=add` hoặc `enqueue=next`.
 - Chấp nhận `announce=true` để phát TTS theo kiểu thay thế; không có native announcement, ducking hoặc tự khôi phục nội dung trước đó.
-- Không quảng bá stop, seek theo giây hoặc power vì APK chỉ có pause/resume/next/previous và jump theo `songKey`.
+- Không quảng bá stop hoặc power vì APK chỉ có pause/resume/next/previous và jump theo `songKey`. Tua theo giây được hỗ trợ cho bài đang cast bằng cách gửi lại `CommandHandOver` với `mediaOffset`; panel hiển thị thanh thời gian khi loa báo được thời lượng.
 - Không upload/proxy file qua integration; loa tự lấy URL.
 - HTTP 2xx chỉ xác nhận cloud nhận request, không đảm bảo firmware đã phát thành công.
 

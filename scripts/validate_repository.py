@@ -657,6 +657,23 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
             {"entry_id": entry.entry_id, "options": {scan_key: 60}}
         )
         assert status == 200 and entry.options[rules_key] == newer
+        base_key = namespace["CONF_CLOUD_CAST_BASE_URL"]
+        status, data = await request(
+            {"entry_id": entry.entry_id, "options": {base_key: "not a url"}}
+        )
+        assert status == 400
+        assert data["errors"].get(base_key) == "invalid_cloud_cast_base_url"
+        status, _ = await request(
+            {
+                "entry_id": entry.entry_id,
+                "options": {base_key: "http://192.168.1.42:8123"},
+            }
+        )
+        assert status == 200 and entry.options[base_key] == "http://192.168.1.42:8123"
+        status, _ = await request(
+            {"entry_id": entry.entry_id, "options": {base_key: ""}}
+        )
+        assert status == 200 and entry.options[base_key] == ""
 
     try:
         asyncio.run(check())
@@ -664,6 +681,110 @@ def _validate_panel_options(errors: list[str], voice_module: types.ModuleType) -
         errors.append(
             f"Panel options compatibility/conflict validation failed: {err!r}"
         )
+
+
+def _validate_media_cast_config(errors: list[str]) -> None:
+    """Exercise the cloud-cast URL rewrite helpers without Home Assistant."""
+    directory = ROOT / f"custom_components/{DOMAIN}"
+
+    media_namespace: dict[str, Any] = {}
+    media_path = directory / "media_url.py"
+    exec(compile(media_path.read_text(), str(media_path), "exec"), media_namespace)
+    is_reachable = media_namespace["is_reachable_media_host"]
+    rewrite = media_namespace["rewrite_media_origin"]
+
+    for host, expected in (
+        ("homeassistant.local", False),
+        ("hassio", False),
+        ("localhost", False),
+        ("127.0.0.1", False),
+        ("192.168.1.42", True),
+        ("10.0.0.5", True),
+        ("media.example.org", True),
+    ):
+        if is_reachable(host) is not expected:
+            errors.append(f"is_reachable_media_host({host!r}) must be {expected}")
+
+    signed = "http://homeassistant.local:8123/media/local/nhac.mp3?authSig=abc.def"
+    if rewrite(signed, "http://192.168.1.42:8123") != (
+        "http://192.168.1.42:8123/media/local/nhac.mp3?authSig=abc.def"
+    ):
+        errors.append("rewrite_media_origin must keep the path and signature")
+    if rewrite("https://cdn.example.org/a.mp3", "") != "https://cdn.example.org/a.mp3":
+        errors.append("rewrite_media_origin must be a no-op without a base URL")
+    if rewrite("not-a-url", "http://192.168.1.42:8123") != "not-a-url":
+        errors.append("rewrite_media_origin must ignore non-HTTP values")
+
+    class NoURLAvailableError(Exception):
+        """Stub for the Home Assistant network helper."""
+
+    def is_hass_url(home_assistant: Any, url: str) -> bool:
+        host = (urlsplit(url).hostname or "").lower()
+        return host in {"homeassistant.local", "192.168.1.42", "ha.example.org"}
+
+    def get_url(home_assistant: Any, **kwargs: Any) -> str:
+        if kwargs.get("prefer_external"):
+            return str(home_assistant.config.external_url)
+        return str(home_assistant.config.internal_url)
+
+    namespace: dict[str, Any] = {
+        "HomeAssistant": object,
+        "NoURLAvailableError": NoURLAvailableError,
+        "get_url": get_url,
+        "is_hass_url": is_hass_url,
+        "is_reachable_media_host": is_reachable,
+        "rewrite_media_origin": rewrite,
+    }
+    cast_path = directory / "cast_target.py"
+    cast_namespace: dict[str, Any] = dict(namespace)
+    cast_tree = ast.parse(cast_path.read_text(), filename=str(cast_path))
+    cast_tree.body = [
+        node
+        for node in cast_tree.body
+        if not (
+            isinstance(node, ast.ImportFrom)
+            and (node.level > 0 or (node.module or "").startswith("homeassistant"))
+        )
+    ]
+    exec(compile(cast_tree, str(cast_path), "exec"), cast_namespace)
+
+    def make_hass(*, use_ssl: bool, local_ip: str | None) -> Any:
+        return types.SimpleNamespace(
+            config=types.SimpleNamespace(
+                api=types.SimpleNamespace(
+                    local_ip=local_ip, port=8123, use_ssl=use_ssl
+                ),
+                internal_url="http://homeassistant.local:8123",
+                external_url="https://ha.example.org",
+            )
+        )
+
+    plain_hass = make_hass(use_ssl=False, local_ip="192.168.1.42")
+    if (
+        cast_namespace["resolve_cast_base_url"](plain_hass)
+        != "http://192.168.1.42:8123"
+    ):
+        errors.append("resolve_cast_base_url must prefer the LAN IP")
+    if (
+        cast_namespace["resolve_cast_base_url"](plain_hass, "http://10.0.0.9:8123")
+        != "http://10.0.0.9:8123"
+    ):
+        errors.append("resolve_cast_base_url must honour the explicit override")
+    ssl_hass = make_hass(use_ssl=True, local_ip="192.168.1.42")
+    if cast_namespace["resolve_cast_base_url"](ssl_hass) != "https://ha.example.org":
+        errors.append("resolve_cast_base_url must not pin an HTTP IP behind TLS")
+
+    ready = cast_namespace["cast_ready_url"]
+    if ready(plain_hass, signed) != (
+        "http://192.168.1.42:8123/media/local/nhac.mp3?authSig=abc.def"
+    ):
+        errors.append("cast_ready_url must rewrite an mDNS Home Assistant host")
+    googlevideo = "https://rr3---sn-x.googlevideo.com/videoplayback?x=1"
+    if ready(plain_hass, googlevideo) != googlevideo:
+        errors.append("cast_ready_url must keep an already reachable host")
+    override = ready(plain_hass, signed, "http://10.0.0.9:8123")
+    if override != "http://10.0.0.9:8123/media/local/nhac.mp3?authSig=abc.def":
+        errors.append("cast_ready_url must apply the explicit override")
 
 
 def _validate_panel_configuration(errors: list[str]) -> None:
@@ -929,6 +1050,7 @@ def validate(
             _validate_licensing_config(version, errors, expected_public_key_file)
             _validate_voice_success_audio(errors)
             _validate_voice_rules(errors)
+            _validate_media_cast_config(errors)
             _validate_panel_configuration(errors)
 
     if hacs_path.is_file():

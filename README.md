@@ -197,7 +197,7 @@ hình bị redact khỏi diagnostics. Xem [Câu lệnh giọng nói](docs/VOICE_
 
 ## Cloud cast thử nghiệm
 
-Trong **MAIKA → Cấu hình loa**, bật **Cast âm thanh cloud** rồi bấm **Lưu cấu hình**; tích hợp tự tải lại. Entity loa sẽ có thêm feature `PLAY_MEDIA` và `BROWSE_MEDIA`.
+Trong **MAIKA → Cấu hình loa**, bật **Cast âm thanh cloud** rồi bấm **Lưu cấu hình**; tích hợp tự tải lại. Entity loa sẽ có thêm feature `PLAY_MEDIA`, `BROWSE_MEDIA` và `SEEK`.
 
 Ví dụ phát MP3 trực tiếp:
 
@@ -223,7 +223,9 @@ data:
   message: "Xin chào từ Home Assistant"
 ```
 
-URL sau khi Home Assistant resolve, kể cả query token tạm nếu có, được gửi tới cloud MAIKA và loa phải truy cập được URL đó. Bản `1.2.0` chấp nhận MP3/MPEG và MP4/AAC, gồm MIME `audio/mp4` thường gặp từ TTS. Cờ `announce=true` được xử lý theo kiểu thay thế nội dung đang phát và không tự khôi phục nội dung cũ. Cloud cast không hỗ trợ queue `add/next`, stop thật, seek theo giây, video hay URL có username/password. Xem [Cloud cast](docs/CLOUD_CAST.md).
+URL sau khi Home Assistant resolve, kể cả query token tạm nếu có, được gửi tới cloud MAIKA và loa phải truy cập được URL đó. Từ `1.15.0`, nếu URL do Home Assistant tạo dùng tên mDNS như `homeassistant.local`, tên nội bộ `supervisor`/`hassio` hay địa chỉ loopback mà loa không phân giải được, tích hợp tự đổi phần scheme/host/port sang địa chỉ LAN của Home Assistant, giữ nguyên đường dẫn và chữ ký `authSig`. Nếu mạng có cấu hình đặc biệt, điền **Địa chỉ Home Assistant cho loa tải nhạc** trong Cấu hình để chỉ định thủ công.
+
+Bản `1.15.0` chấp nhận MP3/MPEG, MP4/AAC và thêm các định dạng audio thường gặp như FLAC, WAV, OGG, Opus, WebM (firmware tự nhận dạng URL); MIME `audio/mp4` từ TTS vẫn được hỗ trợ. Cờ `announce=true` được xử lý theo kiểu thay thế nội dung đang phát và không tự khôi phục nội dung cũ. Bài đang cast từ Home Assistant có thể tua bằng `media_player.media_seek` (hoặc thanh thời gian trong panel). Cloud cast không hỗ trợ queue `add/next`, stop thật, video hay URL có username/password. Xem [Cloud cast](docs/CLOUD_CAST.md).
 
 ## Tài liệu
 

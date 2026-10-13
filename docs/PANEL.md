@@ -84,7 +84,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 1. **Ảnh loa + trạng thái**: ảnh loa MAIKA, tên loa, chấm online, chip Trực
    tuyến / Wi-Fi / Micro / Âm lượng.
 2. **Điều khiển MAIKA**: media player đang phát gì, nút trước – phát/dừng – sau,
-   mute, thanh âm lượng, form cast URL MP3/AAC qua cloud.
+   mute, thanh âm lượng, thanh thời gian kéo tua (khi loa báo thời lượng), form
+   cast URL MP3/AAC qua cloud.
 3. **Trạng thái loa**: 6 tile — trực tuyến, Wi-Fi, âm lượng, đang phát, cuộc gọi,
    yêu thích.
 4. **Trợ lý Maika**: chọn giọng đọc, độ nhạy đánh thức, phản hồi khi gọi, công
@@ -97,8 +98,9 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 8. **Bảo hành**: còn/hết bảo hành và ngày hết hạn — chỉ hiện khi loa có dữ liệu.
 9. **Bản quyền**: trạng thái, gói, hạn dùng, key dạng rút gọn, mã cài đặt, form
    nhập key mới và liên kết mua/gia hạn.
-10. **Cấu hình**: chu kỳ cập nhật, cast âm thanh cloud, nút lưu và nút tải lại
-    integration. Lưu tại đây không ghi đè cấu hình giọng nói.
+10. **Cấu hình**: chu kỳ cập nhật, cast âm thanh cloud, địa chỉ Home Assistant
+    cho loa tải nhạc (tuỳ chọn), nút lưu và nút tải lại integration. Lưu tại đây
+    không ghi đè cấu hình giọng nói.
 11. **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
 12. **Giọng nói**, nằm ngay sau điều khiển MAIKA: trình tạo câu lệnh ba bước,
     danh sách tìm kiếm/sửa/thêm cách nói/xóa/chạy thử, cài đặt âm phản hồi.
@@ -132,6 +134,10 @@ chung cho mọi loa.
 - **Xung đột cấu hình**: nếu câu lệnh hoặc âm phản hồi đã bị sửa ở tab khác,
   máy chủ từ chối ghi đè. Bản nháp còn nguyên để bạn xem lại; nút **Tải lại
   cấu hình đã lưu** yêu cầu xác nhận bỏ bản nháp trước khi nạp dữ liệu mới.
+- **Địa chỉ Home Assistant cho loa tải nhạc**: để trống cho integration tự dò;
+  chỉ điền địa chỉ LAN khi cast nhạc local từ Home Assistant bị lỗi.
+- **Tua nhạc**: kéo thanh thời gian khi loa đang cast bài từ Home Assistant; lệnh
+  gửi lại luồng từ vị trí mới nên bài sẽ phát tiếp tại đó.
 - **Tải lại integration**: bấm nút trong mục Cấu hình nếu cần nạp lại thủ công.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.

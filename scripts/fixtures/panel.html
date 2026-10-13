@@ -39,7 +39,7 @@
     for (let account = 0; account < 2; account += 1) {
       const entry = {
         entry_id: `account-${account}`, title: `Nhà ${account + 1}`, devices: {}, entities: {}, device_entities: {}, entity_keys: {},
-        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_audio_path: "", voice_success_media_player_entity_id: ""},
+        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_audio_path: "", voice_success_media_player_entity_id: "", cloud_cast_base_url: ""},
         license: {status: "active", plan: "lifetime", expires_at: null, license_expires_at: null, key_hint: "MAIKA-DEMO-…-1234", activation_code: "MAIKA-DEMO-TEST-ONLY-0000", server_url: "https://license.example.test"},
         command_history: [{text: "từ snapshot", normalized: "từ snapshot", received_at: "2026-10-12T10:00:00+00:00", matched_phrase: "bật đèn phòng khách", target_entity_id: "light.phong_khach", action: "turn_on", service: "light.turn_on", executed: true, entity_state_after: "on"}],
       };
@@ -54,7 +54,7 @@
           let counter = 0;
           for (const [key, value] of Object.entries(entities)) {
             const id = `${domain}.arbitrary_${account}_${speaker}_${counter++}`;
-            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng"} : {};
+            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", supported_features: 148031, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString()} : {};
             if (domain === "select") attributes.options = [value, "Tuỳ chọn khác"];
             states[id] = {entity_id: id, state: key === "speaker_name" ? name : value, attributes};
             entry.entity_keys[id] = key;
