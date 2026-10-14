@@ -86,9 +86,7 @@ def main() -> int:
         raise SystemExit(f"Tag {tag} does not match manifest version {version}")
 
     output = ROOT / args.output
-    if output.exists():
-        shutil.rmtree(output)
-    output.mkdir(parents=True)
+    output.mkdir(parents=True, exist_ok=True)
 
     hacs_zip = output / "maika.zip"
     manual_zip = output / "maika-manual.zip"

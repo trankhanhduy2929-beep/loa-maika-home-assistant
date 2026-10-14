@@ -54,7 +54,7 @@
           let counter = 0;
           for (const [key, value] of Object.entries(entities)) {
             const id = `${domain}.arbitrary_${account}_${speaker}_${counter++}`;
-            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", supported_features: 148031, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString()} : {};
+            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", supported_features: 152127, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString()} : {};
             if (domain === "select") attributes.options = [value, "Tuỳ chọn khác"];
             states[id] = {entity_id: id, state: key === "speaker_name" ? name : value, attributes};
             entry.entity_keys[id] = key;

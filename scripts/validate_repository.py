@@ -11,6 +11,7 @@ import binascii
 import ipaddress
 import json
 import re
+import runpy
 import struct
 import sys
 import types
@@ -1051,6 +1052,8 @@ def validate(
             _validate_voice_success_audio(errors)
             _validate_voice_rules(errors)
             _validate_media_cast_config(errors)
+            playback_tests = runpy.run_path(str(ROOT / "scripts/test_media_player.py"))
+            errors.extend(playback_tests["validate_media_player"]())
             _validate_panel_configuration(errors)
 
     if hacs_path.is_file():

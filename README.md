@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.14.0**.
+Bản hiện tại: **v1.17.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -67,6 +67,27 @@ thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tà
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
 
+Bản `1.17.0` thêm **nút Dừng phát** trong mục Điều khiển MAIKA và feature
+`STOP` cho action `media_player.media_stop`. API đã xác minh chưa có lệnh stop
+riêng, nên nút dừng dùng `PauseCommandIssued`, báo `paused` và giữ vị trí để
+phát tiếp; không reset vị trí hoặc xóa hàng đợi trên loa. Bản này sửa mốc vị
+trí sau dữ liệu live/pause/resume, tua ±30 giây theo thời điểm bấm và giữ thời
+lượng sau khi tua; chặn giá trị tua không hữu hạn và nguồn cast cũ khác bài.
+
+Bản `1.16.0` thêm **nút tua nhanh ±30 giây** cạnh thanh thời gian trong mục
+Điều khiển MAIKA: bấm để tua lùi/tới 30 giây quanh vị trí hiện tại, giá trị
+được tự kẹp trong khoảng 0..thời lượng bài và gửi cùng cơ chế `mediaOffset`
+như thanh tua.
+
+Bản `1.15.0` sửa cast nhạc local khi Home Assistant tạo URL bằng tên mDNS
+(`homeassistant.local`), tên nội bộ (`supervisor`/`hassio`) hoặc địa chỉ
+loopback mà loa không phân giải được: integration tự đổi scheme/host/port
+sang địa chỉ LAN mà loa truy cập được. Bản này cũng thêm tính năng tua bài
+đang cast bằng `media_player.media_seek` (thanh thời gian trong panel), ô
+**Địa chỉ Home Assistant cho loa tải nhạc** trong Cấu hình để tự chỉ định
+địa chỉ LAN, chấp nhận thêm MIME audio (FLAC, WAV, OGG, Opus, WebM) và giảm
+độ trễ sau cast/play/pause/next/previous/đổi âm lượng.
+
 Bản `1.14.0` thêm mục **Lịch sử** (các câu lệnh gần đây kèm kết quả), **nhắc
 hạn key** (băng nhắc trong panel khi còn ≤ 7 ngày và thông báo hệ thống một
 lần mỗi ngày) và **thư viện âm phản hồi**: chọn file MP3 có sẵn trong
@@ -111,13 +132,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.14.0
+## File phát hành v1.17.0
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.14.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.14.0-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.17.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.17.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.14.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.17.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

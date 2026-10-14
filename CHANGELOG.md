@@ -2,6 +2,47 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.17.0] - 2026-10-14
+
+### Added
+
+- **Nút Dừng phát** cho media player: nút vuông cạnh nút play/pause trong mục
+  Điều khiển MAIKA, đồng thời hỗ trợ action `media_player.media_stop`.
+  API đã xác minh chưa có lệnh stop riêng: integration gửi `PauseCommandIssued`,
+  báo `paused` và giữ vị trí để phát tiếp. Không giả báo `idle`, reset vị trí
+  hoặc xóa hàng đợi trên loa. Nút có hiệu ứng nhấn, tôn trọng Giảm chuyển động
+  và vô hiệu hóa khi loa mất kết nối hoặc backend chưa hỗ trợ `STOP`.
+
+### Fixed
+
+- **Vị trí phát bị cộng dồn sai sau khi dữ liệu live cập nhật**:
+  `media_position_updated_at` trước đây chỉ được đặt khi cast/seek, nên khi loa
+  báo `offsetInMilliseconds` mới, Home Assistant vẫn cộng thêm thời gian đã trôi
+  qua kể từ mốc cũ và hiển thị vị trí nhảy về phía trước. Entity giờ cập nhật
+  mốc khi vị trí, bài hát hoặc trạng thái thay đổi; không cộng thời gian tạm
+  dừng vào lần phát tiếp và không đổi mốc khi chỉ cập nhật âm lượng.
+- **Tua ±30 giây** tính từ vị trí tại lúc bấm, không dùng vị trí cũ khi render.
+  Backend giữ thời lượng sau khi tua, kẹp vị trí trong khoảng hợp lệ và từ chối
+  số không hữu hạn. Không dùng lại URL cast cũ khi metadata đã chuyển bài.
+- Payload tua giữ loại media card `audio` giống lần phát đầu, không gửi nhầm
+  MIME `audio/mpeg` vào trường `type` của giao thức MAIKA.
+- Panel cập nhật thanh thời gian và khả năng điều khiển khi chỉ các thuộc tính
+  này thay đổi, không cần chờ tên bài hoặc trạng thái phát đổi.
+- Build release không xóa cả thư mục output, giữ lại các artifact khác.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp.
+
+### Tests
+
+- Thêm 13 kiểm thử playback với HA stub vào validator: dừng, lỗi cloud,
+  pause/resume, timestamp, giới hạn tua và cache nguồn cast.
+- Bộ trình duyệt kiểm tra nút Dừng phát, loa offline/backend cũ và tua từ vị
+  trí tại lúc bấm. Chưa kiểm thử trên loa và Home Assistant thực tế.
+- Test vuốt chạm cũ đôi lúc thất bại theo timing máy (cũng gặp trên bản gốc);
+  lần xác nhận cuối chạy đầy đủ và qua, gồm 18 tổ hợp kích thước/giao diện.
+
 ## [1.16.0] - 2026-10-13
 
 ### Added

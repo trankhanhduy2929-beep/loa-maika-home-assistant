@@ -160,6 +160,7 @@ Các header phụ quan trọng gồm `device-id`, `device-type`, `version-info`,
 | Resume | `ResumeCommandIssued` | `PlaybackController` | `deviceId` | Tĩnh từ APK |
 | Next | `NextCommandIssued` | `PlaybackController` | `deviceId` | Tĩnh từ APK |
 | Previous | `PreviousCommandIssued` | `PlaybackController` | `deviceId` | Tĩnh từ APK |
+| Stop (qua pause) | `PauseCommandIssued` | `PlaybackController` | `deviceId` | Chưa xác minh được lệnh stop riêng; báo `paused`, giữ vị trí, từ `1.17.0` |
 | Jump item | `JumpCommandIssued` | `PlaybackController` | `deviceId`, `songKey` | Tĩnh từ APK; không phải seek theo giây |
 | Bắt đầu mirror hội thoại | `StartListening` | `Conversation` | `deviceId`, `type=conversation` | Tĩnh từ APK; triển khai từ `1.3.2` |
 | Dừng mirror hội thoại | `StopListening` | `Conversation` | `deviceId`, `type=conversation` | Tĩnh từ APK; best-effort khi unload từ `1.3.2` |
@@ -258,7 +259,7 @@ Integration `1.1.0` ánh xạ đường này thành `media_player.play_media` op
 4. Home Assistant media source được resolve trước khi gửi.
 5. Chỉ URL HTTP(S) hợp lệ được chấp nhận; không expose raw command.
 
-Rà soát bổ sung ngày 2026-08-16 xác nhận APK không chứa playback command `Stop` hoặc seek theo mili giây. Enum chỉ có pause, resume, next, previous và `JumpCommandIssued`; jump nhận `songKey`, nên integration không ánh xạ nó thành `media_player.seek`. Bản `1.2.0` chấp nhận MIME MP4/AAC nhưng vẫn dùng fallback `AUDIO_MPEG` đã xác minh để firmware tự nhận dạng nội dung URL.
+Rà soát bổ sung ngày 2026-08-16 xác nhận APK không chứa playback command `Stop` hoặc seek theo mili giây. Enum chỉ có pause, resume, next, previous và `JumpCommandIssued`; jump nhận `songKey`, nên integration không ánh xạ nó thành `media_player.seek`. Bản `1.2.0` chấp nhận MIME MP4/AAC nhưng vẫn dùng fallback `AUDIO_MPEG` đã xác minh để firmware tự nhận dạng nội dung URL. Từ `1.17.0`, lệnh `STOP` của media player gửi `PauseCommandIssued`, báo `paused` và giữ vị trí để phát tiếp; không giả reset bài hoặc gửi directive `Stop` chưa được kiểm chứng.
 
 Schema đã được xác minh tĩnh từ APK nhưng chưa được xác nhận bằng phát âm thanh trên loa vật lý trong bản bàn giao này. Do đó feature mặc định tắt và được ghi rõ là thử nghiệm.
 

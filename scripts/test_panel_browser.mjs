@@ -705,6 +705,72 @@ try {
   assert(Number.isFinite(backSeek) && backSeek >= 0 && backSeek < forwardSeek, `${backSeek} < ${forwardSeek}`);
   console.log("PASS seek step buttons clamp and dispatch media_seek offsets");
 
+  const expectedSeek = await page.evaluate(() => {
+    window.originalSeekClock = Date.now;
+    Date.now = () => window.originalSeekClock() + 45000;
+    const attrs = states[panel._entity("media_player")].attributes;
+    return Math.min(panel._playbackPosition(attrs, true) + 30, attrs.media_duration);
+  });
+  try {
+    await seekFwd.click();
+    assert(Math.abs(await lastSeek() - expectedSeek) < 2, "Seek uses elapsed time at click, not the old rendered position");
+  } finally {
+    await page.evaluate(() => { Date.now = window.originalSeekClock; delete window.originalSeekClock; });
+  }
+  await page.evaluate(() => {
+    const state = states[panel._entity("media_player")];
+    state.state = "paused";
+    state.attributes.media_position = 10;
+    state.attributes.media_position_updated_at = new Date(Date.now() - 600000).toISOString();
+    tick();
+  });
+  await waitRender();
+  await seekFwd.click();
+  assert.equal(await lastSeek(), 40, "Paused time is not added to seek position");
+  await seekBack.click();
+  assert.equal(await lastSeek(), 0, "Backward seek clamps at zero");
+  console.log("PASS seek uses the click-time position and ignores paused time");
+
+  const stopButton = page.locator('[data-action="stop"]');
+  assert.equal(await stopButton.count(), 1);
+  assert.equal(await stopButton.getAttribute("aria-label"), "Dừng phát");
+  await stopButton.click();
+  assert(await page.evaluate(() => calls.some((call) => call.service === "media_stop" && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));
+  console.log("PASS stop button dispatches media_stop for the active speaker");
+
+  await page.evaluate(() => {
+    states[panel._entity("media_player")].attributes.supported_features &= ~4096;
+    tick();
+  });
+  await waitRender();
+  assert(await stopButton.isDisabled(), "Old integrations without STOP cannot send unsupported commands");
+  await page.evaluate(() => {
+    const state = states[panel._entity("media_player")];
+    state.attributes.supported_features |= 4096;
+    state.state = "unavailable";
+    tick();
+  });
+  await waitRender();
+  assert(await stopButton.isDisabled(), "Offline transport is disabled");
+  await page.evaluate(() => { states[panel._entity("media_player")].state = "playing"; tick(); });
+  await waitRender();
+  assert(await stopButton.isEnabled());
+  console.log("PASS stop respects firmware feature flags and speaker availability");
+
+  await page.evaluate(() => { states[panel._entity("media_player")].state = "paused"; tick(); });
+  await waitRender();
+  await page.evaluate(() => {
+    const attrs = states[panel._entity("media_player")].attributes;
+    attrs.media_position = 88;
+    attrs.media_duration = 300;
+    attrs.media_position_updated_at = new Date().toISOString();
+    tick();
+  });
+  await waitRender();
+  assert.equal(await seek.inputValue(), "88");
+  assert.equal(await seek.getAttribute("max"), "300");
+  console.log("PASS live position/duration changes refresh the timeline without a title or state change");
+
   await page.locator('[data-action="jump"][data-section="settings"]').click();
   await page.waitForTimeout(600);
   const positions = await page.evaluate(() => ({toolbar: panel.shadowRoot.querySelector(".toolbar").getBoundingClientRect().bottom, target: panel.shadowRoot.querySelector('[data-sec="settings"]').getBoundingClientRect().top}));

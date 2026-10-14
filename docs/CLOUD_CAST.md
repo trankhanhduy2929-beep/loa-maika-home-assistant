@@ -160,7 +160,7 @@ khi clip ưu tiên đã bắt đầu, sensor ghi
 - Không expose raw JSON hoặc raw MAIKA command.
 - Không hỗ trợ `enqueue=add` hoặc `enqueue=next`.
 - Chấp nhận `announce=true` để phát TTS theo kiểu thay thế; không có native announcement, ducking hoặc tự khôi phục nội dung trước đó.
-- Không quảng bá stop hoặc power vì APK chỉ có pause/resume/next/previous và jump theo `songKey`. Tua theo giây được hỗ trợ cho bài đang cast bằng cách gửi lại `CommandHandOver` với `mediaOffset`; panel hiển thị thanh thời gian khi loa báo được thời lượng.
+- Không quảng bá power vì APK chỉ có pause/resume/next/previous và jump theo `songKey`. Nút **Dừng phát** (`STOP`) dùng lệnh pause đã xác minh: gửi `PauseCommandIssued`, báo `paused` và giữ vị trí để phát tiếp; không reset bài hoặc xóa hàng đợi. Tua theo giây được hỗ trợ cho bài đang cast bằng cách gửi lại `CommandHandOver` với `mediaOffset`; panel hiển thị thanh thời gian khi loa báo được thời lượng.
 - Không upload/proxy file qua integration; loa tự lấy URL.
 - HTTP 2xx chỉ xác nhận cloud nhận request, không đảm bảo firmware đã phát thành công.
 

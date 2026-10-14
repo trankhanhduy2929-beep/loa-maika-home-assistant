@@ -74,6 +74,9 @@
     "cloud_cast_unsupported_mode": {
       "message": "Cloud cast MAIKA chưa hỗ trợ enqueue=add hoặc enqueue=next."
     },
+    "cloud_cast_invalid_seek_position": {
+      "message": "Vị trí tua phải là một số giây hữu hạn."
+    },
     "cloud_cast_seek_unavailable": {
       "message": "MAIKA chỉ tua được bài đang cast từ Home Assistant. Hãy phát nhạc qua cloud cast rồi kéo thanh thời gian."
     }

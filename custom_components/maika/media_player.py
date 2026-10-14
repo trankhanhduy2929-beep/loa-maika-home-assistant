@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
@@ -40,6 +41,7 @@ _BASE_SUPPORTED_FEATURES = (
     | MediaPlayerEntityFeature.VOLUME_MUTE
     | MediaPlayerEntityFeature.PLAY
     | MediaPlayerEntityFeature.PAUSE
+    | MediaPlayerEntityFeature.STOP
     | MediaPlayerEntityFeature.NEXT_TRACK
     | MediaPlayerEntityFeature.PREVIOUS_TRACK
 )
@@ -104,6 +106,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
     def __init__(self, coordinator, serial_number) -> None:
         super().__init__(coordinator, serial_number, "media_player")
         self._position_updated_at: datetime | None = None
+        self._reported_playback: tuple[Any, ...] | None = None
         self._volume_before_mute: float | None = None
         self._last_cast_media: dict[str, Any] | None = None
         self._cloud_cast_enabled = bool(
@@ -112,6 +115,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         self._attr_supported_features = _BASE_SUPPORTED_FEATURES
         if self._cloud_cast_enabled:
             self._attr_supported_features |= _CLOUD_CAST_SUPPORTED_FEATURES
+        self._update_position_timestamp()
 
     @property
     def _cast_base_url(self) -> str:
@@ -119,6 +123,27 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         return str(
             self.coordinator.entry.options.get(CONF_CLOUD_CAST_BASE_URL, "") or ""
         )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Keep the timestamp tied to the reported playback, not volume updates."""
+        self._update_position_timestamp()
+        super()._handle_coordinator_update()
+
+    @callback
+    def _update_position_timestamp(self) -> None:
+        """Refresh the time anchor when position, state or track changes."""
+        playback = (
+            self.state,
+            self.media_position,
+            self.media_content_id,
+            self.media_title,
+        )
+        if playback != self._reported_playback:
+            self._reported_playback = playback
+            self._position_updated_at = (
+                datetime.now(dt_util.UTC) if self.media_position is not None else None
+            )
 
     @property
     def state(self) -> MediaPlayerState:
@@ -224,17 +249,16 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             return None
         value = payload.get("offsetInMilliseconds")
         try:
-            return float(value) / 1000.0 if value is not None else None
+            seconds = float(value) / 1000.0
         except (TypeError, ValueError):
             return None
+        return max(0.0, seconds) if math.isfinite(seconds) else None
 
     @property
     def media_position_updated_at(self) -> datetime | None:
         """Return the timestamp associated with playback position."""
         if self.media_position is None:
             return None
-        if self._position_updated_at is None:
-            self._position_updated_at = datetime.now(dt_util.UTC)
         return self._position_updated_at
 
     @property
@@ -247,9 +271,10 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         if value is None:
             value = payload.get("durationInMillis")
         try:
-            return float(value) / 1000.0 if value is not None else None
+            seconds = float(value) / 1000.0
         except (TypeError, ValueError):
             return None
+        return seconds if math.isfinite(seconds) and seconds > 0 else None
 
     async def async_set_volume_level(self, volume: float) -> None:
         """Set speaker playback volume."""
@@ -297,6 +322,10 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         """Pause playback."""
         await self._async_playback_command("PauseCommandIssued", "paused")
 
+    async def async_media_stop(self) -> None:
+        """Stop sound via pause without pretending the firmware reset playback."""
+        await self.async_media_pause()
+
     async def async_media_next_track(self) -> None:
         """Skip to the next item."""
         await self._async_playback_command("NextCommandIssued", None)
@@ -314,9 +343,21 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             )
 
         try:
-            target = max(0.0, float(position))
-        except (TypeError, ValueError):
-            target = 0.0
+            target = float(position)
+        except (TypeError, ValueError) as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_cast_invalid_seek_position",
+            ) from err
+        if not math.isfinite(target):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_cast_invalid_seek_position",
+            )
+        target = max(0.0, target)
+        duration = self.media_duration
+        if duration is not None:
+            target = min(target, duration)
 
         source = self._current_cast_source()
         if source is None:
@@ -331,7 +372,6 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 self.serial_number,
                 source["url"],
                 title=source.get("title"),
-                media_type=source.get("media_type", "audio"),
                 stream_format=source.get("stream_format", "AUDIO_MPEG"),
                 offset_milliseconds=offset,
             )
@@ -341,16 +381,21 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 translation_key="cloud_cast_failed",
             ) from err
 
+        current_payload = self._current_playback.get("payload")
+        payload = dict(current_payload) if isinstance(current_payload, dict) else {}
+        payload.update(
+            {
+                "offsetInMilliseconds": offset,
+                "playbackAttributes": dict(source["attributes"]),
+            }
+        )
         self._position_updated_at = datetime.now(dt_util.UTC)
         self.coordinator.async_update_device_data(
             self.serial_number,
             {
                 "current_playback": {
                     "status": "start",
-                    "payload": {
-                        "offsetInMilliseconds": offset,
-                        "playbackAttributes": dict(source["attributes"]),
-                    },
+                    "payload": payload,
                 }
             },
         )
@@ -459,6 +504,20 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         )
         if optimistic_status is not None:
             current = dict(self._current_playback)
+            position = self.media_position
+            now = datetime.now(dt_util.UTC)
+            if position is not None:
+                if self.state == MediaPlayerState.PLAYING and self._position_updated_at:
+                    position += max(
+                        0.0, (now - self._position_updated_at).total_seconds()
+                    )
+                duration = self.media_duration
+                if duration is not None:
+                    position = min(position, duration)
+                payload = dict(current["payload"])
+                payload["offsetInMilliseconds"] = round(position * 1000)
+                current["payload"] = payload
+                self._position_updated_at = now
             current["status"] = optimistic_status
             self.coordinator.async_update_device_data(
                 self.serial_number, {"current_playback": current}
@@ -482,7 +541,13 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 "stream_format": "AUDIO_MPEG",
                 "attributes": dict(attributes),
             }
-        if self._last_cast_media and self.state != MediaPlayerState.IDLE:
+        if (
+            self._last_cast_media
+            and self.state != MediaPlayerState.IDLE
+            and self.media_content_id is None
+            and self.media_title
+            and self.media_title == self._last_cast_media.get("title")
+        ):
             return self._last_cast_media
         return None
 

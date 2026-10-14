@@ -83,9 +83,9 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 
 1. **Ảnh loa + trạng thái**: ảnh loa MAIKA, tên loa, chấm online, chip Trực
    tuyến / Wi-Fi / Micro / Âm lượng.
-2. **Điều khiển MAIKA**: media player đang phát gì, nút trước – phát/dừng – sau,
-   mute, thanh âm lượng, thanh thời gian kéo tua (khi loa báo thời lượng), form
-   cast URL MP3/AAC qua cloud.
+2. **Điều khiển MAIKA**: media player đang phát gì, nút trước – phát/tạm dừng –
+   dừng – sau, mute, thanh âm lượng, thanh thời gian kéo tua (khi loa báo thời
+   lượng), form cast URL MP3/AAC qua cloud.
 3. **Trạng thái loa**: 6 tile — trực tuyến, Wi-Fi, âm lượng, đang phát, cuộc gọi,
    yêu thích.
 4. **Trợ lý Maika**: chọn giọng đọc, độ nhạy đánh thức, phản hồi khi gọi, công
@@ -139,6 +139,10 @@ chung cho mọi loa.
 - **Tua nhạc**: kéo thanh thời gian, hoặc bấm **−30s / +30s** để tua nhanh quanh vị
   trí hiện tại, khi loa đang cast bài từ Home Assistant; lệnh gửi lại luồng từ vị
   trí mới nên bài sẽ phát tiếp tại đó.
+- **Dừng phát**: nút vuông riêng gọi `media_player.media_stop`. API đã xác minh
+  chưa có stop native nên integration gửi pause, báo **Tạm dừng** và giữ vị trí
+  để phát tiếp; không reset bài hoặc xóa hàng đợi trên loa. Nút vô hiệu hóa khi
+  loa mất kết nối hoặc integration đang chạy chưa hỗ trợ `STOP`.
 - **Tải lại integration**: bấm nút trong mục Cấu hình nếu cần nạp lại thủ công.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.
@@ -158,7 +162,7 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.14.0`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.17.0`, khởi động lại Home Assistant rồi tải
 lại trang bằng **Ctrl+F5**/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các

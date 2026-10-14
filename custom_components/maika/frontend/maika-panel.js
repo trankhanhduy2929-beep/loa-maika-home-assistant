@@ -117,6 +117,7 @@ const ICONS = {
   pause: "M7 5h4v14H7zm6 0h4v14h-4z",
   prev: "M6 6h2v12H6zm12 0v12l-9-6z",
   next: "M16 6h2v12h-2zM6 18V6l9 6z",
+  stop: "M6 6h12v12H6z",
   restart: "M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z",
   refresh: "M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h7V4z",
   chip: "M9 2v2H7a3 3 0 0 0-3 3v2H2v2h2v2H2v2h2v2a3 3 0 0 0 3 3h2v2h2v-2h2v2h2v-2h2a3 3 0 0 0 3-3v-2h2v-2h-2v-2h2V9h-2V7a3 3 0 0 0-3-3h-2V2h-2v2h-2V2zm0 6h6v8H9z",
@@ -750,7 +751,7 @@ class MaikaPanel extends HTMLElement {
       .eq i:nth-child(3) { animation-delay: .26s; }
       .eq i:nth-child(4) { animation-delay: .38s; }
       .eq--idle i { animation: none; transform: scaleY(.3); opacity: .45; }
-      .transport { display: flex; gap: 10px; justify-content: center; align-items: center; }
+      .transport { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
       .tbtn {
         width: 46px; height: 46px; border-radius: var(--radius-sm); border: 1px solid var(--line);
         background: var(--surface-2); color: inherit; display: grid; place-items: center; cursor: pointer;
@@ -762,6 +763,9 @@ class MaikaPanel extends HTMLElement {
       .tbtn--main { width: 60px; height: 60px; border-radius: 22px; background: linear-gradient(145deg, var(--brand-start), var(--brand-end)); color: var(--brand-ink); border: none; box-shadow: 0 6px 18px rgba(239, 116, 24, .2), inset 0 1px 0 rgba(255, 255, 255, .6); }
       .tbtn--main svg { width: 26px; height: 26px; }
       .tbtn--on { background: rgba(255, 124, 138, .18); color: var(--bad); }
+      .tbtn--stop { border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); }
+      .tbtn--stop:hover { background: rgba(255, 124, 138, .16); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 46%, var(--line)); }
+      @media (prefers-reduced-motion: no-preference) { .tbtn--stop:active { transform: scale(.86) rotate(-2deg); } }
 
       .slider { display: flex; align-items: center; gap: 12px; }
       .slider .ico svg { width: 18px; height: 18px; fill: var(--blue); }
@@ -1259,6 +1263,7 @@ class MaikaPanel extends HTMLElement {
     const transport = h("div", {class: "transport"}, [
       this._tbtn("prev", "prev", media),
       this._tbtn(playing ? "pause" : "play", "playpause", media, "tbtn--main"),
+      this._tbtn("stop", "stop", media, "tbtn--stop"),
       this._tbtn("next", "next", media),
       this._tbtn(muted ? "micOff" : "volume", "mute", media, muted ? "tbtn--on" : ""),
     ]);
@@ -1298,8 +1303,11 @@ class MaikaPanel extends HTMLElement {
   }
 
   _tbtn(icon, action, entity, extra) {
-    const labels = {prev: "Bài trước", next: "Bài tiếp theo", playpause: icon === "pause" ? "Tạm dừng" : "Phát nhạc", mute: extra === "tbtn--on" ? "Bật âm lượng" : "Tắt âm lượng"};
-    const btn = h("button", {class: ["tbtn", extra].filter(Boolean).join(" "), type: "button", title: labels[action], "aria-label": labels[action], "aria-pressed": action === "mute" ? String(extra === "tbtn--on") : null, dataset: {action, entity}});
+    const labels = {prev: "Bài trước", next: "Bài tiếp theo", playpause: icon === "pause" ? "Tạm dừng" : "Phát nhạc", stop: "Dừng phát", mute: extra === "tbtn--on" ? "Bật âm lượng" : "Tắt âm lượng"};
+    const state = this._state(entity);
+    const features = Number(state?.attributes?.supported_features) || 0;
+    const disabled = !state || UNKNOWN.has(state.state) || (action === "stop" && (features & 4096) !== 4096);
+    const btn = h("button", {class: ["tbtn", extra].filter(Boolean).join(" "), type: "button", title: action === "stop" ? "Dừng âm thanh bằng tạm dừng; loa giữ vị trí phát" : labels[action], "aria-label": labels[action], "aria-pressed": action === "mute" ? String(extra === "tbtn--on") : null, disabled, dataset: {action, entity}});
     btn.append(svgIcon(ICONS[icon]));
     return btn;
   }
@@ -1874,7 +1882,7 @@ class MaikaPanel extends HTMLElement {
         const state = this._hass?.states?.[id];
         if (state) {
           const attrs = state.attributes || {};
-          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title];
+          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title, attrs.supported_features, attrs.media_position, attrs.media_duration, attrs.media_position_updated_at];
         }
       }
     }
@@ -2137,8 +2145,11 @@ class MaikaPanel extends HTMLElement {
 
     if (action === "seek-step") {
       if (!entity) return;
-      const position = Number(target.dataset.position) || 0;
-      const duration = Number(target.dataset.duration) || 0;
+      const state = this._state(entity);
+      if (!state || UNKNOWN.has(state.state)) return;
+      const attrs = state.attributes || {};
+      const position = this._playbackPosition(attrs, state.state === "playing");
+      const duration = Number(attrs.media_duration) || 0;
       const delta = Number(target.dataset.delta) || 0;
       let next = position + delta;
       if (next < 0) next = 0;
@@ -2187,6 +2198,7 @@ class MaikaPanel extends HTMLElement {
       playpause: ["media_player", "media_play_pause", {}],
       prev: ["media_player", "media_previous_track", {}],
       next: ["media_player", "media_next_track", {}],
+      stop: ["media_player", "media_stop", {}],
       mute: ["media_player", "volume_mute", {is_volume_muted: !muted}],
       refresh: ["button", "press", {}],
       restart: ["button", "press", {}],
