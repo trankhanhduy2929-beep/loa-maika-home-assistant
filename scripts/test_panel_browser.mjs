@@ -596,6 +596,77 @@ async function verifyCommandHistory() {
   console.log("PASS recent command history from live sensor attributes with snapshot fallback");
 }
 
+async function verifyPlaylistPicker() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  const context = () => page.evaluate(() => ({
+    media: panel._entity("media_player"),
+    serial: panel._activeSerial(),
+    items: window.browseItems.map((item) => ({id: item.media_content_id, title: item.title})),
+  }));
+  const {media, items} = await context();
+  const [first, second] = items;
+  const dialog = page.locator("dialog.playlist");
+  const rows = dialog.locator(".pl-item");
+  const playCalls = () => page.evaluate((entity) => calls.filter((call) => call.service === "play_media" && call.data.entity_id === entity), media);
+  const open = async () => {
+    await page.evaluate(() => { window.browseCalls.length = 0; });
+    await page.locator(".media-now .media-title").click();
+  };
+
+  assert.equal(await page.locator(".media-now .media-title").count(), 1);
+  assert.equal(await page.locator(".media-now .media-title").getAttribute("aria-haspopup"), "dialog");
+  await open();
+  await rows.first().waitFor();
+  assert.equal(await rows.count(), 2);
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).type), "media_player/browse_media");
+  assert.deepEqual(await page.evaluate(() => { const call = window.browseCalls.at(-1); return {ct: call.media_content_type, ci: call.media_content_id}; }), {ct: "maika_playlist", ci: "maika_playlist"});
+  const currentRow = dialog.locator('.pl-item[aria-current="true"]');
+  assert.equal(await currentRow.count(), 1);
+  assert.equal(await currentRow.getAttribute("data-id"), second.id);
+  assert.equal(await currentRow.locator(".pl-item__badge").innerText(), "Đang phát");
+  assert.equal(await rows.first().locator(".pl-item__s").innerText(), "Ca sĩ A");
+  console.log("PASS playlist browse maps native queue, marks the current song and keeps `maika_song` ids verbatim");
+
+  await page.evaluate((entity) => { states[entity].attributes.maika_queue_item_id = window.browseItems[0].media_content_id; tick(); }, media);
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelector('.pl-item[data-id="' + window.browseItems[0].media_content_id + '"]')?.getAttribute("aria-current") === "true");
+  assert.equal(await currentRow.getAttribute("data-id"), first.id);
+  console.log("PASS playlist current-song highlight follows live media_player attributes");
+
+  await rows.first().click();
+  await page.waitForFunction(() => { const current = document.querySelector("maika-panel"); return !current.shadowRoot.querySelector("dialog.playlist")?.open && current._playlist === null; });
+  const played = await playCalls();
+  assert.equal(played.length, 1);
+  assert.deepEqual(played[0].data, {entity_id: media, media_content_type: "maika_song", media_content_id: first.id});
+  assert.equal(await page.evaluate(() => panel._playlistBusy), false);
+  assert(await page.evaluate(() => panel.shadowRoot.activeElement === panel.shadowRoot.querySelector(".media-now .media-title")), "Focus returns to the title button");
+  console.log("PASS choosing a song dispatches one media_player.play_media with the exact queue id and restores focus");
+
+  await page.evaluate(() => { window.failBrowse = true; });
+  await open();
+  await dialog.locator(".pl-state--bad").waitFor();
+  assert.match(await dialog.locator(".pl-state--bad").innerText(), /Không đọc được danh sách bài/);
+  await page.evaluate(() => { window.failBrowse = false; });
+  await dialog.locator('[data-action="playlist-retry"]').click();
+  await rows.first().waitFor();
+  assert.equal(await rows.count(), 2);
+  console.log("PASS playlist browse failure shows a retry and recovers");
+
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => { const current = document.querySelector("maika-panel"); return !current.shadowRoot.querySelector("dialog.playlist")?.open && current._playlist === null; });
+  assert(await page.evaluate(() => panel._playlistBusy === false));
+  console.log("PASS Escape closes the picker and clears its state");
+
+  const playCountBefore = (await playCalls()).length;
+  await open();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(160);
+  assert(await page.evaluate(() => panel._playlist === null), "A response arriving after close is discarded");
+  assert.equal(await dialog.getAttribute("open"), null);
+  assert.equal((await playCalls()).length, playCountBefore);
+  console.log("PASS an in-flight browse that resolves after close is ignored");
+}
+
 try {
   await verifyGlassAndMotion();
   await verifyDesktopScrolling();
@@ -603,6 +674,7 @@ try {
   await verifyVoiceEditor();
   await verifyLifetimeLicense();
   await verifyCommandHistory();
+  await verifyPlaylistPicker();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
     await load();

@@ -59,6 +59,24 @@
     "license_unavailable": {
       "message": "MAIKA chưa kích hoạt ({license_error}). Mã máy: {activation_code}. Mở MAIKA → Bản quyền để nhập hoặc thay key. Chọn gói hoặc xem key tại {portal_url}."
     },
+    "maika_queue_unavailable": {
+      "message": "Loa MAIKA đang ngoại tuyến hoặc không còn khả dụng trong tích hợp này."
+    },
+    "maika_queue_refresh_failed": {
+      "message": "Không thể cập nhật danh sách trên loa MAIKA. Hãy thử mở lại danh sách."
+    },
+    "maika_queue_invalid_selection": {
+      "message": "Lựa chọn bài hát không hợp lệ hoặc không thuộc danh sách của loa này. Hãy mở danh sách trên loa MAIKA và chọn lại bài."
+    },
+    "maika_queue_changed": {
+      "message": "Danh sách trên loa MAIKA đã thay đổi. Hãy mở lại danh sách trước khi chọn bài."
+    },
+    "maika_queue_unsupported_mode": {
+      "message": "Chọn bài MAIKA chỉ chuyển tới bài có sẵn trong danh sách; không hỗ trợ enqueue=add hoặc enqueue=next."
+    },
+    "maika_queue_jump_failed": {
+      "message": "MAIKA không chấp nhận yêu cầu chọn bài hát này."
+    },
     "cloud_cast_disabled": {
       "message": "Cast âm thanh cloud đang tắt. Mở MAIKA → Cấu hình loa để bật."
     },

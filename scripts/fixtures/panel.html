@@ -23,9 +23,16 @@
   </main>
   <script>
     window.calls = [];
+    window.browseCalls = [];
     window.failApi = false;
     window.failSave = false;
+    window.failBrowse = false;
     window.states = {};
+    const browseSong = (suffix) => `maika:${suffix.repeat(64)}:${encodeURIComponent(`bài-${suffix}`)}`;
+    window.browseItems = [
+      {media_class: "track", media_content_type: "maika_song", media_content_id: browseSong("a"), title: "Bài một — Ca sĩ A", can_play: true, can_expand: false},
+      {media_class: "track", media_content_type: "maika_song", media_content_id: browseSong("b"), title: "Bài hai", can_play: true, can_expand: false},
+    ];
     const entries = [];
     const entityData = {
       binary_sensor: {online: "on", wifi_connected: "on", available_to_call: "on", favorite: "off", device_active: "on", warranty_active: "on"},
@@ -54,7 +61,7 @@
           let counter = 0;
           for (const [key, value] of Object.entries(entities)) {
             const id = `${domain}.arbitrary_${account}_${speaker}_${counter++}`;
-            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", supported_features: 152127, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString()} : {};
+            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", supported_features: 152127, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString(), maika_song_key: "key-second", maika_queue_item_id: browseSong("b")} : {};
             if (domain === "select") attributes.options = [value, "Tuỳ chọn khác"];
             states[id] = {entity_id: id, state: key === "speaker_name" ? name : value, attributes};
             entry.entity_keys[id] = key;
@@ -106,6 +113,15 @@
         return {status: "active"};
       },
       callService: async (domain, service, data) => {calls.push({domain, service, data});},
+      callWS: async (message) => {
+        browseCalls.push(message);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        if (failBrowse) throw {body: {message: "maika_queue_refresh_failed"}};
+        if (message?.type === "media_player/browse_media") {
+          return {media_class: "playlist", media_content_type: "maika_playlist", media_content_id: "maika_playlist", title: "Danh sách trên loa MAIKA", can_expand: true, children: browseItems.map((item) => ({...item}))};
+        }
+        throw new Error(`Unhandled websocket command: ${message?.type}`);
+      },
     };
     window.panel = document.getElementById("panel");
     Promise.all([customElements.whenDefined("maika-panel"), fetch("/voice-actions.json").then((response) => response.json())]).then(([, catalog]) => {

@@ -59,6 +59,24 @@
     "license_unavailable": {
       "message": "MAIKA is not activated ({license_error}). Device code: {activation_code}. Open MAIKA → License to enter or replace your key. Choose a plan or view your key at {portal_url}."
     },
+    "maika_queue_unavailable": {
+      "message": "This MAIKA speaker is offline or no longer available in this integration."
+    },
+    "maika_queue_refresh_failed": {
+      "message": "Unable to refresh the playlist on the MAIKA speaker. Try browsing it again."
+    },
+    "maika_queue_invalid_selection": {
+      "message": "This song selection is invalid or is not in this speaker's playlist. Browse the MAIKA playlist and select a song again."
+    },
+    "maika_queue_changed": {
+      "message": "The playlist on the MAIKA speaker has changed. Browse it again before selecting a song."
+    },
+    "maika_queue_unsupported_mode": {
+      "message": "MAIKA playlist selection only jumps to an existing song; enqueue=add and enqueue=next are not supported."
+    },
+    "maika_queue_jump_failed": {
+      "message": "MAIKA did not accept the request to select this song."
+    },
     "cloud_cast_disabled": {
       "message": "Cloud audio casting is disabled. Open the MAIKA panel → Speaker settings to enable it."
     },

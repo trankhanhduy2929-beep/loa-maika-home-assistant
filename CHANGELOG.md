@@ -2,6 +2,46 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.18.0] - 2026-10-15
+
+### Added
+
+- **Chọn bài trực tiếp trong danh sách bài trên loa**: bấm tên bài đang phát
+  trong mục Điều khiển MAIKA để mở danh sách `latest_playlist` của loa và chọn
+  bài, không cần bấm Trước/Tiếp. Integration duyệt queue native qua
+  `media_player.browse_media` (`maika_playlist`/`maika_song`) và chọn bài bằng
+  đúng một `JumpCommandIssued` với `songKey`, sau khi đọc lại playlist và xác
+  minh bài còn thuộc đúng loa. Tính năng chạy cả khi tắt cast cloud; URL và
+  `media-source://` vẫn theo cờ cast như trước.
+
+### Fixed
+
+- **Tên bài hiển thị lệch khi ra lệnh bằng giọng nói**: dữ liệu live chỉ có
+  volume hoặc phản hồi cũ bị coi là mới có thể ghi đè metadata REST mới, khiến
+  panel hiện tên bài trước cho tới khi bấm Tiếp. Coordinator giờ kiểm tra độ
+  mới theo từng field và chỉ nhận playback/playlist khi thực sự mới; phản hồi
+  chỉ có volume không đủ để hoàn tất waiter bằng cache cũ.
+- Metadata playback cũ bị bỏ khi `songKey` đổi hoặc bị xóa, và giữ lại khi chỉ
+  là cập nhật một phần của cùng bài; thu hẹp race giữa vòng poll và event mới.
+- Đăng ký `media_control` theo thế hệ `/connect`, tự đăng ký lại khi reconnect
+  và dừng đúng lúc unload; làm mới playback theo loa được dedupe.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp; không dựng playlist
+  giả từ lịch sử, URL cast hay suy luận câu nói.
+
+### Tests
+
+- Thêm 40 kiểm thử live playback và 43 kiểm thử media player bằng HA stub: độ
+  mới theo field, giữ metadata cùng bài, race event/poll, vòng đời subscription,
+  nhánh browse native, xác minh revision/thành viên queue và đúng một
+  `JumpCommandIssued`. `validate_live_playback()` được nối vào validator.
+- Bộ trình duyệt thêm luồng mở/chọn/thử lại/đóng danh sách bài, đánh dấu bài
+  đang phát theo thuộc tính, khôi phục focus, phím Esc và hủy phản hồi đến muộn.
+- Chưa kiểm thử trên loa và Home Assistant thực tế; mới xác minh tĩnh từ APK và
+  mock/stub.
+
 ## [1.17.0] - 2026-10-14
 
 ### Added

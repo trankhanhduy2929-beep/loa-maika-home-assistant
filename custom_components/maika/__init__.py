@@ -77,7 +77,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> boo
         await coordinator.async_config_entry_first_refresh()
         entry.runtime_data = MaikaRuntimeData(client, coordinator, license_manager)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except Exception:
+    except BaseException:
+        await coordinator.async_stop()
         await client.async_stop()
         raise
 
@@ -94,7 +95,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bo
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         await entry.runtime_data.license_manager.async_stop()
-        await entry.runtime_data.coordinator.async_stop_voice_subscriptions()
+        await entry.runtime_data.coordinator.async_stop()
         await entry.runtime_data.client.async_stop()
     return unload_ok
 

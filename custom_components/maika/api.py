@@ -9,6 +9,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any
 from uuid import uuid4
 
@@ -82,6 +83,34 @@ _STREAM_DEVICE_FIELDS = frozenset(
         "warranty_expire_time",
     }
 )
+
+
+def merge_current_playback(current: Any, changes: Any) -> Any:
+    if not isinstance(current, dict) or not isinstance(changes, dict):
+        return deepcopy(changes)
+    merged = {**deepcopy(current), **deepcopy(changes)}
+    current_payload = current.get("payload")
+    payload = changes.get("payload")
+    if not isinstance(current_payload, dict) or not isinstance(payload, dict):
+        return merged
+    current_attributes = current_payload.get("playbackAttributes")
+    attributes = payload.get("playbackAttributes")
+    if isinstance(attributes, dict):
+        previous = current_attributes if isinstance(current_attributes, dict) else {}
+        if any(
+            key in attributes and attributes[key] != previous.get(key)
+            for key in ("songKey", "key", "url", "id", "mediaId", "media_id")
+        ):
+            merged["payload"] = deepcopy(payload)
+            return merged
+    merged_payload = {**deepcopy(current_payload), **deepcopy(payload)}
+    if isinstance(current_attributes, dict) and isinstance(attributes, dict):
+        merged_payload["playbackAttributes"] = {
+            **deepcopy(current_attributes),
+            **deepcopy(attributes),
+        }
+    merged["payload"] = merged_payload
+    return merged
 
 
 class MaikaApiError(Exception):
@@ -411,10 +440,19 @@ class MaikaApiClient:
         if not isinstance(serial_number, str) or not serial_number:
             return
         current = self._discovered_devices.get(serial_number, {})
-        self._discovered_devices[serial_number] = {
+        merged = {
             **current,
-            **{key: value for key, value in device.items() if value is not None},
+            **{
+                key: deepcopy(value)
+                for key, value in device.items()
+                if value is not None or key in {"current_playback", "latest_playlist"}
+            },
         }
+        if "current_playback" in device:
+            merged["current_playback"] = merge_current_playback(
+                current.get("current_playback"), device["current_playback"]
+            )
+        self._discovered_devices[serial_number] = merged
 
     def _copy_discovered_devices(self) -> list[dict[str, Any]]:
         """Return defensive copies of cached discovered speakers."""
@@ -580,15 +618,32 @@ class MaikaApiClient:
             {"deviceId": serial_number, "type": "conversation"},
         )
 
+    async def async_start_media_listening(self, serial_number: str) -> None:
+        await self.async_send_command(
+            "StartListening",
+            "Conversation",
+            {"deviceId": serial_number, "type": "media_control"},
+        )
+
+    async def async_stop_media_listening(self, serial_number: str) -> None:
+        await self.async_send_command(
+            "StopListening",
+            "Conversation",
+            {"deviceId": serial_number, "type": "media_control"},
+        )
+
     async def async_request_device_info(
         self, serial_number: str, timeout_seconds: float = 8.0
     ) -> dict[str, Any] | None:
         """Request live playback, volume and microphone state over /connect."""
-        cached = self.live_device_info.get(serial_number)
+        if self._stopping:
+            return None
         try:
             await asyncio.wait_for(self._connected.wait(), timeout=timeout_seconds)
         except TimeoutError:
-            return cached
+            return None
+        if self._stopping:
+            return None
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict[str, Any]] = loop.create_future()
@@ -605,8 +660,10 @@ class MaikaApiClient:
             )
             return await asyncio.wait_for(future, timeout=timeout_seconds)
         except TimeoutError:
-            return self.live_device_info.get(serial_number, cached)
+            return None
         finally:
+            if not future.done():
+                future.cancel()
             current_waiters = self._device_info_waiters.get(serial_number)
             if current_waiters and future in current_waiters:
                 current_waiters.remove(future)
@@ -933,18 +990,21 @@ class MaikaApiClient:
             and str(header.get("namespace", "")).casefold() == "clientinformation"
         ):
             device_payload = self._extract_device_payload(payload)
-            normalized = self._normalize_device_record(
-                device_payload, assume_online=True
-            )
+            normalized = self._normalize_device_record(device_payload)
             if normalized is not None:
                 serial_number = normalized["device_id"]
                 current_live = self.live_device_info.get(serial_number, {})
-                merged_live = {**current_live, **normalized}
+                merged_live = {**current_live, **deepcopy(normalized)}
+                if "current_playback" in normalized:
+                    merged_live["current_playback"] = merge_current_playback(
+                        current_live.get("current_playback"),
+                        normalized["current_playback"],
+                    )
                 self.live_device_info[serial_number] = merged_live
                 self._cache_discovered_device(normalized)
                 for future in self._device_info_waiters.pop(serial_number, []):
                     if not future.done():
-                        future.set_result(merged_live)
+                        future.set_result(deepcopy(normalized))
                 discovered = self._discovered_devices[serial_number]
                 if self._has_usable_internal_id(discovered):
                     waiters = self._device_discovery_waiters

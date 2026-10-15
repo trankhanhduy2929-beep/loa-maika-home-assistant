@@ -83,9 +83,10 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 
 1. **Ảnh loa + trạng thái**: ảnh loa MAIKA, tên loa, chấm online, chip Trực
    tuyến / Wi-Fi / Micro / Âm lượng.
-2. **Điều khiển MAIKA**: media player đang phát gì, nút trước – phát/tạm dừng –
-   dừng – sau, mute, thanh âm lượng, thanh thời gian kéo tua (khi loa báo thời
-   lượng), form cast URL MP3/AAC qua cloud.
+2. **Điều khiển MAIKA**: media player đang phát gì (bấm tên bài để mở danh sách
+   bài trên loa), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
+   thanh thời gian kéo tua (khi loa báo thời lượng), form cast URL MP3/AAC qua
+   cloud.
 3. **Trạng thái loa**: 6 tile — trực tuyến, Wi-Fi, âm lượng, đang phát, cuộc gọi,
    yêu thích.
 4. **Trợ lý Maika**: chọn giọng đọc, độ nhạy đánh thức, phản hồi khi gọi, công
@@ -143,6 +144,12 @@ chung cho mọi loa.
   chưa có stop native nên integration gửi pause, báo **Tạm dừng** và giữ vị trí
   để phát tiếp; không reset bài hoặc xóa hàng đợi trên loa. Nút vô hiệu hóa khi
   loa mất kết nối hoặc integration đang chạy chưa hỗ trợ `STOP`.
+- **Chọn bài trên loa**: bấm tên bài đang phát trong Điều khiển MAIKA để mở danh
+  sách bài (`latest_playlist`) do loa cung cấp, kể cả khi tắt cloud cast. Danh
+  sách hiển thị bài đang phát, trạng thái đang tải/trống/mất kết nối và nút thử
+  lại khi đọc lỗi. Chọn một bài gửi `media_player.play_media` kiểu `maika_song`;
+  hộp thoại đóng khi xong, có thể đóng bằng phím Esc, và danh sách tự vô hiệu
+  nếu dữ liệu của loa khác về sau. Không tự dựng playlist từ lịch sử hay câu nói.
 - **Tải lại integration**: bấm nút trong mục Cấu hình nếu cần nạp lại thủ công.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.
@@ -162,7 +169,7 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.17.0`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.18.0`, khởi động lại Home Assistant rồi tải
 lại trang bằng **Ctrl+F5**/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các

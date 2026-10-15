@@ -118,6 +118,8 @@ const ICONS = {
   prev: "M6 6h2v12H6zm12 0v12l-9-6z",
   next: "M16 6h2v12h-2zM6 18V6l9 6z",
   stop: "M6 6h12v12H6z",
+  list: "M3 5h2v2H3zm4 0h14v2H7zM3 11h2v2H3zm4 0h14v2H7zM3 17h2v2H3zm4 0h14v2H7z",
+  music: "M12 3v10.55A4 4 0 1 0 14 17V7h4V3zM10 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0",
   restart: "M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z",
   refresh: "M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h7V4z",
   chip: "M9 2v2H7a3 3 0 0 0-3 3v2H2v2h2v2H2v2h2v2a3 3 0 0 0 3 3h2v2h2v-2h2v2h2v-2h2a3 3 0 0 0 3-3v-2h2v-2h-2v-2h2V9h-2V7a3 3 0 0 0-3-3h-2V2h-2v2h-2V2zm0 6h6v8H9z",
@@ -164,6 +166,11 @@ class MaikaPanel extends HTMLElement {
     this._loading = false;
     this._renderFrame = null;
     this._lastSignature = "";
+    this._playlist = null;
+    this._playlistDialog = null;
+    this._playlistToken = 0;
+    this._playlistBusy = false;
+    this._playlistReturnFocus = false;
     this._onClick = this._onClick.bind(this);
     this._onInput = this._onInput.bind(this);
     this._onChange = this._onChange.bind(this);
@@ -745,6 +752,47 @@ class MaikaPanel extends HTMLElement {
       .media-now .ico svg { width: 22px; height: 22px; fill: currentColor; }
       .media-now .t { font-weight: 680; }
       .media-now .s { font-size: .8rem; color: var(--muted); }
+      .media-now__body { min-width: 0; display: grid; gap: 2px; }
+      .media-title {
+        display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0;
+        margin: 0; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+      }
+      .media-title .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .media-title svg { width: 16px; height: 16px; fill: var(--muted); flex: none; transition: fill .2s ease; }
+      .media-title:hover:not(:disabled) svg { fill: var(--accent); }
+      .media-title:disabled { cursor: default; }
+      .media-title:disabled svg { display: none; }
+      .media-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 7px; }
+
+      dialog.playlist { width: min(560px, 92vw); max-width: 100%; margin: auto; padding: 0; border: 0; background: transparent; color: var(--text); }
+      dialog.playlist::backdrop { background: rgba(12, 6, 2, .58); }
+      dialog.playlist:not([open]) { display: none; }
+      .sheet {
+        display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(78vh, 720px); overflow: hidden;
+        background: var(--glass-toolbar); border: 1px solid var(--line); border-radius: var(--radius);
+        box-shadow: var(--shadow); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      }
+      .sheet:focus { outline: none; }
+      .sheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px var(--pad); border-bottom: 1px solid var(--line); }
+      .sheet__head h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+      .sheet__close { min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; font-size: .84rem; cursor: pointer; }
+      .sheet__close:hover { background: var(--surface-3); }
+      .sheet__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .pl-list { overflow: auto; overscroll-behavior: contain; padding: 9px; display: grid; gap: 6px; }
+      .pl-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid transparent; background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+      .pl-item:hover:not(:disabled) { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 26%, var(--line)); }
+      .pl-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .pl-item:disabled { cursor: progress; opacity: .72; }
+      .pl-item--on { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); }
+      .pl-item__ico { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-3); color: var(--accent); }
+      .pl-item__ico svg { width: 16px; height: 16px; fill: currentColor; }
+      .pl-item__body { min-width: 0; flex: 1; display: grid; gap: 2px; }
+      .pl-item__t { font-weight: 620; font-size: .92rem; overflow-wrap: anywhere; }
+      .pl-item__s { font-size: .78rem; color: var(--muted); overflow-wrap: anywhere; }
+      .pl-item__badge { flex: none; font-size: .72rem; font-weight: 600; color: var(--accent); }
+      .pl-state { padding: 26px 18px; text-align: center; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+      .pl-state--bad { color: var(--bad); }
+      .pl-retry { justify-self: center; }
       .eq { display: flex; align-items: flex-end; gap: 3px; height: 16px; margin-left: auto; flex: none; }
       .eq i { width: 3px; border-radius: 2px; background: var(--accent); height: 100%; transform-origin: bottom; animation: eq .9s ease-in-out infinite; }
       .eq i:nth-child(2) { animation-delay: .12s; }
@@ -934,8 +982,9 @@ class MaikaPanel extends HTMLElement {
       }
       @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
         :host { background-image: none; }
-        .card, .toolbar { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+        .card, .toolbar, .sheet { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
         .hero-aura, .media-now::before { display: none; }
+        dialog.playlist::backdrop { background: rgba(12, 6, 2, .82); }
       }
     `;
     return style;
@@ -1251,10 +1300,23 @@ class MaikaPanel extends HTMLElement {
     const bars = h("div", {class: activity === "playing" ? "eq" : ["eq", "eq--idle"].join(" "), "aria-hidden": "true"});
     for (let index = 0; index < 4; index += 1) bars.append(h("i"));
 
+    const online = Boolean(state) && !UNKNOWN.has(state.state);
+    const title = attrs.media_title || this._speakerName();
     const now = h("div", {class: "media-now", "data-playing": activity === "playing"}, [
       h("div", {class: "ico"}, [svgIcon(playing ? ICONS.pause : ICONS.play)]),
-      h("div", {style: "min-width:0"}, [
-        h("div", {class: "t", text: attrs.media_title || this._speakerName()}),
+      h("div", {class: "media-now__body"}, [
+        h("button", {
+          class: "media-title",
+          type: "button",
+          dataset: {action: "playlist"},
+          "aria-haspopup": "dialog",
+          "aria-label": `Chọn bài trên ${this._speakerName()}`,
+          title: online ? "Chọn bài trong danh sách trên loa" : "Loa đang mất kết nối",
+          disabled: !online,
+        }, [
+          h("span", {class: "t", text: title}),
+          svgIcon(ICONS.list),
+        ]),
         h("div", {class: "s", text: this._activityLabel(activity)}),
       ]),
       bars,
@@ -1300,6 +1362,188 @@ class MaikaPanel extends HTMLElement {
         ]),
       ]),
     ], delay);
+  }
+
+  _ensurePlaylistDialog() {
+    let dialog = this.shadowRoot.querySelector("dialog.playlist");
+    if (dialog) {
+      this._playlistDialog = dialog;
+      return dialog;
+    }
+    dialog = h("dialog", {class: "playlist", "aria-labelledby": "playlist-heading"});
+    dialog.addEventListener("close", () => this._resetPlaylist());
+    dialog.addEventListener("cancel", () => { this._playlistToken += 1; });
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+    this.shadowRoot.append(dialog);
+    this._playlistDialog = dialog;
+    return dialog;
+  }
+
+  _openPlaylist() {
+    const media = this._entity("media_player");
+    if (!media) return;
+    const state = this._state(media);
+    if (!state || UNKNOWN.has(state.state)) {
+      this._notify("error", "Loa đang mất kết nối, chưa xem được danh sách bài.");
+      return;
+    }
+    if (this._playlistDialog?.open) return;
+    this._playlistToken += 1;
+    this._playlistReturnFocus = true;
+    this._playlist = {status: "loading", items: [], entity: media, serial: this._activeSerial()};
+    const dialog = this._ensurePlaylistDialog();
+    this._renderPlaylist();
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    this._loadPlaylist(this._playlistToken);
+  }
+
+  _closePlaylist() {
+    const dialog = this._playlistDialog;
+    if (dialog?.open) dialog.close();
+    else this._resetPlaylist();
+  }
+
+  _resetPlaylist() {
+    this._playlistToken += 1;
+    this._playlist = null;
+    this._playlistBusy = false;
+    if (!this._playlistReturnFocus) return;
+    this._playlistReturnFocus = false;
+    const opener = this.shadowRoot.querySelector('[data-action="playlist"]');
+    if (opener?.isConnected) opener.focus();
+  }
+
+  async _loadPlaylist(token) {
+    const media = this._playlist?.entity;
+    if (!media || typeof this._hass?.callWS !== "function") {
+      if (token === this._playlistToken) this._setPlaylistState("error", "Không tải được danh sách bài.");
+      return;
+    }
+    try {
+      const result = await this._hass.callWS({
+        type: "media_player/browse_media",
+        entity_id: media,
+        media_content_type: "maika_playlist",
+        media_content_id: "maika_playlist",
+      });
+      if (token !== this._playlistToken || !this._playlist) return;
+      if (this._activeSerial() !== this._playlist.serial || this._entity("media_player") !== media) return;
+      const children = Array.isArray(result?.children) ? result.children : [];
+      const current = this._state(media)?.attributes?.maika_queue_item_id || "";
+      const items = children
+        .filter((child) => child?.media_content_type === "maika_song" && child.media_content_id)
+        .map((child) => ({id: child.media_content_id, title: child.title || "Bài hát MAIKA", busy: false, current: child.media_content_id === current}));
+      this._playlist = {...this._playlist, status: items.length ? "ready" : "empty", items, title: result?.title || ""};
+      this._renderPlaylist();
+      const focusTarget = this.shadowRoot.querySelector(".pl-item--on") || this.shadowRoot.querySelector(".pl-item") || this.shadowRoot.querySelector(".sheet__close");
+      focusTarget?.focus();
+    } catch (err) {
+      if (token !== this._playlistToken) return;
+      this._setPlaylistState("error", this._playlistError(err));
+    }
+  }
+
+  _setPlaylistState(status, message) {
+    if (!this._playlist) return;
+    this._playlist = {...this._playlist, status, message};
+    this._renderPlaylist();
+  }
+
+  _playlistError(err) {
+    const key = err?.body?.message || err?.body?.error || err?.translation_key || err?.message || "";
+    const labels = {
+      maika_queue_unavailable: "Loa đang mất kết nối.",
+      maika_queue_refresh_failed: "Không đọc được danh sách bài từ loa.",
+      maika_queue_invalid_selection: "Bài này không còn trong danh sách.",
+    };
+    return labels[key] || "Không tải được danh sách bài.";
+  }
+
+  async _playPlaylistItem(id) {
+    const playlist = this._playlist;
+    if (!playlist || playlist.status !== "ready" || this._playlistBusy) return;
+    const item = playlist.items.find((entry) => entry.id === id);
+    if (!item || item.busy) return;
+    this._playlistBusy = true;
+    item.busy = true;
+    this._renderPlaylist();
+    try {
+      await this._hass.callService("media_player", "play_media", {
+        entity_id: playlist.entity,
+        media_content_type: "maika_song",
+        media_content_id: id,
+      });
+      if (this._playlist !== playlist) return;
+      this._playlistBusy = false;
+      this._notify("ok", "Đã chọn bài trên loa.");
+      this._closePlaylist();
+    } catch (err) {
+      if (this._playlist !== playlist) return;
+      item.busy = false;
+      this._playlistBusy = false;
+      playlist.status = "error";
+      playlist.message = this._playlistError(err);
+      this._renderPlaylist();
+    }
+  }
+
+  _renderPlaylist() {
+    const dialog = this._ensurePlaylistDialog();
+    const playlist = this._playlist || {status: "loading", items: []};
+    const rows = h("div", {class: "pl-list"});
+    if (playlist.status === "loading") {
+      rows.append(h("div", {class: "pl-state", role: "status", text: "Đang tải danh sách bài..."}));
+    } else if (playlist.status === "empty") {
+      rows.append(h("div", {class: "pl-state", text: "Loa chưa có danh sách bài. Hãy mở nhạc trên loa rồi thử lại."}));
+    } else if (playlist.status === "offline") {
+      rows.append(h("div", {class: "pl-state pl-state--bad", role: "alert", text: "Loa đang mất kết nối."}));
+    } else if (playlist.status === "error") {
+      rows.append(h("div", {class: "pl-state pl-state--bad", role: "alert", text: playlist.message || "Không tải được danh sách bài."}));
+      rows.append(h("button", {class: "btn pl-retry", type: "button", dataset: {action: "playlist-retry"}, text: "Thử lại"}));
+    } else {
+      for (const item of playlist.items) {
+        const [name, ...rest] = String(item.title).split(" — ");
+        rows.append(h("button", {
+          class: ["pl-item", item.current ? "pl-item--on" : ""].filter(Boolean).join(" "),
+          type: "button",
+          "aria-current": item.current ? "true" : null,
+          dataset: {action: "playlist-item", id: item.id},
+          disabled: item.busy,
+        }, [
+          h("span", {class: "pl-item__ico"}, [svgIcon(item.current ? ICONS.music : ICONS.play)]),
+          h("span", {class: "pl-item__body"}, [
+            h("span", {class: "pl-item__t", text: name}),
+            rest.length ? h("span", {class: "pl-item__s", text: rest.join(" — ")}) : null,
+          ]),
+          item.current ? h("span", {class: "pl-item__badge", text: "Đang phát"}) : null,
+          item.busy ? h("span", {class: "pl-item__badge", text: "Đang chọn..."}) : null,
+        ]));
+      }
+    }
+    const sheet = h("div", {class: "sheet", tabindex: "-1"}, [
+      h("header", {class: "sheet__head"}, [
+        h("h2", {id: "playlist-heading", text: playlist.title || "Danh sách bài trên loa"}),
+        h("button", {class: "sheet__close", type: "button", dataset: {action: "playlist-close"}, text: "Đóng"}),
+      ]),
+      rows,
+    ]);
+    dialog.replaceChildren(sheet);
+    return dialog;
+  }
+
+  _syncPlaylistCurrent() {
+    if (!this._playlist || this._playlist.status !== "ready") return;
+    const current = this._state(this._playlist.entity)?.attributes?.maika_queue_item_id || "";
+    let changed = false;
+    for (const item of this._playlist.items) {
+      const isCurrent = item.id === current;
+      if (item.current !== isCurrent) {
+        item.current = isCurrent;
+        changed = true;
+      }
+    }
+    if (changed) this._renderPlaylist();
   }
 
   _tbtn(icon, action, entity, extra) {
@@ -1882,7 +2126,7 @@ class MaikaPanel extends HTMLElement {
         const state = this._hass?.states?.[id];
         if (state) {
           const attrs = state.attributes || {};
-          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title, attrs.supported_features, attrs.media_position, attrs.media_duration, attrs.media_position_updated_at];
+          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title, attrs.supported_features, attrs.media_position, attrs.media_duration, attrs.media_position_updated_at, attrs.maika_song_key, attrs.maika_queue_item_id];
         }
       }
     }
@@ -1903,9 +2147,10 @@ class MaikaPanel extends HTMLElement {
 
   _maybeUpdate() {
     const signature = this._signature();
-    if (signature === this._lastSignature) { this._syncVoiceEditor(); return; }
+    if (signature === this._lastSignature) { this._syncVoiceEditor(); this._syncPlaylistCurrent(); return; }
     this._lastSignature = signature;
     this._render();
+    this._syncPlaylistCurrent();
   }
 
   _syncVoiceEditor() {
@@ -1963,6 +2208,7 @@ class MaikaPanel extends HTMLElement {
     const current = this._activeSerial();
     if (this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy || !serials.includes(serial) || serial === current) return false;
     const direction = serials.indexOf(serial) > serials.indexOf(current) ? 1 : -1;
+    this._closePlaylist();
     this._cancelGesture();
     this._deviceAnimation?.cancel();
     this._deviceSerial = serial;
@@ -2121,12 +2367,38 @@ class MaikaPanel extends HTMLElement {
     const action = target.dataset.action;
     const entity = target.dataset.entity;
 
+    if (action === "playlist") {
+      this._openPlaylist();
+      return;
+    }
+
+    if (action === "playlist-close") {
+      this._closePlaylist();
+      return;
+    }
+
+    if (action === "playlist-retry") {
+      if (!this._playlist) return;
+      this._playlistToken += 1;
+      this._playlistBusy = false;
+      this._playlist = {...this._playlist, status: "loading", message: null};
+      this._renderPlaylist();
+      this._loadPlaylist(this._playlistToken);
+      return;
+    }
+
+    if (action === "playlist-item") {
+      this._playPlaylistItem(target.dataset.id);
+      return;
+    }
+
     if (action === "entry") {
       if (this._busy) return;
       if (Number(target.dataset.index) === this._activeIndex) return;
       const editor = this.shadowRoot.querySelector("maika-voice-editor");
       if (editor?.isBusy) return;
       if (editor?.hasUnsavedChanges && !window.confirm("Đổi tài khoản và bỏ bản nháp giọng nói chưa lưu?")) return;
+      this._closePlaylist();
       this._onMotionChange();
       this._activeIndex = Number(target.dataset.index) || 0;
       this._deviceSerial = "";

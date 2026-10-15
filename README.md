@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.17.0**.
+Bản hiện tại: **v1.18.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -36,6 +36,7 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Cast MP3/MPEG và MP4/AAC từ URL, media source hoặc TTS Home Assistant tới loa qua cloud MAIKA (thử nghiệm, mặc định tắt).
 - Có thể phát MP3 MAIKA tích hợp hoặc URL MP3 riêng theo chế độ ưu tiên để che
   câu trả lời mặc định của loa, hoặc chỉ phát sau khi HASS thành công.
+- Chọn bài trong danh sách bài trên loa ngay trong panel, kể cả khi tắt cast cloud.
 - Duyệt các nguồn audio Home Assistant trực tiếp từ giao diện media player.
 - Tắt hoặc bật lại micro vật lý.
 - Cấu hình độ nhạy wake word, phản hồi wake word và giọng TTS.
@@ -66,6 +67,13 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.18.0` cho **chọn bài trực tiếp trong danh sách bài trên loa**: bấm tên
+bài đang phát để mở danh sách `latest_playlist` của loa rồi chọn bài, không cần
+bấm Trước/Tiếp. Integration duyệt queue native qua `media_player.browse_media`
+và chọn bài bằng một `JumpCommandIssued` với `songKey`, chạy cả khi tắt cast
+cloud. Bản này cũng sửa việc **tên bài hiển thị lệch khi ra lệnh bằng giọng
+nói**, do phản hồi live chỉ có volume hoặc cache cũ ghi đè metadata REST mới.
 
 Bản `1.17.0` thêm **nút Dừng phát** trong mục Điều khiển MAIKA và feature
 `STOP` cho action `media_player.media_stop`. API đã xác minh chưa có lệnh stop
@@ -132,13 +140,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.17.0
+## File phát hành v1.18.0
 
 - `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.17.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.17.0-manual.zip`: cài thủ công vào `/config`.
+- `maika-v1.18.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
+- `maika-manual.zip` và `maika-v1.18.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.17.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.18.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

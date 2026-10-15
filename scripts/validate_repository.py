@@ -947,7 +947,7 @@ def _validate_panel_configuration(errors: list[str]) -> None:
                 async_stop=lambda: record_stop("license_stop")
             ),
             coordinator=types.SimpleNamespace(
-                async_stop_voice_subscriptions=lambda: record_stop("voice_stop")
+                async_stop=lambda: record_stop("coordinator_stop")
             ),
             client=types.SimpleNamespace(async_stop=lambda: record_stop("client_stop")),
         )
@@ -958,7 +958,7 @@ def _validate_panel_configuration(errors: list[str]) -> None:
         events.clear()
         hass.unload_ok = True
         assert await namespace["async_unload_entry"](hass, entry)
-        assert events == ["unload", "license_stop", "voice_stop", "client_stop"]
+        assert events == ["unload", "license_stop", "coordinator_stop", "client_stop"]
         assert hass.data["panel"]
         del entry.runtime_data
         other = types.SimpleNamespace(entry_id="other")
@@ -1054,6 +1054,10 @@ def validate(
             _validate_media_cast_config(errors)
             playback_tests = runpy.run_path(str(ROOT / "scripts/test_media_player.py"))
             errors.extend(playback_tests["validate_media_player"]())
+            live_playback_tests = runpy.run_path(
+                str(ROOT / "scripts/test_live_playback.py")
+            )
+            errors.extend(live_playback_tests["validate_live_playback"]())
             _validate_panel_configuration(errors)
 
     if hacs_path.is_file():

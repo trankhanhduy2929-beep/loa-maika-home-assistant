@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-import logging
+import hashlib
+import json
 import math
+import re
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from homeassistant.components import media_source
 from homeassistant.components.media_player import (
+    BrowseError,
     BrowseMedia,
+    MediaClass,
     MediaPlayerDeviceClass,
     MediaPlayerEnqueue,
     MediaPlayerEntity,
@@ -44,12 +48,10 @@ _BASE_SUPPORTED_FEATURES = (
     | MediaPlayerEntityFeature.STOP
     | MediaPlayerEntityFeature.NEXT_TRACK
     | MediaPlayerEntityFeature.PREVIOUS_TRACK
-)
-_CLOUD_CAST_SUPPORTED_FEATURES = (
-    MediaPlayerEntityFeature.PLAY_MEDIA
+    | MediaPlayerEntityFeature.PLAY_MEDIA
     | MediaPlayerEntityFeature.BROWSE_MEDIA
-    | MediaPlayerEntityFeature.SEEK
 )
+_CLOUD_CAST_SUPPORTED_FEATURES = MediaPlayerEntityFeature.SEEK
 _CLOUD_CAST_STREAM_FORMATS = {
     "application/ogg": "AUDIO_MPEG",
     "application/octet-stream": "AUDIO_MPEG",
@@ -79,7 +81,13 @@ _CLOUD_CAST_STREAM_FORMATS = {
     "url": "AUDIO_MPEG",
 }
 _DEFAULT_UNMUTE_VOLUME = 0.3
-_LOGGER = logging.getLogger(__name__)
+_MEDIA_ROOT = "maika_root"
+_MEDIA_PLAYLIST = "maika_playlist"
+_MEDIA_SONG = "maika_song"
+_QUEUE_TITLE = "Danh sách trên loa MAIKA"
+_MAX_SONG_KEY_BYTES = 512
+_MAX_QUEUE_ITEM_ID_LENGTH = 71 + _MAX_SONG_KEY_BYTES * 3
+_QUEUE_ITEM_ID_PATTERN = re.compile(r"maika:([0-9a-f]{64}):([A-Za-z0-9_.~%\-]+)")
 
 
 async def async_setup_entry(
@@ -180,17 +188,39 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             attributes.get("url"),
             attributes.get("mediaId"),
             attributes.get("media_id"),
-            attributes.get("songKey"),
             attributes.get("key"),
+            attributes.get("songKey"),
+            attributes.get("id"),
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attributes = self._playback_attributes
+        key = next(
+            (
+                key
+                for field in ("key", "songKey", "id")
+                if (key := self._valid_song_key(attributes.get(field))) is not None
+            ),
+            None,
+        )
+        if key is None:
+            return {}
+        result = {"maika_song_key": key}
+        playlist, songs = self._native_playlist()
+        if any(song.get("songKey") == key for song in songs):
+            result["maika_queue_item_id"] = self._queue_item_id(
+                self._queue_revision(playlist), key
+            )
+        return result
 
     @property
     def media_title(self) -> str | None:
         """Return current media title."""
         attributes = self._playback_attributes
         return self._first_string(
-            attributes.get("title"),
             attributes.get("song"),
+            attributes.get("title"),
             attributes.get("name"),
         )
 
@@ -307,12 +337,145 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         media_content_type: MediaType | str | None = None,
         media_content_id: str | None = None,
     ) -> BrowseMedia:
-        """Browse audio exposed by Home Assistant media sources."""
+        if (
+            media_content_type == _MEDIA_PLAYLIST
+            and media_content_id == _MEDIA_PLAYLIST
+        ):
+            return await self._async_browse_playlist()
+        if media_content_id and media_source.is_media_source_id(media_content_id):
+            return await self._async_browse_sources(media_content_id)
+        if (not media_content_type and not media_content_id) or (
+            media_content_type == _MEDIA_ROOT and media_content_id == _MEDIA_ROOT
+        ):
+            playlist = await self._async_browse_playlist()
+            if not self._cloud_cast_enabled:
+                return playlist
+            sources = await self._async_browse_sources(None)
+            return BrowseMedia(
+                media_class=MediaClass.DIRECTORY,
+                media_content_type=_MEDIA_ROOT,
+                media_content_id=_MEDIA_ROOT,
+                title="MAIKA",
+                can_play=False,
+                can_expand=True,
+                children=[playlist, sources],
+            )
+        raise BrowseError(
+            translation_domain=DOMAIN,
+            translation_key="maika_queue_invalid_selection",
+        )
+
+    async def _async_browse_sources(self, media_content_id: str | None) -> BrowseMedia:
         return await media_source.async_browse_media(
             self.hass,
             media_content_id,
             content_filter=lambda item: item.media_content_type.startswith("audio/"),
         )
+
+    async def _async_browse_playlist(self) -> BrowseMedia:
+        if not self.available:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_unavailable",
+            )
+        try:
+            refreshed = await self.coordinator.async_refresh_live(
+                self.serial_number, required_fields=("latest_playlist",)
+            )
+        except (MaikaApiError, ConfigEntryAuthFailed) as err:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_refresh_failed",
+            ) from err
+        if refreshed is False:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_refresh_failed",
+            )
+        if not self.available:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_unavailable",
+            )
+        playlist, songs = self._native_playlist()
+        revision = self._queue_revision(playlist)
+        children = []
+        for song in songs:
+            key = self._valid_song_key(song.get("songKey"))
+            title = self._first_string(song.get("song")) or "Bài hát MAIKA"
+            artist = self._first_string(song.get("artist"))
+            children.append(
+                BrowseMedia(
+                    media_class=MediaClass.TRACK,
+                    media_content_type=_MEDIA_SONG,
+                    media_content_id=self._queue_item_id(revision, key) if key else "",
+                    title=f"{title} — {artist}" if artist else title,
+                    can_play=key is not None,
+                    can_expand=False,
+                )
+            )
+        return BrowseMedia(
+            media_class=MediaClass.PLAYLIST,
+            media_content_type=_MEDIA_PLAYLIST,
+            media_content_id=_MEDIA_PLAYLIST,
+            title=self._first_string(playlist.get("title")) or _QUEUE_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.TRACK,
+            children=children,
+        )
+
+    def _native_playlist(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        playlist = self.device.get("latest_playlist")
+        if not isinstance(playlist, dict):
+            return {}, []
+        songs = playlist.get("songs")
+        return playlist, (
+            [song for song in songs if isinstance(song, dict)]
+            if isinstance(songs, list)
+            else []
+        )
+
+    def _queue_revision(self, playlist: dict[str, Any]) -> str:
+        songs = playlist.get("songs")
+        keys = (
+            [
+                song.get("songKey")
+                if isinstance(song, dict) and isinstance(song.get("songKey"), str)
+                else None
+                for song in songs
+            ]
+            if isinstance(songs, list)
+            else []
+        )
+        identity = [
+            self.serial_number,
+            playlist.get("listKey"),
+            playlist.get("source"),
+            keys,
+        ]
+        return hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _valid_song_key(value: Any) -> str | None:
+        if (
+            not isinstance(value, str)
+            or not value.strip()
+            or len(value) > _MAX_SONG_KEY_BYTES
+            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value)
+        ):
+            return None
+        try:
+            encoded = value.encode("utf-8")
+        except UnicodeEncodeError:
+            return None
+        return value if len(encoded) <= _MAX_SONG_KEY_BYTES else None
+
+    @staticmethod
+    def _queue_item_id(revision: str, key: str) -> str:
+        return f"maika:{revision}:{quote(key, safe='')}"
 
     async def async_media_play(self) -> None:
         """Resume playback."""
@@ -407,7 +570,9 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         media_id: str,
         **kwargs: Any,
     ) -> None:
-        """Cast one supported audio URL to the physical MAIKA speaker."""
+        if media_type == _MEDIA_SONG:
+            await self._async_jump_to_song(media_id, kwargs.get("enqueue"))
+            return
         if not self._cloud_cast_enabled:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -496,6 +661,77 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         )
         self._schedule_live_refresh()
 
+    async def _async_jump_to_song(self, media_id: str, enqueue: Any) -> None:
+        if not self.available:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_unavailable",
+            )
+        if enqueue not in (None, MediaPlayerEnqueue.PLAY, MediaPlayerEnqueue.REPLACE):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_unsupported_mode",
+            )
+        if (
+            not isinstance(media_id, str)
+            or len(media_id) > _MAX_QUEUE_ITEM_ID_LENGTH
+            or (match := _QUEUE_ITEM_ID_PATTERN.fullmatch(media_id)) is None
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_invalid_selection",
+            )
+        revision, encoded_key = match.groups()
+        try:
+            key = self._valid_song_key(unquote(encoded_key, errors="strict"))
+        except UnicodeDecodeError:
+            key = None
+        if key is None or self._queue_item_id(revision, key) != media_id:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_invalid_selection",
+            )
+        try:
+            refreshed = await self.coordinator.async_refresh_live(
+                self.serial_number, required_fields=("latest_playlist",)
+            )
+        except (MaikaApiError, ConfigEntryAuthFailed) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_refresh_failed",
+            ) from err
+        if refreshed is False:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_refresh_failed",
+            )
+        if not self.available:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_unavailable",
+            )
+        playlist, songs = self._native_playlist()
+        if revision != self._queue_revision(playlist):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_changed",
+            )
+        if not any(song.get("songKey") == key for song in songs):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_invalid_selection",
+            )
+        try:
+            await self.coordinator.client.async_playback_command(
+                self.serial_number, "JumpCommandIssued", song_key=key
+            )
+        except MaikaApiError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_jump_failed",
+            ) from err
+        self._schedule_live_refresh()
+
     async def _async_playback_command(
         self, command: str, optimistic_status: str | None
     ) -> None:
@@ -531,9 +767,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         if url and is_valid_http_media_url(url):
             return {
                 "url": url,
-                "title": self._first_string(
-                    attributes.get("title"), attributes.get("song")
-                ),
+                "title": self.media_title,
                 "media_type": self._first_string(
                     attributes.get("mediaType"), attributes.get("media_type")
                 )
@@ -554,15 +788,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
     @callback
     def _schedule_live_refresh(self) -> None:
         """Refresh live data in the background so commands return fast."""
-        self.hass.async_create_task(self._async_live_refresh())
-
-    async def _async_live_refresh(self) -> None:
-        try:
-            await self.coordinator.async_refresh_live(self.serial_number)
-        except ConfigEntryAuthFailed:
-            _LOGGER.debug("MAIKA live refresh requires reauthentication")
-        except MaikaApiError:
-            _LOGGER.debug("MAIKA live refresh failed")
+        self.coordinator.async_schedule_playback_refresh(self.serial_number)
 
     @property
     def _current_playback(self) -> dict[str, Any]:

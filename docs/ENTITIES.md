@@ -19,10 +19,10 @@ Entity ID thực tế có thể khác; cột `Key` là khóa unique nội bộ/t
 - `STOP`: API đã xác minh chưa có lệnh stop riêng; gửi `PauseCommandIssued`, báo `paused` và giữ vị trí để phát tiếp (không reset bài hoặc xóa hàng đợi).
 - `NEXT_TRACK`: `NextCommandIssued`.
 - `PREVIOUS_TRACK`: `PreviousCommandIssued`.
-- `PLAY_MEDIA`: chỉ bật khi option `enable_experimental_cloud_cast` được bật; gửi `CommandHandOver/SystemControl` chứa `Play/AudioPlayer` và `mediaCard` tới đúng serial loa.
-- `BROWSE_MEDIA`: chỉ bật cùng cloud cast; duyệt các nguồn audio từ Home Assistant media source.
+- `PLAY_MEDIA`: chọn bài trong **danh sách bài trên loa** luôn hoạt động, kể cả khi tắt cloud cast: gửi đúng một `JumpCommandIssued` với `songKey` sau khi đọc lại `latest_playlist` và xác minh bài còn trong queue. Với URL và `media-source://`, chỉ bật khi option `enable_experimental_cloud_cast` được bật; gửi `CommandHandOver/SystemControl` chứa `Play/AudioPlayer` và `mediaCard` tới đúng serial loa.
+- `BROWSE_MEDIA`: luôn bật; trả cây queue native gồm playlist `maika_playlist` và các bài `maika_song`. Khi bật cloud cast, thêm nhánh nguồn audio từ Home Assistant media source. `media_player.play_media` nhận lại nguyên `media_content_id` của bài, không tự ghép ID hay chọn theo thứ tự.
 - `SEEK`: chỉ bật cùng cloud cast; gửi lại `CommandHandOver` với `mediaOffset` mới cho bài đang cast từ Home Assistant.
-- Metadata khi cloud cung cấp: content ID/URL, title, artist/narrator, album, playlist, artwork, media type và position.
+- Metadata khi cloud cung cấp: content ID/URL, title, artist/narrator, album, playlist, artwork, media type và position. Hai thuộc tính `maika_song_key` và `maika_queue_item_id` cho biết bài đang phát và ID queue khớp, để panel đánh dấu bài hiện tại.
 
 Cloud cast hỗ trợ URL HTTP(S), đường dẫn Home Assistant và `media-source://` cho MP3/MPEG, MP4/AAC và các định dạng audio thường gặp khác (FLAC, WAV, OGG, Opus, WebM). Từ `1.15.0`, URL trỏ về Home Assistant nhưng dùng tên mDNS/tên nội bộ được tự đổi sang địa chỉ LAN mà loa truy cập được. Cờ `announce=true` dùng bởi `tts.speak` được chấp nhận theo kiểu thay thế nội dung đang phát. Tua theo giây hoạt động cho bài đang cast; không hỗ trợ queue `add/next`, dừng phát native (nút `STOP` chỉ là best-effort), native announcement có khôi phục, video hoặc URL có username/password. Xem `docs/CLOUD_CAST.md`.
 
