@@ -60,6 +60,7 @@ REQUIRED_FILES = (
     "custom_components/maika/license_store.py",
     "custom_components/maika/voice_success_audio.py",
     "custom_components/maika/voice_rules.py",
+    "custom_components/maika/content_store.py",
     "custom_components/maika/brand/icon.png",
     "custom_components/maika/manifest.json",
     "custom_components/maika/strings.json",
@@ -1058,6 +1059,10 @@ def validate(
                 str(ROOT / "scripts/test_live_playback.py")
             )
             errors.extend(live_playback_tests["validate_live_playback"]())
+            content_store_tests = runpy.run_path(
+                str(ROOT / "scripts/test_content_store.py")
+            )
+            errors.extend(content_store_tests["validate_content_store"]())
             _validate_panel_configuration(errors)
 
     if hacs_path.is_file():

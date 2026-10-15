@@ -77,6 +77,12 @@
     "maika_queue_jump_failed": {
       "message": "MAIKA did not accept the request to select this song."
     },
+    "maika_content_store_failed": {
+      "message": "Unable to load the MAIKA entertainment library. Check the connection and try browsing again."
+    },
+    "maika_content_store_invalid_selection": {
+      "message": "This entertainment library item is invalid. Browse the MAIKA library and select an item again."
+    },
     "cloud_cast_disabled": {
       "message": "Cloud audio casting is disabled. Open the MAIKA panel → Speaker settings to enable it."
     },

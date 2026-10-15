@@ -84,6 +84,16 @@ class ApiError(Exception):
     pass
 
 
+class ContentStoreStub:
+    def __init__(self, client):
+        self.client = client
+        self.async_channels = AsyncMock(return_value=[])
+        self.async_categories = AsyncMock(return_value=[])
+        self.async_highlights = AsyncMock(return_value=[])
+        self.async_channel_medias = AsyncMock(return_value=[])
+        self.async_episodes = AsyncMock(return_value=[])
+
+
 class Clock:
     current = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -138,8 +148,15 @@ def load_player():
         "BrowseMedia": BrowseMedia,
         "BrowseError": BrowseError,
         "MediaClass": SimpleNamespace(
-            DIRECTORY="directory", PLAYLIST="playlist", TRACK="track"
+            DIRECTORY="directory",
+            PLAYLIST="playlist",
+            TRACK="track",
+            CHANNEL="channel",
+            GENRE="genre",
+            ALBUM="album",
+            MUSIC="music",
         ),
+        "MaikaContentStore": ContentStoreStub,
         "media_source": SimpleNamespace(
             is_media_source_id=lambda value: (
                 isinstance(value, str) and value.startswith("media-source://")
@@ -431,14 +448,19 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(player._attr_supported_features & Features.PLAY_MEDIA)
         self.assertFalse(player._attr_supported_features & Features.SEEK)
         result = await player.async_browse_media()
-        self.assertEqual(result.media_content_type, "maika_playlist")
-        self.assertEqual(result.media_content_id, "maika_playlist")
-        self.assertEqual(len(result.children), 2)
+        self.assertEqual(result.media_content_type, "maika_root")
+        self.assertEqual(result.media_content_id, "maika_root")
+        playlist = result.children[0]
+        self.assertEqual(playlist.media_content_type, "maika_playlist")
+        self.assertEqual(playlist.media_content_id, "maika_playlist")
+        self.assertEqual(len(playlist.children), 2)
         self.media_source.async_browse_media.assert_not_awaited()
         self.coordinator.async_refresh_live.assert_awaited_once_with(
             "speaker-one", required_fields=("latest_playlist",)
         )
-        await player.async_play_media("maika_song", result.children[1].media_content_id)
+        await player.async_play_media(
+            "maika_song", playlist.children[1].media_content_id
+        )
         self.client.async_playback_command.assert_awaited_once_with(
             "speaker-one", "JumpCommandIssued", song_key="key-two"
         )
@@ -1152,11 +1174,113 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             "maika_queue_changed",
             "maika_queue_unsupported_mode",
             "maika_queue_jump_failed",
+            "maika_content_store_failed",
+            "maika_content_store_invalid_selection",
         ):
             with self.subTest(key=key):
                 self.assertEqual(strings["exceptions"][key], english["exceptions"][key])
                 self.assertTrue(vietnamese["exceptions"][key]["message"])
         self.assert_no_playback()
+
+    def content_store(self):
+        return self.player._content_store
+
+    async def test_content_store_browse_tree_and_play(self):
+        self.content_store().async_channels.return_value = [
+            {"id": 7, "name": "VOV Giao thông", "cover": None}
+        ]
+        self.content_store().async_channel_medias.return_value = [
+            {
+                "id": 100,
+                "title": "Bản tin sáng",
+                "cover": None,
+                "audio": "https://cdn/100.mp3",
+                "is_list": False,
+            }
+        ]
+        root = await self.player.async_browse_media("maika_cs_root", "maika_cs_root")
+        self.assertEqual(
+            [child.media_content_id for child in root.children],
+            ["maika_cs_channels", "maika_cs_categories", "maika_cs_highlights"],
+        )
+        channels = await self.player.async_browse_media(
+            "maika_cs_channels", "maika_cs_channels"
+        )
+        self.assertEqual(channels.children[0].media_content_id, "maika_cs_channel:7")
+        medias = await self.player.async_browse_media(
+            "maika_cs_channel:7", "maika_cs_channel:7"
+        )
+        track = medias.children[0]
+        self.assertEqual(track.media_content_type, "maika_cs_track")
+        self.assertEqual(track.media_content_id, "https://cdn/100.mp3")
+        self.assertTrue(track.can_play)
+        await self.player.async_play_media("maika_cs_track", track.media_content_id)
+        self.client.async_cast_media.assert_awaited_once()
+        args, kwargs = self.client.async_cast_media.call_args
+        self.assertEqual(args[0], "speaker-one")
+        self.assertEqual(args[1], "https://cdn/100.mp3")
+        self.assertEqual(kwargs["stream_format"], "AUDIO_MPEG")
+
+    async def test_content_store_media_without_audio_expands_to_episodes(self):
+        self.content_store().async_channels.return_value = []
+        self.content_store().async_channel_medias.return_value = [
+            {
+                "id": 200,
+                "title": "Series",
+                "cover": None,
+                "audio": None,
+                "is_list": True,
+            }
+        ]
+        medias = await self.player.async_browse_media(
+            "maika_cs_channel:9", "maika_cs_channel:9"
+        )
+        album = medias.children[0]
+        self.assertEqual(album.media_content_id, "maika_cs_media:200")
+        self.assertTrue(album.can_expand)
+        self.content_store().async_episodes.return_value = [
+            {
+                "id": 300,
+                "title": "Tập 1",
+                "cover": None,
+                "audio": "https://cdn/300.mp3",
+                "duration": 1800,
+            }
+        ]
+        episodes = await self.player.async_browse_media(
+            "maika_cs_media:200", "maika_cs_media:200"
+        )
+        self.assertEqual(episodes.children[0].media_content_id, "https://cdn/300.mp3")
+        self.content_store().async_episodes.assert_awaited_once_with(200)
+
+    async def test_content_store_play_requires_cloud_cast(self):
+        self.player._cloud_cast_enabled = False
+        with self.assertRaises(ValidationError) as error:
+            await self.player.async_play_media("maika_cs_track", "https://cdn/x.mp3")
+        self.assertEqual(error.exception.translation_key, "cloud_cast_disabled")
+        self.client.async_cast_media.assert_not_awaited()
+
+    async def test_content_store_play_rejects_non_http_url(self):
+        with self.assertRaises(ValidationError) as error:
+            await self.player.async_play_media("maika_cs_track", "not-a-url")
+        self.assertEqual(error.exception.translation_key, "cloud_cast_invalid_url")
+
+    async def test_content_store_failure_raises_browse_error(self):
+        self.content_store().async_channels.side_effect = ApiError("boom")
+        with self.assertRaises(BrowseError) as error:
+            await self.player.async_browse_media(
+                "maika_cs_channels", "maika_cs_channels"
+            )
+        self.assertEqual(error.exception.translation_key, "maika_content_store_failed")
+
+    async def test_content_store_invalid_selection_raises_browse_error(self):
+        with self.assertRaises(BrowseError) as error:
+            await self.player.async_browse_media(
+                "maika_cs_channel:abc", "maika_cs_channel:abc"
+            )
+        self.assertEqual(
+            error.exception.translation_key, "maika_content_store_invalid_selection"
+        )
 
 
 def validate_media_player():

@@ -37,6 +37,7 @@ from . import MaikaConfigEntry
 from .api import MaikaApiError
 from .cast_target import cast_ready_url
 from .const import CONF_CLOUD_CAST_BASE_URL, CONF_ENABLE_CLOUD_CAST, DOMAIN
+from .content_store import MaikaContentStore
 from .entity import MaikaCommandEntity
 from .media_url import is_valid_http_media_url
 
@@ -84,6 +85,18 @@ _DEFAULT_UNMUTE_VOLUME = 0.3
 _MEDIA_ROOT = "maika_root"
 _MEDIA_PLAYLIST = "maika_playlist"
 _MEDIA_SONG = "maika_song"
+_MEDIA_CS_ROOT = "maika_cs_root"
+_MEDIA_CS_CHANNELS = "maika_cs_channels"
+_MEDIA_CS_CATEGORIES = "maika_cs_categories"
+_MEDIA_CS_HIGHLIGHTS = "maika_cs_highlights"
+_MEDIA_CS_CHANNEL_PREFIX = "maika_cs_channel:"
+_MEDIA_CS_CATEGORY_PREFIX = "maika_cs_category:"
+_MEDIA_CS_MEDIA_PREFIX = "maika_cs_media:"
+_MEDIA_CS_TRACK = "maika_cs_track"
+_CS_ROOT_TITLE = "Thư viện giải trí MAIKA"
+_CS_CHANNELS_TITLE = "Kênh"
+_CS_CATEGORIES_TITLE = "Thể loại"
+_CS_HIGHLIGHTS_TITLE = "Nổi bật"
 _QUEUE_TITLE = "Danh sách trên loa MAIKA"
 _MAX_SONG_KEY_BYTES = 512
 _MAX_QUEUE_ITEM_ID_LENGTH = 71 + _MAX_SONG_KEY_BYTES * 3
@@ -117,6 +130,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         self._reported_playback: tuple[Any, ...] | None = None
         self._volume_before_mute: float | None = None
         self._last_cast_media: dict[str, Any] | None = None
+        self._content_store = MaikaContentStore(coordinator.client)
         self._cloud_cast_enabled = bool(
             coordinator.entry.options.get(CONF_ENABLE_CLOUD_CAST, False)
         )
@@ -342,15 +356,17 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             and media_content_id == _MEDIA_PLAYLIST
         ):
             return await self._async_browse_playlist()
+        if media_content_id and media_content_id.startswith("maika_cs_"):
+            return await self._async_browse_content_store(media_content_id)
         if media_content_id and media_source.is_media_source_id(media_content_id):
             return await self._async_browse_sources(media_content_id)
         if (not media_content_type and not media_content_id) or (
             media_content_type == _MEDIA_ROOT and media_content_id == _MEDIA_ROOT
         ):
-            playlist = await self._async_browse_playlist()
-            if not self._cloud_cast_enabled:
-                return playlist
-            sources = await self._async_browse_sources(None)
+            children = [await self._async_browse_playlist()]
+            if self._cloud_cast_enabled:
+                children.append(await self._async_browse_sources(None))
+            children.append(self._content_store_root())
             return BrowseMedia(
                 media_class=MediaClass.DIRECTORY,
                 media_content_type=_MEDIA_ROOT,
@@ -358,11 +374,217 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 title="MAIKA",
                 can_play=False,
                 can_expand=True,
-                children=[playlist, sources],
+                children=children,
             )
         raise BrowseError(
             translation_domain=DOMAIN,
             translation_key="maika_queue_invalid_selection",
+        )
+
+    def _content_store_root(self) -> BrowseMedia:
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_CS_ROOT,
+            media_content_id=_MEDIA_CS_ROOT,
+            title=_CS_ROOT_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.DIRECTORY,
+            children=[
+                self._cs_directory(_MEDIA_CS_CHANNELS, _CS_CHANNELS_TITLE),
+                self._cs_directory(_MEDIA_CS_CATEGORIES, _CS_CATEGORIES_TITLE),
+                self._cs_directory(_MEDIA_CS_HIGHLIGHTS, _CS_HIGHLIGHTS_TITLE),
+            ],
+        )
+
+    @staticmethod
+    def _cs_directory(media_id: str, title: str) -> BrowseMedia:
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=media_id,
+            media_content_id=media_id,
+            title=title,
+            can_play=False,
+            can_expand=True,
+        )
+
+    async def _async_browse_content_store(self, media_content_id: str) -> BrowseMedia:
+        if not self.available:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_queue_unavailable",
+            )
+        try:
+            if media_content_id == _MEDIA_CS_ROOT:
+                return self._content_store_root()
+            if media_content_id == _MEDIA_CS_CHANNELS:
+                return await self._async_browse_cs_channels()
+            if media_content_id == _MEDIA_CS_CATEGORIES:
+                return await self._async_browse_cs_categories()
+            if media_content_id == _MEDIA_CS_HIGHLIGHTS:
+                return await self._async_browse_cs_highlights(
+                    None, _CS_HIGHLIGHTS_TITLE
+                )
+            if media_content_id.startswith(_MEDIA_CS_CHANNEL_PREFIX):
+                channel_id = self._cs_int(media_content_id, _MEDIA_CS_CHANNEL_PREFIX)
+                return await self._async_browse_cs_channel_medias(
+                    channel_id, _CS_CHANNELS_TITLE
+                )
+            if media_content_id.startswith(_MEDIA_CS_CATEGORY_PREFIX):
+                value = media_content_id[len(_MEDIA_CS_CATEGORY_PREFIX) :]
+                return await self._async_browse_cs_highlights(value, value)
+            if media_content_id.startswith(_MEDIA_CS_MEDIA_PREFIX):
+                media_id = self._cs_int(media_content_id, _MEDIA_CS_MEDIA_PREFIX)
+                return await self._async_browse_cs_episodes(media_id)
+        except MaikaApiError as err:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_content_store_failed",
+            ) from err
+        raise BrowseError(
+            translation_domain=DOMAIN,
+            translation_key="maika_content_store_invalid_selection",
+        )
+
+    @staticmethod
+    def _cs_int(media_id: str, prefix: str) -> int:
+        raw = media_id[len(prefix) :]
+        if not raw.lstrip("-").isdigit():
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_content_store_invalid_selection",
+            )
+        return int(raw)
+
+    @staticmethod
+    def _cs_cover(cover: str | None) -> str | None:
+        return cover if cover and is_valid_http_media_url(cover) else None
+
+    async def _async_browse_cs_channels(self) -> BrowseMedia:
+        channels = await self._content_store.async_channels()
+        children = [
+            BrowseMedia(
+                media_class=MediaClass.CHANNEL,
+                media_content_type=f"{_MEDIA_CS_CHANNEL_PREFIX}{channel['id']}",
+                media_content_id=f"{_MEDIA_CS_CHANNEL_PREFIX}{channel['id']}",
+                title=channel["name"],
+                can_play=False,
+                can_expand=True,
+                thumbnail=self._cs_cover(channel.get("cover")),
+            )
+            for channel in channels
+        ]
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_CS_CHANNELS,
+            media_content_id=_MEDIA_CS_CHANNELS,
+            title=_CS_CHANNELS_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.CHANNEL,
+            children=children,
+        )
+
+    async def _async_browse_cs_categories(self) -> BrowseMedia:
+        categories = await self._content_store.async_categories()
+        children = [
+            BrowseMedia(
+                media_class=MediaClass.GENRE,
+                media_content_type=f"{_MEDIA_CS_CATEGORY_PREFIX}{category['value']}",
+                media_content_id=f"{_MEDIA_CS_CATEGORY_PREFIX}{category['value']}",
+                title=category["title"],
+                can_play=False,
+                can_expand=True,
+            )
+            for category in categories
+        ]
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_CS_CATEGORIES,
+            media_content_id=_MEDIA_CS_CATEGORIES,
+            title=_CS_CATEGORIES_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.GENRE,
+            children=children,
+        )
+
+    async def _async_browse_cs_highlights(
+        self, category: str | None, title: str
+    ) -> BrowseMedia:
+        medias = await self._content_store.async_highlights(category)
+        media_content_type = (
+            f"{_MEDIA_CS_CATEGORY_PREFIX}{category}"
+            if category
+            else _MEDIA_CS_HIGHLIGHTS
+        )
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=media_content_type,
+            media_content_id=media_content_type,
+            title=title,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.ALBUM,
+            children=[self._cs_media_node(media) for media in medias],
+        )
+
+    async def _async_browse_cs_channel_medias(
+        self, channel_id: int, title: str
+    ) -> BrowseMedia:
+        medias = await self._content_store.async_channel_medias(channel_id)
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=f"{_MEDIA_CS_CHANNEL_PREFIX}{channel_id}",
+            media_content_id=f"{_MEDIA_CS_CHANNEL_PREFIX}{channel_id}",
+            title=title,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.ALBUM,
+            children=[self._cs_media_node(media) for media in medias],
+        )
+
+    def _cs_media_node(self, media: dict[str, Any]) -> BrowseMedia:
+        audio = media.get("audio")
+        if audio and not media.get("is_list") and is_valid_http_media_url(audio):
+            return self._cs_track(audio, media.get("title"), media.get("cover"))
+        return BrowseMedia(
+            media_class=MediaClass.ALBUM,
+            media_content_type=f"{_MEDIA_CS_MEDIA_PREFIX}{media['id']}",
+            media_content_id=f"{_MEDIA_CS_MEDIA_PREFIX}{media['id']}",
+            title=media.get("title") or f"MAIKA {media['id']}",
+            can_play=False,
+            can_expand=True,
+            thumbnail=self._cs_cover(media.get("cover")),
+        )
+
+    async def _async_browse_cs_episodes(self, media_id: int) -> BrowseMedia:
+        episodes = await self._content_store.async_episodes(media_id)
+        children = [
+            self._cs_track(episode["audio"], episode.get("title"), episode.get("cover"))
+            for episode in episodes
+        ]
+        return BrowseMedia(
+            media_class=MediaClass.ALBUM,
+            media_content_type=f"{_MEDIA_CS_MEDIA_PREFIX}{media_id}",
+            media_content_id=f"{_MEDIA_CS_MEDIA_PREFIX}{media_id}",
+            title=f"MAIKA {media_id}",
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.MUSIC,
+            children=children,
+        )
+
+    @staticmethod
+    def _cs_track(audio: str, title: str | None, cover: str | None) -> BrowseMedia:
+        return BrowseMedia(
+            media_class=MediaClass.MUSIC,
+            media_content_type=_MEDIA_CS_TRACK,
+            media_content_id=audio,
+            title=title or "MAIKA",
+            can_play=True,
+            can_expand=False,
+            thumbnail=cover if cover and is_valid_http_media_url(cover) else None,
         )
 
     async def _async_browse_sources(self, media_content_id: str | None) -> BrowseMedia:
@@ -573,6 +795,9 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         if media_type == _MEDIA_SONG:
             await self._async_jump_to_song(media_id, kwargs.get("enqueue"))
             return
+        if media_type == _MEDIA_CS_TRACK:
+            await self._async_cast_content_store(media_id, kwargs.get("extra"))
+            return
         if not self._cloud_cast_enabled:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -659,6 +884,32 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 }
             },
         )
+        self._schedule_live_refresh()
+
+    async def _async_cast_content_store(self, media_url: str, extra: Any) -> None:
+        if not self._cloud_cast_enabled:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_cast_disabled",
+            )
+        if not isinstance(media_url, str) or not is_valid_http_media_url(media_url):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_cast_invalid_url",
+            )
+        title = self._media_title(extra, media_url, media_url)
+        try:
+            await self.coordinator.client.async_cast_media(
+                self.serial_number,
+                media_url,
+                title=title,
+                stream_format="AUDIO_MPEG",
+            )
+        except MaikaApiError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_cast_failed",
+            ) from err
         self._schedule_live_refresh()
 
     async def _async_jump_to_song(self, media_id: str, enqueue: Any) -> None:

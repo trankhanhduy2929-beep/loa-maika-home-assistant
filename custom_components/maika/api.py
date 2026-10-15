@@ -22,6 +22,7 @@ from .const import (
     APP_TIMEZONE,
     APP_VERSION,
     CHATBOT_BASE_URL,
+    CONTENT_STORE_GRAPHQL_URL,
     DEVICE_DISCOVERY_FIELDS,
     DEVICE_INFO_FIELDS,
     REST_UPDATE_FIELDS,
@@ -877,6 +878,54 @@ class MaikaApiClient:
                 status=status,
             )
         return payload
+
+    async def async_graphql(
+        self,
+        query: str,
+        variables: dict[str, Any] | None = None,
+        *,
+        retry_auth: bool = True,
+    ) -> dict[str, Any]:
+        """Run a Content Store GraphQL operation with the MAIKA session token."""
+        await self._async_ensure_authenticated()
+        try:
+            async with self._session.post(
+                CONTENT_STORE_GRAPHQL_URL,
+                json={"query": query, "variables": variables or {}},
+                headers=self._rest_headers(include_authorization=True),
+                timeout=REQUEST_TIMEOUT,
+            ) as response:
+                if response.status == 401 and retry_auth:
+                    await response.read()
+                    self._clear_authentication()
+                    await self._async_ensure_authenticated()
+                    return await self.async_graphql(query, variables, retry_auth=False)
+                if response.status in (401, 403):
+                    await response.read()
+                    raise MaikaAuthenticationError("MAIKA authentication failed")
+                if response.status >= 400:
+                    await response.read()
+                    raise MaikaConnectionError(
+                        f"MAIKA Content Store returned HTTP {response.status}",
+                        status=response.status,
+                    )
+                payload = await self._read_json(response)
+        except MaikaApiError:
+            raise
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise MaikaConnectionError(
+                "Unable to communicate with MAIKA Content Store"
+            ) from err
+
+        if not isinstance(payload, dict):
+            raise MaikaConnectionError("MAIKA Content Store returned invalid JSON")
+        errors = payload.get("errors")
+        if errors:
+            raise MaikaConnectionError("MAIKA Content Store returned errors")
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise MaikaConnectionError("MAIKA Content Store returned no data")
+        return data
 
     async def _async_ensure_authenticated(self) -> None:
         if self._access_token and time.monotonic() < self._token_valid_until:

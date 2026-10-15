@@ -265,6 +265,34 @@ Từ `1.18.0`, integration dùng `JumpCommandIssued` cho **queue native** trên 
 
 Schema đã được xác minh tĩnh từ APK nhưng chưa được xác nhận bằng phát âm thanh trên loa vật lý trong bản bàn giao này. Do đó feature mặc định tắt và được ghi rõ là thử nghiệm.
 
+## Content Store (thư viện giải trí)
+
+APK 3.2.3 có **Content Store** riêng cho nhạc, podcast, radio, kênh và nội dung nổi bật. App không dùng REST `/api` cho phần này mà gọi Apollo GraphQL tới `https://core.ocs.iviet.com/v1/graphql`. Xác thực dùng cùng MAIKA user access token (`Authorization: Bearer <token>`), kèm các header `device-type: android`, `version-info: 3.2.3`, `language-code` và `timezone` (`lj/b.java`, `kj/b.java`, `ri/j0.java`). Repository `com.maika.data.repositoryimpl.APIGraphQLRepositoryImpl*` và các tài liệu operation trong package `pi` chứa khoảng 44 operation.
+
+Integration `1.19.0` chỉ triển khai các read operation cần để duyệt (trong `custom_components/maika/content_store.py`) và gửi qua `MaikaApiClient.async_graphql`:
+
+- `ContentChannels`: `media_channel` → kênh (`id`, `name`, `slug`, `cover`).
+- `ContentChannelMedias`: `media_channel_by_pk(id:)` → category + media của kênh (`audio`, `cover`, `description`, `duration`, `id`, `title`, `type`).
+- `ContentCategories`: `media_type` → các thể loại nổi bật (`value`, `description`, `icon`, `bg_color`).
+- `ContentHighlights`: `highlights(media_type:)` → nội dung nổi bật theo thể loại (`id`, `title`, `type`, `is_list`, `cover`).
+- `ContentEpisodes`: `media_episode_details(id:)` → danh sách tập/bài của một media (`audio`, `duration`, `id`, `title`).
+
+`async_validate` gọi `ContentCategories` như phép thử readiness. `async_graphql` lặp lại xác thực một lần khi gặp `401` giống các request REST khác. Query bị giới hạn `_MAX_ITEMS = 50` mỗi lần.
+
+Phát nội dung: node media có sẵn trường `audio` và không phải list được coi là bài phát trực tiếp (track), còn lại mở rộng qua `media_episode_details`. URL `audio` của track được cast lên loa qua đúng đường `MetaStreamCastingMediaRequest` → `CommandHandOver/SystemControl` + `Play/AudioPlayer` với fallback `AUDIO_MPEG` đã xác minh, nên cần option `enable_experimental_cloud_cast`.
+
+Ánh xạ cây duyệt Home Assistant (thêm từ `1.19.0`):
+
+- `maika_cs_root` → `maika_cs_channels`, `maika_cs_categories`, `maika_cs_highlights`.
+- `maika_cs_channels` → `maika_cs_channel:<id>` → media (`maika_cs_media:<id>` nếu là list) → bài `maika_cs_track`.
+- `maika_cs_categories` → `maika_cs_category:<value>` (highlights theo `media_type`).
+- `maika_cs_highlights` → node media trực tiếp.
+- Bài: `media_content_type = maika_cs_track`, `media_content_id` = URL `audio`.
+
+Duyệt Content Store không cần cloud cast (chỉ cần entity available), nhưng `play_media` cho `maika_cs_track` vẫn gate theo cờ cloud cast.
+
+Schema và semantics field được xác minh tĩnh từ APK và kiểm thử bằng mock (`scripts/test_content_store.py`, `scripts/test_media_player.py`), chưa gọi API thật hoặc phát trên loa vật lý. Vì vậy duyệt có thể lỗi nếu API trả field khác; lỗi được báo qua `maika_content_store_failed`.
+
 ## Smart-home linking
 
 APK mới và APK lịch sử 2.5.0 lấy danh sách partner/OAuth hoàn toàn từ backend `smarthome.iviet.com`; không có cấu hình Home Assistant cố định trong app.

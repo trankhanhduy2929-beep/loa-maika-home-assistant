@@ -77,6 +77,12 @@
     "maika_queue_jump_failed": {
       "message": "MAIKA không chấp nhận yêu cầu chọn bài hát này."
     },
+    "maika_content_store_failed": {
+      "message": "Không tải được thư viện giải trí MAIKA. Kiểm tra kết nối rồi thử duyệt lại."
+    },
+    "maika_content_store_invalid_selection": {
+      "message": "Mục trong thư viện giải trí không hợp lệ. Duyệt lại thư viện MAIKA rồi chọn lại."
+    },
     "cloud_cast_disabled": {
       "message": "Cast âm thanh cloud đang tắt. Mở MAIKA → Cấu hình loa để bật."
     },

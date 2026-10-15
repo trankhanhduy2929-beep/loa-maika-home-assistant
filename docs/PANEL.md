@@ -169,7 +169,7 @@ bị trùng với panel, không bỏ xác thực license.
 
 ## Cập nhật từ bản cũ
 
-Cập nhật custom integration lên `1.18.0`, khởi động lại Home Assistant rồi tải
+Cập nhật custom integration lên `1.19.0`, khởi động lại Home Assistant rồi tải
 lại trang bằng **Ctrl+F5**/mở lại ứng dụng. Không xoá integration, thiết bị hoặc license key.
 Đây là nâng cấp panel Home Assistant; portal Vercel và hệ thống thanh toán
 không thay đổi. Đã kiểm tra bằng trình duyệt Chromium với HA giả lập ở các

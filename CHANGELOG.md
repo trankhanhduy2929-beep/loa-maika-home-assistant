@@ -2,6 +2,35 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.19.0] - 2026-10-15
+
+### Added
+
+- **Thư viện giải trí MAIKA trong trình duyệt media**: thêm nhánh duyệt
+  `maika_cs_root` cho Content Store gốc (kênh/radio, thể loại, nội dung nổi
+  bật), đi qua `media_player.browse_media`. Duyệt kênh → media → tập/bài và
+  duyệt nổi bật theo thể loại đều dùng các read operation Apollo GraphQL đã
+  reverse engineer từ APK 3.2.3 (`ContentChannels`, `ContentChannelMedias`,
+  `ContentCategories`, `ContentHighlights`, `ContentEpisodes`) qua endpoint
+  `https://core.ocs.iviet.com/v1/graphql` với cùng token MAIKA. Mỗi bài là một
+  `maika_cs_track` mang URL `audio`; `play_media` cast URL đó lên loa qua đường
+  `CommandHandOver/SystemControl` + `Play/AudioPlayer` hiện có.
+
+### Preserved
+
+- Giữ nguyên key, tài khoản, câu lệnh, cấu hình và bản nháp. Duyệt Content Store
+  không cần cloud cast; chỉ `play_media` cho `maika_cs_track` mới theo cờ
+  `enable_experimental_cloud_cast`.
+
+### Tests
+
+- Thêm `scripts/test_content_store.py` (parser kênh/media/thể loại/nổi bật/tập,
+  `async_validate`) và các kiểm thử media player cho cây duyệt Content Store,
+  mở rộng media thành tập và gate cast khi phát. Validator gọi
+  `validate_content_store()`; tổng media player tăng từ 43 lên 49 kiểm thử.
+- Chưa gọi API thật và chưa phát trên loa vật lý; mới xác minh tĩnh từ APK và
+  mock/stub.
+
 ## [1.18.0] - 2026-10-15
 
 ### Added
