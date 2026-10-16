@@ -34,8 +34,15 @@ query ContentChannelMedias($id: Int!, $offset: Int!, $limit: Int!) {
       offset: $offset
     ) {
       category { description id title }
-      medias(limit: 50, offset: 0) {
-        media { audio cover description duration id large_cover title type }
+      medias(
+        where: { media: { is_published: { _eq: true } } }
+        limit: 50
+        offset: 0
+      ) {
+        media {
+          audio cover description duration id large_cover title
+          _type { description value }
+        }
       }
     }
   }

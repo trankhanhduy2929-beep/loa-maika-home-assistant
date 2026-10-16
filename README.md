@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.20.0**.
+Bản hiện tại: **v1.20.1**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -70,6 +70,14 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.20.1` **gộp lịch sử câu lệnh vào mục Trò chuyện** (bỏ mục Lịch sử riêng;
+câu lệnh nghe qua micro và chat nằm chung một dòng thời gian, kèm nhãn kết quả) và
+tự làm mới hội thoại mỗi 4 giây khi mục Trò chuyện đang mở để phản hồi tới gần như
+thời gian thực mà không mất nội dung đang gõ. Bản này cũng **sửa lỗi duyệt Thư viện
+giải trí**: truy vấn media của kênh trước đây chọn trường `type` không tồn tại
+(đúng là `_type`), khiến máy chủ GraphQL từ chối cả truy vấn và các mục con hiện
+trống. Tính năng dựa trên phân tích tĩnh APK và mock, chưa kiểm thử trên loa thật.
 
 Bản `1.20.0` thêm **Trò chuyện với loa** và **Thư viện giải trí trong panel**.
 Mục **Trò chuyện** cho phép gõ câu lệnh rồi gửi tới loa đang chọn theo đúng luồng

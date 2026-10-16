@@ -45,10 +45,10 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 
 ## Lịch sử, nhắc hạn và thư viện âm phản hồi từ v1.14.0
 
-- Mục **Lịch sử** hiện các câu lệnh gần đây: câu nói, thiết bị/thao tác,
-  thời gian và kết quả (Đã thực hiện / Lỗi / Đang chạy / Chưa có rule).
-  Panel ưu tiên thuộc tính `recent_commands` của cảm biến câu lệnh để cập
-  nhật ngay, dự phòng bằng snapshot; giữ tối đa 20 câu lệnh.
+- Lịch sử câu lệnh gần đây (câu nói, thiết bị/thao tác, thời gian và kết quả
+  Đã thực hiện / Lỗi / Đang chạy / Chưa có rule) được gộp vào mục **Trò chuyện**
+  từ v1.20.1. Panel ưu tiên thuộc tính `recent_commands` của cảm biến câu lệnh
+  để cập nhật ngay, dự phòng bằng snapshot; giữ tối đa 20 câu lệnh.
 - **Nhắc hạn key**: mục **Bản quyền** hiện băng nhắc khi key còn ≤ 7 ngày
   hoặc đã hết hạn, và Home Assistant tạo thông báo hệ thống một lần mỗi
   ngày. Key vĩnh viễn không nhắc. Dòng **Hạn dùng** dùng hạn thật
@@ -66,14 +66,19 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   một event `Recognize` (`SpeechRecognizer`, `rawSpeech`) tới
   `chatbot.iviet.com/stream` với header `device-id`/`olli-session-id` trỏ đúng
   loa. Hội thoại hiện câu lệnh đã gửi (bong bóng bên phải) và phản hồi
-  `TextToSpeech`/`SpeechSynthesizer` của loa (bong bóng bên trái). Panel tự nạp
-  lại vài lần sau khi gửi để bắt phản hồi; lượt chat tối đa 500 ký tự và giữ 50
+  `TextToSpeech`/`SpeechSynthesizer` của loa (bong bóng bên trái). Sau khi gửi,
+  panel tự nạp lại nhanh để bắt phản hồi; lượt chat tối đa 500 ký tự và giữ 50
   lượt gần nhất.
+- **Gộp lịch sử vào hội thoại (v1.20.1)**: mục riêng **Lịch sử** được bỏ, các
+  câu lệnh MAIKA nghe qua micro nay nằm chung dòng thời gian với chat, có kèm
+  nhãn kết quả. Khi mục **Trò chuyện** đang mở, panel tự làm mới mỗi 4 giây để
+  hội thoại và câu lệnh cập nhật gần như thời gian thực mà không mất nội dung
+  đang gõ.
 - Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
   Content Store (`maika_cs_*`): kênh → media → tập/bài, thể loại và nội dung
   nổi bật. Chọn một bài phát qua `media_player.play_media` kiểu `maika_cs_track`;
   nút quay lại trên breadcrumb trở về mục cha.
-- **Lịch sử câu lệnh** mục **Lịch sử** giờ được lưu xuống HA `Store`
+- **Lịch sử câu lệnh** giờ được lưu xuống HA `Store`
   (`maika.command_history.<entry_id>`) và khôi phục sau khi khởi động lại.
 
 ## Giao diện sáng / tối và điều hướng

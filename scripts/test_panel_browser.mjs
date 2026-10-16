@@ -582,18 +582,19 @@ async function verifyLifetimeLicense() {
 async function verifyCommandHistory() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
-  await page.locator('[data-action="jump"][data-section="history"]').click();
-  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelectorAll('[data-sec="history"] .history-row').length === 3);
-  const rows = page.locator('[data-sec="history"] .history-row');
-  assert.equal(await rows.first().locator(".history-text").innerText(), "bật đèn phòng khách");
-  assert.equal(await rows.first().locator(".badge").innerText(), "Đã thực hiện");
+  await page.locator('[data-action="jump"][data-section="chat"]').click();
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelectorAll('[data-card="chat"] .history-row').length === 3);
+  const rows = page.locator('[data-card="chat"] .history-row');
+  assert.equal(await rows.first().locator(".history-text").innerText(), "tắt quạt");
+  assert.equal(await rows.first().locator(".badge").innerText(), "Lỗi");
   assert.equal(await rows.nth(1).locator(".badge").innerText(), "Chưa có rule");
-  assert.equal(await rows.nth(2).locator(".badge").innerText(), "Lỗi");
+  assert.equal(await rows.last().locator(".history-text").innerText(), "bật đèn phòng khách");
+  assert.equal(await rows.last().locator(".badge").innerText(), "Đã thực hiện");
   await page.evaluate(() => { delete states["sensor.loa_last_voice_command"]; tick(); });
-  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelector('[data-sec="history"] .history-text')?.textContent === "từ snapshot");
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelector('[data-card="chat"] .history-text')?.textContent === "từ snapshot");
   assert.equal(await rows.count(), 1);
   assert.equal(await rows.first().locator(".badge").innerText(), "Đã thực hiện");
-  console.log("PASS recent command history from live sensor attributes with snapshot fallback");
+  console.log("PASS command history merged into the chat section with live sensor attributes and snapshot fallback");
 }
 
 async function verifyPlaylistPicker() {

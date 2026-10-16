@@ -2,6 +2,32 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.20.1] - 2026-10-15
+
+### Fixed
+
+- **Duyệt Thư viện giải trí vào mục con bị trống**: truy vấn media của kênh
+  (`_QUERY_CHANNEL_MEDIAS`) chọn trường `type` trên `media` — trường này không
+  tồn tại trên đối tượng media (tài liệu Apollo trong APK dùng
+  `_type { description value }`). Hasura từ chối cả truy vấn nên mọi mục con của
+  **Thư viện giải trí** hiện trống; nay chọn đúng `_type` và lọc `is_published`.
+
+### Changed
+
+- **Gộp lịch sử vào hội thoại**: bỏ mục **Lịch sử** riêng. Câu lệnh MAIKA nghe
+  qua micro nay nằm chung dòng thời gian với **Trò chuyện**, sắp theo thời gian,
+  kèm nhãn kết quả (Đã thực hiện / Lỗi / Đang chạy / Chưa có rule) và khử trùng
+  với câu lệnh vừa gõ trong chat trong 60 giây.
+- **Hội thoại cập nhật gần thời gian thực**: khi mục **Trò chuyện** đang mở,
+  panel tự nạp lại mỗi 4 giây (bỏ qua khi tab ẩn, đang gửi lệnh hoặc có hộp thoại
+  mở) và sau khi gửi thì thăm dò phản hồi nhanh hơn (mỗi 1,5 giây, tối đa 10 lần).
+  Nội dung đang gõ và focus bàn phím được giữ nguyên nhờ cơ chế vá DOM hiện có.
+
+### Tests
+
+- Cập nhật kiểm thử trình duyệt: lịch sử giờ kiểm trong thẻ chat theo đúng thứ
+  tự thời gian, thêm kiểm tra gộp mục con thư viện hiển thị đúng truy vấn mới.
+
 ## [1.20.0] - 2026-10-15
 
 ### Added

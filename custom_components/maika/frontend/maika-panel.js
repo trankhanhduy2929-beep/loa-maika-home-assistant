@@ -38,7 +38,6 @@ const SECTIONS = [
   {id: "overview", label: "Tổng quan"},
   {id: "chat", label: "Trò chuyện"},
   {id: "voice", label: "Giọng nói"},
-  {id: "history", label: "Lịch sử"},
   {id: "status", label: "Trạng thái"},
   {id: "assistant", label: "Trợ lý"},
   {id: "identity", label: "Tên & vị trí"},
@@ -181,6 +180,7 @@ class MaikaPanel extends HTMLElement {
     this._csBusy = false;
     this._csReturnFocus = false;
     this._chatTimer = null;
+    this._chatPoll = null;
     this._onClick = this._onClick.bind(this);
     this._onInput = this._onInput.bind(this);
     this._onChange = this._onChange.bind(this);
@@ -224,6 +224,7 @@ class MaikaPanel extends HTMLElement {
       this._applyTheme();
       this._observeSections();
       this._maybeUpdate();
+      this._scheduleChatPoll();
     }
   }
 
@@ -240,6 +241,7 @@ class MaikaPanel extends HTMLElement {
     this._renderFrame = null;
     if (this._chatTimer !== null) clearTimeout(this._chatTimer);
     this._chatTimer = null;
+    this._stopChatPoll();
   }
 
   set hass(value) {
@@ -1405,16 +1407,43 @@ class MaikaPanel extends HTMLElement {
     ], delay);
   }
 
+  _conversation(entry, serial) {
+    const items = [];
+    const typed = [];
+    for (const turn of entry?.chat || []) {
+      if (turn?.serial_number && turn.serial_number !== serial) continue;
+      items.push({
+        kind: "chat",
+        role: turn?.role === "assistant" ? "assistant" : "user",
+        text: turn?.text || "—",
+        at: turn?.at || null,
+      });
+      if (turn?.role !== "assistant" && turn?.text) typed.push({text: turn.text, at: Date.parse(turn.at) || 0});
+    }
+    const live = this._state(this._entity("sensor", "last_voice_command"))?.attributes?.recent_commands;
+    const commands = Array.isArray(live) && live.length ? live : (entry?.command_history || []);
+    for (const command of commands) {
+      const text = command?.text || command?.matched_phrase;
+      const at = Date.parse(command?.received_at) || 0;
+      if (text && typed.some((turn) => turn.text === text && Math.abs(turn.at - at) < 60000)) continue;
+      items.push({kind: "command", text, at: command?.received_at || null, command});
+    }
+    items.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
+    return items;
+  }
+
   _chatSection(delay) {
     const entry = this._entry();
     const serial = this._activeSerial();
     const online = Boolean(this._state(this._entity("media_player"))) && !UNKNOWN.has(this._state(this._entity("media_player"))?.state);
-    const turns = (entry?.chat || []).filter((turn) => !turn?.serial_number || turn.serial_number === serial);
+    const items = this._conversation(entry, serial);
     const log = h("div", {class: "chat-log", role: "log", "aria-live": "polite", "aria-label": "Hội thoại với loa"});
-    if (!turns.length) {
+    if (!items.length) {
       log.append(h("p", {class: "hint", text: "Chưa có hội thoại. Gõ câu lệnh, ví dụ “mở nhạc”, rồi gửi tới loa."}));
     } else {
-      for (const turn of turns.slice(-20)) log.append(this._chatBubble(turn));
+      for (const item of items.slice(-30)) {
+        log.append(item.kind === "command" ? this._historyRow(item.command) : this._chatBubble(item));
+      }
     }
     const input = h("input", {
       type: "text",
@@ -1433,7 +1462,7 @@ class MaikaPanel extends HTMLElement {
       h("button", {class: "btn btn--primary", type: "submit", disabled: !online}, [svgIcon(ICONS.send), "Gửi"]),
     ]);
     return this._card("span2", [
-      this._sectionHead("chat", "Trò chuyện với loa", "Gõ câu lệnh như ứng dụng MAIKA", "c-purple"),
+      this._sectionHead("chat", "Trò chuyện với loa", "Hội thoại và câu lệnh gần đây", "c-purple"),
       h("div", {class: "chat"}, [log, form]),
     ], delay);
   }
@@ -1467,15 +1496,31 @@ class MaikaPanel extends HTMLElement {
     let tries = 0;
     const tick = async () => {
       this._chatTimer = null;
-      if (++tries > 6 || !this.isConnected) return;
+      if (++tries > 10 || !this.isConnected) return;
       if (this._entry()?.entry_id !== entryId || this._activeSerial() !== serial) return;
       await this._load();
       const turns = (this._entry()?.chat || []).filter((turn) => turn?.serial_number === serial);
       const last = turns[turns.length - 1];
       if (last?.role === "assistant") return;
-      this._chatTimer = setTimeout(tick, 2500);
+      this._chatTimer = setTimeout(tick, 1500);
     };
-    this._chatTimer = setTimeout(tick, 2500);
+    this._chatTimer = setTimeout(tick, 1500);
+  }
+
+  _scheduleChatPoll() {
+    this._stopChatPoll();
+    const tick = async () => {
+      this._chatPoll = null;
+      if (!this.isConnected) return;
+      if (!document.hidden && this._activeSection === "chat" && !this._busy && !this.shadowRoot.querySelector("dialog[open]")) await this._load();
+      this._chatPoll = setTimeout(tick, 4000);
+    };
+    this._chatPoll = setTimeout(tick, 4000);
+  }
+
+  _stopChatPoll() {
+    if (this._chatPoll !== null) clearTimeout(this._chatPoll);
+    this._chatPoll = null;
   }
 
   _ensurePlaylistDialog() {
@@ -2027,22 +2072,6 @@ class MaikaPanel extends HTMLElement {
     return btn;
   }
 
-  _historySection(delay) {
-    const entry = this._entry();
-    const live = this._state(this._entity("sensor", "last_voice_command"))?.attributes?.recent_commands;
-    const commands = Array.isArray(live) && live.length ? live : (entry?.command_history || []);
-    const body = h("div", {class: "history"});
-    if (!commands.length) {
-      body.append(h("p", {class: "hint", text: "Chưa có câu lệnh nào. Hãy gọi “Maika” rồi ra một câu lệnh đã cấu hình trong mục Giọng nói."}));
-    } else {
-      commands.forEach((command) => body.append(this._historyRow(command)));
-    }
-    return this._card("span4", [
-      this._sectionHead("clock", "Lịch sử câu lệnh", "Câu lệnh gần đây MAIKA đã nghe và thực hiện", "c-purple"),
-      body,
-    ], delay);
-  }
-
   _historyRow(command) {
     const result = command?.error ? "failed" : command?.executed ? "executed" : command?.matched_phrase ? "pending" : "not_matched";
     const icon = {executed: "check", failed: "alert", pending: "clock", not_matched: "info"}[result];
@@ -2336,8 +2365,7 @@ class MaikaPanel extends HTMLElement {
         ["media", this._mediaSection(60)],
         ["chat", this._chatSection(75)],
         ["voice", this._card("span4", [h("maika-voice-editor")], 90)],
-        ["history", this._historySection(105)],
-        ["status", this._statusSection(90)],
+        ["status", this._statusSection(105)],
         ["assistant", this._assistantSection(120)],
         ["identity", this._identitySection(150)],
         ["info", this._deviceSection(180)],

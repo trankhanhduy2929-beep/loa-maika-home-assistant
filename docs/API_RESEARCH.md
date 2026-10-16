@@ -273,7 +273,7 @@ APK 3.2.3 có **Content Store** riêng cho nhạc, podcast, radio, kênh và n�
 Integration `1.19.0` chỉ triển khai các read operation cần để duyệt (trong `custom_components/maika/content_store.py`) và gửi qua `MaikaApiClient.async_graphql`:
 
 - `ContentChannels`: `media_channel` → kênh (`id`, `name`, `slug`, `cover`).
-- `ContentChannelMedias`: `media_channel_by_pk(id:)` → category + media của kênh (`audio`, `cover`, `description`, `duration`, `id`, `title`, `type`).
+- `ContentChannelMedias`: `media_channel_by_pk(id:)` → category + media của kênh (`audio`, `cover`, `description`, `duration`, `id`, `title`, `_type { description value }`). Từ `1.20.1` chọn đúng `_type` (trước đó chọn `type` không tồn tại trên `media` khiến Hasura từ chối cả truy vấn và các mục con hiện trống); thêm lọc `media.is_published`.
 - `ContentCategories`: `media_type` → các thể loại nổi bật (`value`, `description`, `icon`, `bg_color`).
 - `ContentHighlights`: `highlights(media_type:)` → nội dung nổi bật theo thể loại (`id`, `title`, `type`, `is_list`, `cover`).
 - `ContentEpisodes`: `media_episode_details(id:)` → danh sách tập/bài của một media (`audio`, `duration`, `id`, `title`).
