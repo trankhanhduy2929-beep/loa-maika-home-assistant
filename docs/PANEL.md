@@ -59,6 +59,23 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   kiểm tra trong danh sách cho phép, không cho thoát thư mục. Home Assistant
   phải truy cập được từ Internet (Settings → System → Network) để loa tải.
 
+## Trò chuyện và thư viện giải trí từ v1.20.0
+
+- Mục **Trò chuyện** cho phép gõ câu lệnh rồi bấm **Gửi** tới loa đang chọn,
+  đúng luồng app gốc: panel gọi `POST /api/maika/panel/chat`, coordinator gửi
+  một event `Recognize` (`SpeechRecognizer`, `rawSpeech`) tới
+  `chatbot.iviet.com/stream` với header `device-id`/`olli-session-id` trỏ đúng
+  loa. Hội thoại hiện câu lệnh đã gửi (bong bóng bên phải) và phản hồi
+  `TextToSpeech`/`SpeechSynthesizer` của loa (bong bóng bên trái). Panel tự nạp
+  lại vài lần sau khi gửi để bắt phản hồi; lượt chat tối đa 500 ký tự và giữ 50
+  lượt gần nhất.
+- Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
+  Content Store (`maika_cs_*`): kênh → media → tập/bài, thể loại và nội dung
+  nổi bật. Chọn một bài phát qua `media_player.play_media` kiểu `maika_cs_track`;
+  nút quay lại trên breadcrumb trở về mục cha.
+- **Lịch sử câu lệnh** mục **Lịch sử** giờ được lưu xuống HA `Store`
+  (`maika.command_history.<entry_id>`) và khôi phục sau khi khởi động lại.
+
 ## Giao diện sáng / tối và điều hướng
 
 - Từ `1.11.1`, panel giới hạn chiều cao theo vùng nhìn ngay cả khi khung HA
@@ -70,7 +87,7 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
   sáng/tối của Home Assistant; lựa chọn được nhớ riêng trong trình duyệt.
   Nếu trình duyệt chặn lưu trữ, vẫn đổi được cho phiên đang mở.
-- Chạm **Tổng quan / Giọng nói / Trạng thái / Trợ lý / Tên & vị trí / Thiết bị / Bản quyền /
+- Chạm **Tổng quan / Trò chuyện / Giọng nói / Trạng thái / Trợ lý / Tên & vị trí / Thiết bị / Bản quyền /
   Cấu hình / Công cụ** để tới đúng mục. Vuốt ngang thanh mục trên điện thoại.
 - Nút menu ở góc trên mở sidebar HA khi màn hình hẹp. Thanh công cụ bám trên
   đầu khi cuộn; trên màn hình thấp (điện thoại ngang) thanh này cuộn cùng nội dung.
@@ -84,7 +101,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 1. **Ảnh loa + trạng thái**: ảnh loa MAIKA, tên loa, chấm online, chip Trực
    tuyến / Wi-Fi / Micro / Âm lượng.
 2. **Điều khiển MAIKA**: media player đang phát gì (bấm tên bài để mở danh sách
-   bài trên loa), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
+   bài trên loa), nút icon thư viện mở hộp thoại **Thư viện giải trí** (Content
+   Store), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
    thanh thời gian kéo tua (khi loa báo thời lượng), form cast URL MP3/AAC qua
    cloud.
 3. **Trạng thái loa**: 6 tile — trực tuyến, Wi-Fi, âm lượng, đang phát, cuộc gọi,

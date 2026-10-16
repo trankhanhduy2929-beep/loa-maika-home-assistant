@@ -36,6 +36,7 @@ const THEME_MODES = ["auto", "light", "dark"];
 const THEME_MODE_LABELS = {auto: "Tự động", light: "Sáng", dark: "Tối"};
 const SECTIONS = [
   {id: "overview", label: "Tổng quan"},
+  {id: "chat", label: "Trò chuyện"},
   {id: "voice", label: "Giọng nói"},
   {id: "history", label: "Lịch sử"},
   {id: "status", label: "Trạng thái"},
@@ -147,6 +148,9 @@ const ICONS = {
   menu: "M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z",
   left: "M15.4 5 8.4 12l7 7 1.4-1.4-5.6-5.6 5.6-5.6z",
   right: "m8.6 5-1.4 1.4 5.6 5.6-5.6 5.6L8.6 19l7-7z",
+  chat: "M4 3h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-4.6 4.1A.5.5 0 0 1 3.6 21V4a1 1 0 0 1 1-1z",
+  send: "M3 20.5 21 12 3 3.5l3.2 8.5zM6.6 12 4.9 6.8 16.5 12l-11.6 5.2z",
+  library: "M4 4h4v16H4zm6 0h4v16h-4zm6.4.7 3.9 15-1.9.5-3.9-15z",
 };
 
 class MaikaPanel extends HTMLElement {
@@ -171,6 +175,12 @@ class MaikaPanel extends HTMLElement {
     this._playlistToken = 0;
     this._playlistBusy = false;
     this._playlistReturnFocus = false;
+    this._cs = null;
+    this._csDialog = null;
+    this._csToken = 0;
+    this._csBusy = false;
+    this._csReturnFocus = false;
+    this._chatTimer = null;
     this._onClick = this._onClick.bind(this);
     this._onInput = this._onInput.bind(this);
     this._onChange = this._onChange.bind(this);
@@ -228,6 +238,8 @@ class MaikaPanel extends HTMLElement {
     this._toolbarObserver?.disconnect();
     if (this._renderFrame !== null) cancelAnimationFrame(this._renderFrame);
     this._renderFrame = null;
+    if (this._chatTimer !== null) clearTimeout(this._chatTimer);
+    this._chatTimer = null;
   }
 
   set hass(value) {
@@ -763,10 +775,15 @@ class MaikaPanel extends HTMLElement {
       .media-title:disabled { cursor: default; }
       .media-title:disabled svg { display: none; }
       .media-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 7px; }
+      .now-act { flex: none; width: 34px; height: 34px; border-radius: 11px; border: 1px solid var(--line); background: var(--surface-2); color: var(--accent); display: grid; place-items: center; cursor: pointer; transition: transform .15s var(--ease), background .15s var(--ease); }
+      .now-act:hover:not(:disabled) { transform: translateY(-1px); background: var(--surface-3); }
+      .now-act:disabled { cursor: default; opacity: .5; }
+      .now-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .now-act svg { width: 17px; height: 17px; fill: currentColor; }
 
-      dialog.playlist { width: min(560px, 92vw); max-width: 100%; margin: auto; padding: 0; border: 0; background: transparent; color: var(--text); }
-      dialog.playlist::backdrop { background: rgba(12, 6, 2, .58); }
-      dialog.playlist:not([open]) { display: none; }
+      dialog.playlist, dialog.library { width: min(560px, 92vw); max-width: 100%; margin: auto; padding: 0; border: 0; background: transparent; color: var(--text); }
+      dialog.playlist::backdrop, dialog.library::backdrop { background: rgba(12, 6, 2, .58); }
+      dialog.playlist:not([open]), dialog.library:not([open]) { display: none; }
       .sheet {
         display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(78vh, 720px); overflow: hidden;
         background: var(--glass-toolbar); border: 1px solid var(--line); border-radius: var(--radius);
@@ -793,6 +810,21 @@ class MaikaPanel extends HTMLElement {
       .pl-state { padding: 26px 18px; text-align: center; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
       .pl-state--bad { color: var(--bad); }
       .pl-retry { justify-self: center; }
+      .crumb { display: flex; align-items: center; gap: 10px; min-width: 0; }
+      .crumb h2 { overflow-wrap: anywhere; }
+      .crumb .sheet__close { flex: none; display: grid; place-items: center; padding: 0 10px; }
+      .crumb .sheet__close svg { width: 17px; height: 17px; fill: currentColor; }
+      .chat { display: grid; gap: 10px; }
+      .chat-log { display: grid; gap: 8px; max-height: 340px; overflow: auto; overscroll-behavior: contain; padding: 2px; }
+      .chat-row { display: flex; }
+      .chat-row--user { justify-content: flex-end; }
+      .chat-bubble { max-width: 84%; display: grid; gap: 3px; padding: 9px 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+      .chat-row--user .chat-bubble { background: linear-gradient(145deg, var(--brand-start), var(--brand-end)); color: var(--brand-ink); border-color: transparent; }
+      .chat-text { font-size: .92rem; overflow-wrap: anywhere; }
+      .chat-meta { font-size: .72rem; opacity: .7; }
+      .chat-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+      .chat-input { min-height: 42px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; width: 100%; }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
       .eq { display: flex; align-items: flex-end; gap: 3px; height: 16px; margin-left: auto; flex: none; }
       .eq i { width: 3px; border-radius: 2px; background: var(--accent); height: 100%; transform-origin: bottom; animation: eq .9s ease-in-out infinite; }
       .eq i:nth-child(2) { animation-delay: .12s; }
@@ -1319,6 +1351,15 @@ class MaikaPanel extends HTMLElement {
         ]),
         h("div", {class: "s", text: this._activityLabel(activity)}),
       ]),
+      h("button", {
+        class: "now-act",
+        type: "button",
+        dataset: {action: "library"},
+        "aria-haspopup": "dialog",
+        "aria-label": "Mở thư viện giải trí MAIKA",
+        title: online ? "Duyệt thư viện giải trí MAIKA" : "Loa đang mất kết nối",
+        disabled: !online,
+      }, [svgIcon(ICONS.library)]),
       bars,
     ]);
 
@@ -1362,6 +1403,79 @@ class MaikaPanel extends HTMLElement {
         ]),
       ]),
     ], delay);
+  }
+
+  _chatSection(delay) {
+    const entry = this._entry();
+    const serial = this._activeSerial();
+    const online = Boolean(this._state(this._entity("media_player"))) && !UNKNOWN.has(this._state(this._entity("media_player"))?.state);
+    const turns = (entry?.chat || []).filter((turn) => !turn?.serial_number || turn.serial_number === serial);
+    const log = h("div", {class: "chat-log", role: "log", "aria-live": "polite", "aria-label": "Hội thoại với loa"});
+    if (!turns.length) {
+      log.append(h("p", {class: "hint", text: "Chưa có hội thoại. Gõ câu lệnh, ví dụ “mở nhạc”, rồi gửi tới loa."}));
+    } else {
+      for (const turn of turns.slice(-20)) log.append(this._chatBubble(turn));
+    }
+    const input = h("input", {
+      type: "text",
+      name: "chat_text",
+      id: `chat-text-${serial || "x"}`,
+      class: "chat-input",
+      placeholder: "Gõ câu lệnh cho loa MAIKA",
+      maxlength: 500,
+      autocomplete: "off",
+      value: this._draft["chat:text"] || "",
+      dataset: {field: "chat:text"},
+    });
+    const form = h("form", {class: "chat-form", dataset: {form: "chat"}}, [
+      h("label", {class: "sr-only", for: input.id, text: "Câu lệnh gửi tới loa"}),
+      input,
+      h("button", {class: "btn btn--primary", type: "submit", disabled: !online}, [svgIcon(ICONS.send), "Gửi"]),
+    ]);
+    return this._card("span2", [
+      this._sectionHead("chat", "Trò chuyện với loa", "Gõ câu lệnh như ứng dụng MAIKA", "c-purple"),
+      h("div", {class: "chat"}, [log, form]),
+    ], delay);
+  }
+
+  _chatBubble(turn) {
+    const role = turn?.role === "assistant" ? "assistant" : "user";
+    const at = turn?.at ? Date.parse(turn.at) / 1000 : 0;
+    return h("div", {class: `chat-row chat-row--${role}`}, [
+      h("div", {class: "chat-bubble"}, [
+        h("span", {class: "chat-text", text: turn?.text || "—"}),
+        at ? h("span", {class: "chat-meta", text: fmtTime(at)}) : null,
+      ]),
+    ]);
+  }
+
+  _chatError(err) {
+    const key = err?.body?.message || err?.body?.error || err?.translation_key || err?.message || "";
+    const labels = {
+      empty_message: "Nhập câu lệnh trước khi gửi.",
+      message_too_long: "Câu lệnh quá dài (tối đa 500 ký tự).",
+      unknown_speaker: "Không tìm thấy loa đã chọn.",
+      send_failed: "Không gửi được câu lệnh tới loa.",
+      coordinator_unavailable: "Integration chưa sẵn sàng.",
+    };
+    return labels[key] || "Không gửi được câu lệnh.";
+  }
+
+  _pollChatReplies(serial) {
+    const entryId = this._entry()?.entry_id;
+    if (this._chatTimer !== null) clearTimeout(this._chatTimer);
+    let tries = 0;
+    const tick = async () => {
+      this._chatTimer = null;
+      if (++tries > 6 || !this.isConnected) return;
+      if (this._entry()?.entry_id !== entryId || this._activeSerial() !== serial) return;
+      await this._load();
+      const turns = (this._entry()?.chat || []).filter((turn) => turn?.serial_number === serial);
+      const last = turns[turns.length - 1];
+      if (last?.role === "assistant") return;
+      this._chatTimer = setTimeout(tick, 2500);
+    };
+    this._chatTimer = setTimeout(tick, 2500);
   }
 
   _ensurePlaylistDialog() {
@@ -1544,6 +1658,194 @@ class MaikaPanel extends HTMLElement {
       }
     }
     if (changed) this._renderPlaylist();
+  }
+
+  _ensureContentStoreDialog() {
+    let dialog = this.shadowRoot.querySelector("dialog.library");
+    if (dialog) {
+      this._csDialog = dialog;
+      return dialog;
+    }
+    dialog = h("dialog", {class: "library", "aria-labelledby": "library-heading"});
+    dialog.addEventListener("close", () => this._resetContentStore());
+    dialog.addEventListener("cancel", () => { this._csToken += 1; });
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+    this.shadowRoot.append(dialog);
+    this._csDialog = dialog;
+    return dialog;
+  }
+
+  _openContentStore() {
+    const media = this._entity("media_player");
+    if (!media) return;
+    const state = this._state(media);
+    if (!state || UNKNOWN.has(state.state)) {
+      this._notify("error", "Loa đang mất kết nối, chưa mở được thư viện.");
+      return;
+    }
+    if (this._csDialog?.open) return;
+    this._csToken += 1;
+    this._csReturnFocus = true;
+    const root = {type: "maika_cs_root", id: "maika_cs_root", title: "Thư viện giải trí"};
+    this._cs = {status: "loading", items: [], entity: media, serial: this._activeSerial(), stack: [root], title: root.title};
+    const dialog = this._ensureContentStoreDialog();
+    this._renderContentStore();
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    this._loadContentStore(this._csToken);
+  }
+
+  _closeContentStore() {
+    const dialog = this._csDialog;
+    if (dialog?.open) dialog.close();
+    else this._resetContentStore();
+  }
+
+  _resetContentStore() {
+    this._csToken += 1;
+    this._cs = null;
+    this._csBusy = false;
+    if (!this._csReturnFocus) return;
+    this._csReturnFocus = false;
+    const opener = this.shadowRoot.querySelector('[data-action="library"]');
+    if (opener?.isConnected) opener.focus();
+  }
+
+  async _loadContentStore(token) {
+    const cs = this._cs;
+    if (!cs || typeof this._hass?.callWS !== "function") {
+      if (token === this._csToken && this._cs) this._setContentStoreState("error", "Không tải được thư viện giải trí.");
+      return;
+    }
+    const node = cs.stack[cs.stack.length - 1];
+    try {
+      const result = await this._hass.callWS({
+        type: "media_player/browse_media",
+        entity_id: cs.entity,
+        media_content_type: node.type,
+        media_content_id: node.id,
+      });
+      if (token !== this._csToken || this._cs !== cs) return;
+      if (this._activeSerial() !== cs.serial || this._entity("media_player") !== cs.entity) return;
+      const children = Array.isArray(result?.children) ? result.children : [];
+      const items = children
+        .filter((child) => child?.media_content_id)
+        .map((child) => ({
+          id: child.media_content_id,
+          type: child.media_content_type || "",
+          title: child.title || "Mục MAIKA",
+          directory: child.media_content_type !== "maika_cs_track",
+          busy: false,
+        }));
+      this._cs = {...cs, status: items.length ? "ready" : "empty", items, title: result?.title || node.title};
+      this._renderContentStore();
+      this.shadowRoot.querySelector(".sheet__close")?.focus();
+    } catch (err) {
+      if (token !== this._csToken) return;
+      this._setContentStoreState("error", this._contentStoreError(err));
+    }
+  }
+
+  _setContentStoreState(status, message) {
+    if (!this._cs) return;
+    this._cs = {...this._cs, status, message};
+    this._renderContentStore();
+  }
+
+  _contentStoreError(err) {
+    const key = err?.body?.message || err?.body?.error || err?.translation_key || err?.message || "";
+    const labels = {
+      maika_content_store_failed: "Không tải được thư viện giải trí.",
+      maika_content_store_invalid_selection: "Mục này không còn trong thư viện.",
+      maika_queue_unavailable: "Loa đang mất kết nối.",
+    };
+    return labels[key] || "Không tải được thư viện giải trí.";
+  }
+
+  _openContentStoreNode(id, type, title) {
+    const cs = this._cs;
+    if (!cs || cs.status === "loading") return;
+    this._csToken += 1;
+    this._cs = {...cs, status: "loading", items: [], stack: [...cs.stack, {id, type, title}], title};
+    this._renderContentStore();
+    this._loadContentStore(this._csToken);
+  }
+
+  _contentStoreUp() {
+    const cs = this._cs;
+    if (!cs || cs.stack.length <= 1) return;
+    this._csToken += 1;
+    const stack = cs.stack.slice(0, -1);
+    this._cs = {...cs, status: "loading", items: [], stack, title: stack[stack.length - 1].title};
+    this._renderContentStore();
+    this._loadContentStore(this._csToken);
+  }
+
+  async _playContentStoreItem(id) {
+    const cs = this._cs;
+    if (!cs || cs.status !== "ready" || this._csBusy) return;
+    const item = cs.items.find((entry) => entry.id === id);
+    if (!item || item.busy) return;
+    this._csBusy = true;
+    item.busy = true;
+    this._renderContentStore();
+    try {
+      await this._hass.callService("media_player", "play_media", {
+        entity_id: cs.entity,
+        media_content_type: "maika_cs_track",
+        media_content_id: id,
+      });
+      if (this._cs !== cs) return;
+      this._csBusy = false;
+      this._notify("ok", "Đã phát nội dung từ thư viện giải trí.");
+      this._closeContentStore();
+    } catch (err) {
+      if (this._cs !== cs) return;
+      item.busy = false;
+      this._csBusy = false;
+      cs.status = "error";
+      cs.message = this._contentStoreError(err);
+      this._renderContentStore();
+    }
+  }
+
+  _renderContentStore() {
+    const dialog = this._ensureContentStoreDialog();
+    const cs = this._cs || {status: "loading", items: [], stack: [{title: "Thư viện giải trí"}]};
+    const node = cs.stack[cs.stack.length - 1];
+    const rows = h("div", {class: "pl-list"});
+    if (cs.status === "loading") {
+      rows.append(h("div", {class: "pl-state", role: "status", text: "Đang tải thư viện giải trí..."}));
+    } else if (cs.status === "empty") {
+      rows.append(h("div", {class: "pl-state", text: "Mục này chưa có nội dung."}));
+    } else if (cs.status === "error") {
+      rows.append(h("div", {class: "pl-state pl-state--bad", role: "alert", text: cs.message || "Không tải được thư viện giải trí."}));
+      rows.append(h("button", {class: "btn pl-retry", type: "button", dataset: {action: "library-retry"}, text: "Thử lại"}));
+    } else {
+      for (const item of cs.items) {
+        rows.append(h("button", {
+          class: "pl-item",
+          type: "button",
+          dataset: {action: "library-item", id: item.id, type: item.type, title: item.title, dir: item.directory ? "1" : "0"},
+          disabled: item.busy,
+        }, [
+          h("span", {class: "pl-item__ico"}, [svgIcon(item.directory ? ICONS.library : ICONS.play)]),
+          h("span", {class: "pl-item__body"}, [h("span", {class: "pl-item__t", text: item.title})]),
+          item.busy ? h("span", {class: "pl-item__badge", text: "Đang phát..."}) : null,
+          item.directory ? h("span", {class: "pl-item__badge"}, [svgIcon(ICONS.right)]) : null,
+        ]));
+      }
+    }
+    const head = h("header", {class: "sheet__head"}, [
+      h("div", {class: "crumb"}, [
+        cs.stack.length > 1 ? h("button", {class: "sheet__close", type: "button", "aria-label": "Quay lại", dataset: {action: "library-up"}}, [svgIcon(ICONS.left)]) : null,
+        h("h2", {id: "library-heading", text: node.title || "Thư viện giải trí"}),
+      ]),
+      h("button", {class: "sheet__close", type: "button", dataset: {action: "library-close"}, text: "Đóng"}),
+    ]);
+    const sheet = h("div", {class: "sheet", tabindex: "-1"}, [head, rows]);
+    dialog.replaceChildren(sheet);
+    return dialog;
   }
 
   _tbtn(icon, action, entity, extra) {
@@ -2032,6 +2334,7 @@ class MaikaPanel extends HTMLElement {
       cards.push(
         ["overview", this._heroCard(30)],
         ["media", this._mediaSection(60)],
+        ["chat", this._chatSection(75)],
         ["voice", this._card("span4", [h("maika-voice-editor")], 90)],
         ["history", this._historySection(105)],
         ["status", this._statusSection(90)],
@@ -2209,6 +2512,8 @@ class MaikaPanel extends HTMLElement {
     if (this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy || !serials.includes(serial) || serial === current) return false;
     const direction = serials.indexOf(serial) > serials.indexOf(current) ? 1 : -1;
     this._closePlaylist();
+    this._closeContentStore();
+    if (this._chatTimer !== null) { clearTimeout(this._chatTimer); this._chatTimer = null; }
     this._cancelGesture();
     this._deviceAnimation?.cancel();
     this._deviceSerial = serial;
@@ -2372,6 +2677,37 @@ class MaikaPanel extends HTMLElement {
       return;
     }
 
+    if (action === "library") {
+      this._openContentStore();
+      return;
+    }
+
+    if (action === "library-close") {
+      this._closeContentStore();
+      return;
+    }
+
+    if (action === "library-up") {
+      this._contentStoreUp();
+      return;
+    }
+
+    if (action === "library-retry") {
+      if (!this._cs) return;
+      this._csToken += 1;
+      this._csBusy = false;
+      this._cs = {...this._cs, status: "loading", message: null};
+      this._renderContentStore();
+      this._loadContentStore(this._csToken);
+      return;
+    }
+
+    if (action === "library-item") {
+      if (target.dataset.dir === "1") this._openContentStoreNode(target.dataset.id, target.dataset.type, target.dataset.title);
+      else this._playContentStoreItem(target.dataset.id);
+      return;
+    }
+
     if (action === "playlist-close") {
       this._closePlaylist();
       return;
@@ -2399,6 +2735,8 @@ class MaikaPanel extends HTMLElement {
       if (editor?.isBusy) return;
       if (editor?.hasUnsavedChanges && !window.confirm("Đổi tài khoản và bỏ bản nháp giọng nói chưa lưu?")) return;
       this._closePlaylist();
+      this._closeContentStore();
+      if (this._chatTimer !== null) { clearTimeout(this._chatTimer); this._chatTimer = null; }
       this._onMotionChange();
       this._activeIndex = Number(target.dataset.index) || 0;
       this._deviceSerial = "";
@@ -2488,6 +2826,34 @@ class MaikaPanel extends HTMLElement {
     if (!kind) return;
     event.preventDefault();
     if (this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy) return;
+
+    if (kind === "chat") {
+      const entry = this._entry();
+      const serial = this._activeSerial();
+      const text = String(form.elements.namedItem("chat_text")?.value || "").trim();
+      if (!entry || !serial) {
+        this._notify("error", "Chưa chọn loa MAIKA.");
+        return;
+      }
+      if (!text) {
+        this._notify("error", "Nhập câu lệnh trước khi gửi.");
+        return;
+      }
+      this._busy = true;
+      this._maybeUpdate();
+      const result = await this._post(`${API}/chat`, {entry_id: entry.entry_id, serial_number: serial, text});
+      this._busy = false;
+      if (!result.ok) {
+        this._notify("error", this._chatError(result.error));
+        this._maybeUpdate();
+        return;
+      }
+      delete this._draft["chat:text"];
+      this._notify("ok", "Đã gửi câu lệnh tới loa, đang chờ phản hồi.");
+      this._pollChatReplies(serial);
+      this._load();
+      return;
+    }
 
     if (kind === "cast") {
       const media = this._entity("media_player");

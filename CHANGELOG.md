@@ -2,6 +2,35 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.20.0] - 2026-10-15
+
+### Added
+
+- **Lịch sử câu lệnh được lưu lại**: lịch sử câu lệnh MAIKA nghe được giờ được
+  ghi xuống HA `Store` (`maika.command_history.<entry_id>`) và khôi phục sau khi
+  khởi động lại Home Assistant, thay vì chỉ giữ trong bộ nhớ coordinator.
+- **Trò chuyện với loa từ panel**: mục "Trò chuyện" cho phép gõ câu lệnh rồi
+  gửi tới loa đang chọn, đúng luồng app gốc — một event `Recognize` namespace
+  `SpeechRecognizer` (`rawSpeech`) gửi qua `https://chatbot.iviet.com/stream`
+  với header `device-id`/`olli-session-id` trỏ đúng loa. Panel hiện câu lệnh đã
+  gửi và tự nạp lại để bắt phản hồi `TextToSpeech`/`SpeechSynthesizer`. Backend:
+  `api.async_send_voice_text`, `coordinator.async_send_chat`, endpoint panel
+  `POST /api/maika/panel/chat`.
+- **Chọn media Content Store ngay trong panel**: nút "Thư viện giải trí" trên
+  thẻ điều khiển mở hộp thoại duyệt `maika_cs_*` (kênh → media → tập/bài, thể
+  loại, nổi bật) và phát bài bằng `play_media` `maika_cs_track`, thay vì chỉ
+  qua trình duyệt media của Home Assistant.
+- **Tối ưu không gian panel**: nút mở thư viện gộp vào hàng bài đang phát dạng
+  nút icon, bỏ hàng nút riêng trong thẻ điều khiển.
+
+### Tests
+
+- Thêm kiểm thử lịch sử bền vững (lưu/khôi phục) và chat (gửi + bắt phản hồi,
+  từ chối loa lạ/câu rỗng) trong `scripts/test_live_playback.py` (44 kiểm thử).
+- Thêm kiểm thử trình duyệt cho mục Trò chuyện và thư viện Content Store trong
+  panel (`scripts/test_panel_browser.mjs`, fixture `scripts/fixtures/panel.html`).
+- Chưa gửi lệnh chat tới loa vật lý; mới xác minh tĩnh từ APK và mock/stub.
+
 ## [1.19.0] - 2026-10-15
 
 ### Added

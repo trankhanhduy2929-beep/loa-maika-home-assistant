@@ -33,6 +33,21 @@
       {media_class: "track", media_content_type: "maika_song", media_content_id: browseSong("a"), title: "Bài một — Ca sĩ A", can_play: true, can_expand: false},
       {media_class: "track", media_content_type: "maika_song", media_content_id: browseSong("b"), title: "Bài hai", can_play: true, can_expand: false},
     ];
+    window.csTree = {
+      maika_cs_root: {title: "Thư viện giải trí", children: [
+        {media_class: "directory", media_content_type: "maika_cs_channels", media_content_id: "maika_cs_channels", title: "Kênh", can_play: false, can_expand: true},
+        {media_class: "directory", media_content_type: "maika_cs_categories", media_content_id: "maika_cs_categories", title: "Thể loại", can_play: false, can_expand: true},
+      ]},
+      maika_cs_channels: {title: "Kênh", children: [
+        {media_class: "channel", media_content_type: "maika_cs_channel:7", media_content_id: "maika_cs_channel:7", title: "Kênh thiếu nhi", can_play: false, can_expand: true},
+      ]},
+      "maika_cs_channel:7": {title: "Kênh thiếu nhi", children: [
+        {media_class: "directory", media_content_type: "maika_cs_media:42", media_content_id: "maika_cs_media:42", title: "Album bé", can_play: false, can_expand: true},
+      ]},
+      "maika_cs_media:42": {title: "Album bé", children: [
+        {media_class: "track", media_content_type: "maika_cs_track", media_content_id: "https://cdn.example.test/be.mp3", title: "Bài thiếu nhi", can_play: true, can_expand: false},
+      ]},
+    };
     const entries = [];
     const entityData = {
       binary_sensor: {online: "on", wifi_connected: "on", available_to_call: "on", favorite: "off", device_active: "on", warranty_active: "on"},
@@ -103,6 +118,12 @@
         if (failApi) throw new Error("Thử mất kết nối");
         if (method === "GET" && path === "maika/panel/audio") return {url_path: "/maika_media", files: [{path: "mp3/maika.mp3", name: "maika.mp3", root: "mp3"}, {path: "www/thanh-cong.mp3", name: "thanh-cong.mp3", root: "www"}]};
         if (method === "GET") return structuredClone(snapshot);
+        if (path === "maika/panel/chat") {
+          const entry = snapshot.entries.find((item) => item.entry_id === data.entry_id);
+          entry.chat ||= [];
+          entry.chat.push({role: "user", text: data.text, serial_number: data.serial_number, at: new Date().toISOString()});
+          return {ok: true, chat: entry.chat.slice()};
+        }
         if (path === "maika/panel/options") {
           if (failSave) throw new Error("Lưu thất bại giả lập");
           const entry = snapshot.entries.find((item) => item.entry_id === data.entry_id);
@@ -118,6 +139,8 @@
         await new Promise((resolve) => setTimeout(resolve, 40));
         if (failBrowse) throw {body: {message: "maika_queue_refresh_failed"}};
         if (message?.type === "media_player/browse_media") {
+          const node = window.csTree[message.media_content_id];
+          if (node) return {media_class: "directory", media_content_type: message.media_content_id, media_content_id: message.media_content_id, title: node.title, can_expand: true, children: node.children.map((child) => ({...child}))};
           return {media_class: "playlist", media_content_type: "maika_playlist", media_content_id: "maika_playlist", title: "Danh sách trên loa MAIKA", can_expand: true, children: browseItems.map((item) => ({...item}))};
         }
         throw new Error(`Unhandled websocket command: ${message?.type}`);

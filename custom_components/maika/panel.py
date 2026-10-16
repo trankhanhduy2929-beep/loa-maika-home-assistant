@@ -139,6 +139,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         MaikaPanelLicenseView(hass),
         MaikaPanelOptionsView(hass),
         MaikaPanelActionView(hass),
+        MaikaPanelChatView(hass),
         MaikaPanelAudioLibraryView(hass),
     ):
         hass.http.register_view(view)
@@ -303,6 +304,7 @@ def _serialize_entry(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
         "command_history": _json_safe(
             list(getattr(coordinator, "voice_command_history", ()) or ())
         ),
+        "chat": _json_safe(list(getattr(coordinator, "chat_log", ()) or ())),
         "devices": devices,
         "entities": {domain: sorted(ids) for domain, ids in entities.items()},
         "device_entities": {
@@ -553,6 +555,31 @@ class MaikaPanelActionView(MaikaPanelMixin, HomeAssistantView):
             )
             return self.json({"reloaded": True})
         return self.json_message("invalid_action", 400)
+
+
+class MaikaPanelChatView(MaikaPanelMixin, HomeAssistantView):
+    """Send a typed utterance to one MAIKA speaker from the panel."""
+
+    url = "/api/maika/panel/chat"
+    name = "api:maika:panel:chat"
+
+    async def post(self, request: web.Request) -> web.Response:
+        body = await _read_json(request)
+        entry, error = self.entry_or_error(body)
+        if error is not None:
+            return error
+        runtime = getattr(entry, "runtime_data", None)
+        coordinator = getattr(runtime, "coordinator", None)
+        if coordinator is None:
+            return self.json_message("coordinator_unavailable", 503)
+        serial_number = str(body.get("serial_number") or "").strip()
+        if not serial_number:
+            return self.json_message("unknown_speaker", 400)
+        text = str(body.get("text") or "")
+        result = await coordinator.async_send_chat(serial_number, text)
+        if not result.get("ok"):
+            return self.json({"ok": False, "error": result.get("error")}, status=400)
+        return self.json(result)
 
 
 class MaikaPanelAudioLibraryView(MaikaPanelMixin, HomeAssistantView):

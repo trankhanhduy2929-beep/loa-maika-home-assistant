@@ -667,6 +667,89 @@ async function verifyPlaylistPicker() {
   console.log("PASS an in-flight browse that resolves after close is ignored");
 }
 
+async function verifyChat() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  const card = () => page.locator('[data-card="chat"]');
+  const rows = () => card().locator(".chat-row");
+  assert.equal(await card().count(), 1);
+  assert.equal(await card().locator(".chat-input").count(), 1);
+
+  await page.evaluate(() => {
+    window.snapshot.entries[0].chat = [
+      {role: "user", text: "bật đèn", serial_number: panel._activeSerial(), at: "2026-10-12T10:00:00+00:00"},
+      {role: "assistant", text: "Đã bật đèn phòng khách", serial_number: panel._activeSerial(), at: "2026-10-12T10:00:02+00:00"},
+    ];
+  });
+  await page.evaluate(() => panel._load());
+  await card().locator(".chat-row--assistant .chat-text").first().waitFor();
+  assert.equal(await rows().count(), 2);
+  assert.equal(await card().locator(".chat-row--user .chat-text").first().innerText(), "bật đèn");
+  assert.equal(await card().locator(".chat-row--assistant .chat-text").first().innerText(), "Đã bật đèn phòng khách");
+  console.log("PASS chat renders user and assistant turns for the active speaker");
+
+  await page.evaluate(() => { window.calls.length = 0; });
+  const input = card().locator(".chat-input");
+  await input.fill("mở nhạc");
+  await card().locator('.chat-form button[type="submit"]').click();
+  await page.waitForFunction(() => (document.querySelector("maika-panel")._entry()?.chat || []).some((turn) => turn.text === "mở nhạc"));
+  const sent = await page.evaluate(() => window.calls.find((call) => call.path === "maika/panel/chat"));
+  assert.equal(sent.method, "POST");
+  assert.equal(sent.data.entry_id, "account-0");
+  assert.equal(sent.data.text, "mở nhạc");
+  assert.equal(typeof sent.data.serial_number, "string");
+  assert.equal(await input.inputValue(), "");
+  assert.equal(await card().locator(".chat-row--user .chat-text").last().innerText(), "mở nhạc");
+  await page.evaluate(() => { if (panel._chatTimer) { clearTimeout(panel._chatTimer); panel._chatTimer = null; } });
+  console.log("PASS chat submit posts to the panel chat API and clears the input");
+}
+
+async function verifyContentStore() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  const media = await page.evaluate(() => panel._entity("media_player"));
+  const opener = page.locator('[data-action="library"]');
+  const dialog = page.locator("dialog.library");
+  assert.equal(await opener.count(), 1);
+
+  await page.evaluate(() => { window.browseCalls.length = 0; });
+  await opener.click();
+  await dialog.locator(".pl-item").first().waitFor();
+  assert.equal(await dialog.locator(".pl-item").count(), 2);
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_root");
+  console.log("PASS content store opens at the MAIKA library root");
+
+  await dialog.getByRole("button", {name: "Kênh"}).click();
+  await dialog.getByRole("button", {name: "Kênh thiếu nhi"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channels");
+  assert.equal(await dialog.locator(".pl-item").count(), 1);
+  await dialog.getByRole("button", {name: "Kênh thiếu nhi"}).click();
+  await dialog.getByRole("button", {name: "Album bé"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel:7");
+  await dialog.getByRole("button", {name: "Album bé"}).click();
+  await dialog.getByRole("button", {name: "Bài thiếu nhi"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_media:42");
+  assert.equal(await dialog.locator(".pl-item__t").first().innerText(), "Bài thiếu nhi");
+  console.log("PASS content store drills down channels, media folders and tracks");
+
+  await dialog.locator('[data-action="library-up"]').click();
+  await dialog.getByRole("button", {name: "Album bé"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel:7");
+  assert.equal(await dialog.locator(".pl-item__t").first().innerText(), "Album bé");
+  console.log("PASS content store breadcrumb returns to the parent folder");
+
+  await page.evaluate(() => { window.calls.length = 0; });
+  await dialog.getByRole("button", {name: "Album bé"}).click();
+  await dialog.getByRole("button", {name: "Bài thiếu nhi"}).waitFor();
+  await dialog.getByRole("button", {name: "Bài thiếu nhi"}).click();
+  await page.waitForFunction(() => { const current = document.querySelector("maika-panel"); return !current.shadowRoot.querySelector("dialog.library")?.open && current._cs === null; });
+  const played = await page.evaluate((entity) => calls.filter((call) => call.service === "play_media" && call.data.entity_id === entity), media);
+  assert.equal(played.length, 1);
+  assert.deepEqual(played[0].data, {entity_id: media, media_content_type: "maika_cs_track", media_content_id: "https://cdn.example.test/be.mp3"});
+  assert(await page.evaluate(() => panel.shadowRoot.activeElement === panel.shadowRoot.querySelector('[data-action="library"]')), "Focus returns to the library button");
+  console.log("PASS content store track dispatches one media_player.play_media with the maika_cs_track id");
+}
+
 try {
   await verifyGlassAndMotion();
   await verifyDesktopScrolling();
@@ -675,6 +758,8 @@ try {
   await verifyLifetimeLicense();
   await verifyCommandHistory();
   await verifyPlaylistPicker();
+  await verifyChat();
+  await verifyContentStore();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
     await load();

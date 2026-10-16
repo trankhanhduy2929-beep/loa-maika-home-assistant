@@ -8,6 +8,7 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import AsyncMock, Mock, call
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,25 @@ class CoordinatorStub:
 
     def async_set_updated_data(self, data):
         self.data = data
+
+
+class HistoryStoreStub:
+    """In-memory stand-in for the HA Store backed command history."""
+
+    instances: ClassVar[list] = []
+
+    def __init__(self, hass, entry_id):
+        self.hass = hass
+        self.entry_id = entry_id
+        self.saved = None
+        self.to_load = []
+        HistoryStoreStub.instances.append(self)
+
+    async def async_load(self):
+        return list(self.to_load)
+
+    async def async_save(self, history):
+        self.saved = list(history)
 
 
 class OfflineSession:
@@ -84,6 +104,7 @@ def load_modules():
             },
             "__name__": "maika_live_coordinator_test",
             "DataUpdateCoordinator": CoordinatorStub,
+            "MaikaVoiceCommandHistoryStore": HistoryStoreStub,
             "callback": lambda function: function,
             "ConfigEntryAuthFailed": type("ConfigEntryAuthFailed", (Exception,), {}),
             "UpdateFailed": type("UpdateFailed", (Exception,), {}),
@@ -964,6 +985,60 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
             len(self.subscription_calls("StopListening", "conversation")), 2
         )
         self.assertEqual(len(self.subscription_calls("StopListening")), 2)
+
+    async def test_command_history_is_persisted_after_recognition(self):
+        self.entry.options["enable_voice_command_sensor"] = True
+        self.client.async_request_device_info = AsyncMock(return_value=None)
+        await self.poll()
+        frame = {
+            "header": {
+                "type": "speakerConversationResponse",
+                "rawSpeech": "next song",
+                "messageId": "phrase",
+            }
+        }
+        self.client._handle_stream_frame(frame)
+        task = self.coordinator._history_save_task
+        self.assertIsNotNone(task)
+        await task
+        self.assertEqual(self.coordinator._history_store.saved[0]["text"], "next song")
+
+    async def test_command_history_restores_from_storage(self):
+        self.coordinator._history_store.to_load = [
+            {
+                "text": "bật đèn",
+                "normalized": "bat den",
+                "received_at": "2024-01-01T00:00:00+00:00",
+                "executed": True,
+            }
+        ]
+        await self.coordinator._async_setup()
+        self.assertEqual(self.coordinator.voice_command_history[0]["text"], "bật đèn")
+
+    async def test_chat_send_records_turn_and_captures_assistant_reply(self):
+        self.client.async_send_voice_text = AsyncMock()
+        self.client.async_request_device_info = AsyncMock(return_value=None)
+        await self.poll()
+        result = await self.coordinator.async_send_chat("one", "bật đèn")
+        self.assertTrue(result["ok"])
+        self.client.async_send_voice_text.assert_awaited_once_with("one", "bật đèn")
+        self.assertEqual(self.coordinator.chat_log[0]["role"], "user")
+        frame = {
+            "header": {"namespace": "TextToSpeech", "name": "Speak"},
+            "response": {"items": [{"simpleResponse": {"displayText": "Đã bật đèn"}}]},
+        }
+        self.client._handle_stream_frame(frame)
+        log = self.coordinator.chat_log
+        self.assertEqual(log[-1]["role"], "assistant")
+        self.assertEqual(log[-1]["text"], "Đã bật đèn")
+
+    async def test_chat_send_rejects_unknown_speaker_and_empty_message(self):
+        self.client.async_send_voice_text = AsyncMock()
+        unknown = await self.coordinator.async_send_chat("ghost", "hi")
+        self.assertEqual(unknown["error"], "unknown_speaker")
+        empty = await self.coordinator.async_send_chat("one", "   ")
+        self.assertEqual(empty["error"], "empty_message")
+        self.client.async_send_voice_text.assert_not_awaited()
 
     async def test_voice_rule_execution_and_license_reminder_are_preserved(self):
         options = {

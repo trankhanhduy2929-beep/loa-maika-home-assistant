@@ -146,7 +146,7 @@ meta: <Base64 JSON>
 }
 ```
 
-Các header phụ quan trọng gồm `device-id`, `device-type`, `version-info`, `olli-session-id`, `source`, `client-version`, `user-id`, `language-code` và `Authorization` raw token.
+Các header phụ quan trọng gồm `device-id`, `device-type`, `version-info`, `olli-session-id`, `source`, `client-version`, `user-id`, `language-code` và `Authorization` raw token. Khi nhắm một loa cụ thể, request đặt `device-id` = serial loa và `olli-session-id` = serial loa (`com.maika.data.remove.header.a:125-129` + `ChatBotHeaderInterceptor`); không có loa thì dùng giá trị client Android.
 
 ## Command đã ánh xạ
 
@@ -162,6 +162,7 @@ Các header phụ quan trọng gồm `device-id`, `device-type`, `version-info`,
 | Previous | `PreviousCommandIssued` | `PlaybackController` | `deviceId` | Tĩnh từ APK |
 | Stop (qua pause) | `PauseCommandIssued` | `PlaybackController` | `deviceId` | Chưa xác minh được lệnh stop riêng; báo `paused`, giữ vị trí, từ `1.17.0` |
 | Jump item | `JumpCommandIssued` | `PlaybackController` | `deviceId`, `songKey` | Tĩnh từ APK; không phải seek theo giây, dùng cho queue native từ `1.18.0` |
+| Gửi câu lệnh gõ (chat) | `Recognize` | `SpeechRecognizer` | `rawSpeech` | Tĩnh từ APK (`MainViewController.java:955-1015`); mục Trò chuyện từ `1.20.0` |
 | Bắt đầu mirror hội thoại | `StartListening` | `Conversation` | `deviceId`, `type=conversation` | Tĩnh từ APK; triển khai từ `1.3.2` |
 | Dừng mirror hội thoại | `StopListening` | `Conversation` | `deviceId`, `type=conversation` | Tĩnh từ APK; best-effort khi unload từ `1.3.2` |
 | Restart | `Reboot` | `SystemControl` | `toDeviceId` | Tĩnh từ APK |

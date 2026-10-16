@@ -695,11 +695,41 @@ class MaikaApiClient:
             retry_auth=retry_auth,
         )
 
+    async def async_send_voice_text(
+        self,
+        serial_number: str,
+        text: str,
+        *,
+        retry_auth: bool = True,
+    ) -> None:
+        """Send a typed utterance to one speaker as if it had been recognized.
+
+        Mirrors the MAIKA app, which posts a ``Recognize`` event in the
+        ``SpeechRecognizer`` namespace carrying the text in ``rawSpeech`` and
+        targets the selected speaker through the ``device-id`` header.
+        """
+        await self._async_send_stream_meta(
+            {
+                "event": {
+                    "header": {
+                        "dialogRequestId": str(uuid4()),
+                        "messageId": f"messageId-{uuid4()}",
+                        "name": "Recognize",
+                        "namespace": "SpeechRecognizer",
+                        "rawSpeech": text,
+                    }
+                }
+            },
+            retry_auth=retry_auth,
+            device_id=serial_number,
+        )
+
     async def _async_send_stream_meta(
         self,
         meta: dict[str, Any],
         *,
         retry_auth: bool = True,
+        device_id: str | None = None,
     ) -> None:
         """Send an allowlisted MAIKA metadata envelope through chatbot /stream."""
         await self._async_ensure_authenticated()
@@ -710,7 +740,7 @@ class MaikaApiClient:
             json.dumps(meta, ensure_ascii=False, separators=(",", ":")).encode()
         ).decode()
 
-        headers = self._stream_headers(encoded_meta)
+        headers = self._stream_headers(encoded_meta, device_id=device_id)
         try:
             async with self._session.post(
                 f"{CHATBOT_BASE_URL}/stream",
@@ -722,7 +752,9 @@ class MaikaApiClient:
                     await response.read()
                     self._clear_authentication()
                     await self._async_ensure_authenticated()
-                    await self._async_send_stream_meta(meta, retry_auth=False)
+                    await self._async_send_stream_meta(
+                        meta, retry_auth=False, device_id=device_id
+                    )
                     return
                 if response.status in (401, 403):
                     raise MaikaAuthenticationError(
@@ -964,15 +996,17 @@ class MaikaApiClient:
             "language-code": APP_LANGUAGE,
         }
 
-    def _stream_headers(self, encoded_meta: str) -> dict[str, str]:
+    def _stream_headers(
+        self, encoded_meta: str, *, device_id: str | None = None
+    ) -> dict[str, str]:
         assert self._access_token is not None
         assert self._user_id is not None
         return {
             "Authorization": self._access_token,
-            "device-id": self._client_id,
+            "device-id": device_id or self._client_id,
             "device-type": APP_DEVICE_TYPE,
             "version-info": APP_VERSION,
-            "olli-session-id": self._session_id,
+            "olli-session-id": device_id or self._session_id,
             "source": APP_DEVICE_TYPE,
             "Content-Type": "application/octet-stream",
             "client-version": APP_VERSION,

@@ -25,6 +25,7 @@ from .api import (
     merge_current_playback,
 )
 from .audio_library import async_ensure_audio_library_paths, library_audio_url
+from .command_history import MaikaVoiceCommandHistoryStore
 from .const import (
     CONF_ENABLE_CLOUD_CAST,
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
@@ -35,6 +36,8 @@ from .const import (
     DEFAULT_VOICE_COMMAND_RULES,
     DOMAIN,
     LICENSE_EXPIRY_REMINDER_DAYS,
+    MAX_CHAT_HISTORY,
+    MAX_CHAT_MESSAGE_LENGTH,
     MAX_VOICE_COMMAND_HISTORY,
     VOICE_SUCCESS_AUDIO_TIMING_PRIORITY,
 )
@@ -89,6 +92,10 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._processed_speech: dict[str, float] = {}
         self._last_voice_command: dict[str, Any] | None = None
         self._voice_command_history: list[dict[str, Any]] = []
+        self._history_store = MaikaVoiceCommandHistoryStore(hass, entry.entry_id)
+        self._history_save_task: asyncio.Task[Any] | None = None
+        self._chat_log: list[dict[str, Any]] = []
+        self._chat_pending_serial: str | None = None
         self._license_reminder_date: str | None = None
         self._voice_command_sequence = 0
         self._stream_frame_count = 0
@@ -130,6 +137,16 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             ),
             config_entry=entry,
         )
+
+    async def _async_setup(self) -> None:
+        """Restore the persisted voice-command history before first refresh."""
+        try:
+            history = await self._history_store.async_load()
+        except Exception:  # history storage must never block setup
+            _LOGGER.debug("Unable to load MAIKA command history", exc_info=True)
+            return
+        if history:
+            self._voice_command_history = history[:MAX_VOICE_COMMAND_HISTORY]
 
     async def _async_update_data(self) -> CoordinatorData:
         if self._stopping:
@@ -259,6 +276,91 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         else:
             self._voice_command_history.insert(0, stored)
         del self._voice_command_history[MAX_VOICE_COMMAND_HISTORY:]
+        self._schedule_history_save()
+
+    @callback
+    def _schedule_history_save(self) -> None:
+        """Persist the command history without blocking the event loop."""
+        task = self._history_save_task
+        if task is not None and not task.done():
+            task.cancel()
+        self._history_save_task = self.entry.async_create_background_task(
+            self.hass,
+            self._history_store.async_save(list(self._voice_command_history)),
+            "MAIKA command history save",
+        )
+
+    @property
+    def chat_log(self) -> list[dict[str, Any]]:
+        """Return the recent speaker chat turns, oldest first."""
+        return [dict(turn) for turn in self._chat_log]
+
+    async def async_send_chat(self, serial_number: str, text: str) -> dict[str, Any]:
+        """Send a typed utterance to one speaker and record the user turn."""
+        message = (text or "").strip()
+        if not message:
+            return {"ok": False, "error": "empty_message"}
+        if len(message) > MAX_CHAT_MESSAGE_LENGTH:
+            return {"ok": False, "error": "message_too_long"}
+        if serial_number not in (self.data or {}).get("devices", {}):
+            return {"ok": False, "error": "unknown_speaker"}
+        try:
+            await self.client.async_send_voice_text(serial_number, message)
+        except MaikaApiError:
+            _LOGGER.debug("Unable to send MAIKA chat message", exc_info=True)
+            return {"ok": False, "error": "send_failed"}
+        self._append_chat("user", message, serial_number)
+        self._chat_pending_serial = serial_number
+        return {"ok": True, "chat": self.chat_log}
+
+    @callback
+    def _append_chat(self, role: str, text: str, serial_number: str) -> None:
+        self._chat_log.append(
+            {
+                "role": role,
+                "text": text,
+                "serial_number": serial_number,
+                "at": datetime.now(UTC).isoformat(),
+            }
+        )
+        del self._chat_log[:-MAX_CHAT_HISTORY]
+
+    @callback
+    def _maybe_capture_assistant_reply(
+        self, header: dict[str, Any], frame: dict[str, Any]
+    ) -> None:
+        """Attach a spoken assistant reply to the pending chat turn."""
+        if not self._chat_pending_serial:
+            return
+        namespace = str(header.get("namespace", "")).casefold()
+        if namespace not in ("texttospeech", "speechsynthesizer"):
+            return
+        text = self._extract_speech_text(frame)
+        if not text:
+            return
+        serial_number = self._chat_pending_serial
+        self._chat_pending_serial = None
+        self._append_chat("assistant", text, serial_number)
+        self._publish_last_voice_command()
+
+    @classmethod
+    def _extract_speech_text(cls, frame: dict[str, Any]) -> str | None:
+        """Best-effort extraction of display text from a TTS directive frame."""
+        response = frame.get("response")
+        if isinstance(response, dict):
+            items = response.get("items")
+            if isinstance(items, list):
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    simple = item.get("simpleResponse")
+                    if not isinstance(simple, dict):
+                        continue
+                    for key in ("displayText", "textToSpeech", "ssml"):
+                        value = simple.get(key)
+                        if isinstance(value, str) and value.strip():
+                            return value.strip()
+        return None
 
     @callback
     def _async_check_license_expiry(self) -> None:
@@ -422,6 +524,8 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         if not isinstance(header, dict):
             return
 
+        self._maybe_capture_assistant_reply(header, frame)
+
         if (
             str(header.get("name", "")).casefold() == "deviceinfo"
             and str(header.get("namespace", "")).casefold() == "clientinformation"
@@ -575,6 +679,21 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._live_device_data.clear()
         self._live_field_revisions.clear()
         await self.async_stop_voice_subscriptions()
+        await self._async_flush_history()
+
+    async def _async_flush_history(self) -> None:
+        """Write the pending command history to storage on shutdown."""
+        task = self._history_save_task
+        if task is not None and not task.done():
+            task.cancel()
+        self._history_save_task = None
+        try:
+            async with asyncio.timeout(5):
+                await self._history_store.async_save(list(self._voice_command_history))
+        except TimeoutError:
+            _LOGGER.debug("Timed out saving MAIKA command history")
+        except Exception:  # never fail shutdown on storage
+            _LOGGER.debug("Unable to save MAIKA command history", exc_info=True)
 
     async def _async_ensure_voice_subscriptions(
         self, devices: dict[str, dict[str, Any]]
