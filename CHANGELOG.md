@@ -2,6 +2,19 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.20.4] - 2026-10-24
+
+### Changed
+
+- **HACS tải từng tệp thay vì release asset**: GitHub đang trả header
+  `content-security-policy` khoảng 9 KB trên redirect tải release, vượt giới hạn
+  8190 byte của `aiohttp` trong HACS 2.0.5, gây lỗi
+  `LineTooLong: Got more than 8190 bytes when reading`. `hacs.json` chuyển sang
+  `zip_release: false` để HACS dùng đường tải file thay thế; không thay đổi mã
+  integration. Có thể bật lại `zip_release` khi HACS phát hành bản sửa.
+- Vẫn phát hành `maika.zip` và `maika-manual.zip` cho cài thủ công/lưu trữ.
+- Kiểm thử: 99 test pass; `validate_repository.py` pass.
+
 ## [1.20.3] - 2026-10-24
 
 ### Fixed

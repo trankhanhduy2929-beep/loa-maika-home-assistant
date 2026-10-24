@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.20.3**.
+Bản hiện tại: **v1.20.4**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -167,6 +167,12 @@ thêm thủ công theo bốn bước:
 3. Chọn category **Integration**, bấm **Add**, rồi chọn **Download**.
 4. Restart Home Assistant và thêm integration **MAIKA Speaker**.
 
+Từ `1.20.4`, repository tạm đặt `zip_release: false` để HACS tải từng tệp thay
+vì tải release asset. Cách này tránh lỗi GitHub trả header
+`content-security-policy` dài hơn 8190 byte làm HACS 2.0.5 báo
+`LineTooLong`. Nếu HACS vẫn báo lỗi, cài thủ công theo mục dưới; không cần xóa
+integration, thiết bị hay license key.
+
 ## Cài thủ công
 
 Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và kiểm tra:
@@ -177,13 +183,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.20.0
+## File phát hành v1.20.4
 
-- `maika.zip`: asset chuẩn để HACS tự tải.
-- `maika-v1.20.0-hacs.zip`: bản HACS có tên kèm version để lưu trữ/bàn giao.
-- `maika-manual.zip` và `maika-v1.20.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.20.4-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.20.4` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.20.4-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.20.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.20.4-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
