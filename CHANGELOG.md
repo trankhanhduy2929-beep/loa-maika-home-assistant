@@ -2,6 +2,13 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.20.3] - 2026-10-24
+
+### Fixed
+
+- **Không ép cổng media khi có `cloud_cast_base_url`**: bản 1.20.2 giữ cổng gốc cho mọi URL được viết lại, nên nếu người dùng đặt base URL HTTPS không kèm cổng (ví dụ `https://ha.example.com`) thì URL media Home Assistant có thể bị thêm `:8123`. Nay chỉ giữ cổng gốc ở nhánh tự chọn host LAN; nhánh override dùng đúng scheme/host/cổng của base URL.
+- Kiểm thử: 99 test pass; `validate_repository.py` pass.
+
 ## [1.20.2] - 2026-10-24
 
 ### Fixed

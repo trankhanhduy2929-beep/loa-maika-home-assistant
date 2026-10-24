@@ -95,7 +95,7 @@ def cast_ready_url(hass: HomeAssistant, media_url: str, override: str = "") -> s
     explicit = _clean_origin(override)
     if explicit:
         if is_hass_url(hass, media_url) or not is_reachable_media_host(host):
-            return rewrite_media_origin(media_url, explicit, keep_port=True)
+            return rewrite_media_origin(media_url, explicit)
         return media_url
 
     if is_reachable_media_host(host):
