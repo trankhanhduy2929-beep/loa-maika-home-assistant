@@ -1078,7 +1078,9 @@ def validate(
         if not isinstance(hacs.get("zip_release"), bool):
             errors.append("hacs.json zip_release must be a boolean")
         if hacs.get("zip_release") is True and hacs.get("filename") != "maika.zip":
-            errors.append("hacs.json filename must be maika.zip when zip_release is true")
+            errors.append(
+                "hacs.json filename must be maika.zip when zip_release is true"
+            )
         minimum_ha = str(hacs.get("homeassistant", ""))
         if not SEMVER_PATTERN.fullmatch(minimum_ha):
             errors.append("hacs.json homeassistant must be a semantic version")
