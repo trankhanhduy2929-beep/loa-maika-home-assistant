@@ -95,7 +95,7 @@ def cast_ready_url(hass: HomeAssistant, media_url: str, override: str = "") -> s
     explicit = _clean_origin(override)
     if explicit:
         if is_hass_url(hass, media_url) or not is_reachable_media_host(host):
-            return rewrite_media_origin(media_url, explicit)
+            return rewrite_media_origin(media_url, explicit, keep_port=True)
         return media_url
 
     if is_reachable_media_host(host):
@@ -109,4 +109,6 @@ def cast_ready_url(hass: HomeAssistant, media_url: str, override: str = "") -> s
         host,
         _origin_host(base),
     )
-    return rewrite_media_origin(media_url, base)
+    # Add-on media servers can live on another port of the same host, so keep
+    # an explicit media port instead of forcing the Home Assistant port.
+    return rewrite_media_origin(media_url, base, keep_port=True)

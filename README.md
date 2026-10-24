@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.20.1**.
+Bản hiện tại: **v1.20.2**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -70,6 +70,13 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.20.2` sửa **cast đám mây giữ nguyên cổng media của add-on**: khi host
+media là `homeassistant.local` hoặc không phân giải được, integration từng thay
+cả host lẫn cổng bằng URL Home Assistant nên `http://homeassistant.local:2032/...`
+bị đổi thành `http://<LAN-IP>:8123/...`, loa tải nhầm vào Home Assistant và im
+lặng. Nay cổng tường minh (ví dụ `2032`) được giữ nguyên; URL media của Home
+Assistant không đổi. Chưa kiểm thử trên loa thật.
 
 Bản `1.20.1` **gộp lịch sử câu lệnh vào mục Trò chuyện** (bỏ mục Lịch sử riêng;
 câu lệnh nghe qua micro và chat nằm chung một dòng thời gian, kèm nhãn kết quả) và

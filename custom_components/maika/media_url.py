@@ -76,8 +76,10 @@ def is_reachable_media_host(host: str | None) -> bool:
     )
 
 
-def rewrite_media_origin(media_url: str, base_url: str) -> str:
-    """Return ``media_url`` with the scheme, host and port of ``base_url``."""
+def rewrite_media_origin(
+    media_url: str, base_url: str, *, keep_port: bool = False
+) -> str:
+    """Return ``media_url`` with the scheme, host and (optionally) port of ``base_url``."""
     if not media_url or not base_url:
         return media_url
 
@@ -88,6 +90,11 @@ def rewrite_media_origin(media_url: str, base_url: str) -> str:
     if base.scheme.lower() not in {"http", "https"}:
         return media_url
 
-    return urlunsplit(
-        (base.scheme, base.netloc, parsed.path, parsed.query, parsed.fragment)
-    )
+    netloc = base.netloc
+    if keep_port and parsed.port is not None:
+        host = base.hostname or ""
+        if ":" in host:
+            host = f"[{host}]"
+        netloc = f"{host}:{parsed.port}"
+
+    return urlunsplit((base.scheme, netloc, parsed.path, parsed.query, parsed.fragment))

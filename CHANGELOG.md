@@ -2,6 +2,13 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.20.2] - 2026-10-24
+
+### Fixed
+
+- **Cloud cast giữ nguyên cổng media của add-on**: khi host media là `homeassistant.local` (hoặc host không phân giải được), `cast_ready_url` từng thay cả host lẫn cổng bằng URL Home Assistant, biến `http://homeassistant.local:2032/api/media/...` thành `http://<LAN-IP>:8123/api/media/...` nên loa tải nhầm vào Home Assistant và im lặng. Nay giữ cổng gốc (ví dụ `2032`) khi URL có cổng tường minh; URL media của Home Assistant không đổi.
+- Kiểm thử: 99 test pass; `validate_repository.py` thêm kiểm tra giữ cổng `2032` cho URL relay add-on.
+
 ## [1.20.1] - 2026-10-15
 
 ### Fixed

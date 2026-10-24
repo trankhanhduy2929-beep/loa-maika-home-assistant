@@ -781,6 +781,11 @@ def _validate_media_cast_config(errors: list[str]) -> None:
         "http://192.168.1.42:8123/media/local/nhac.mp3?authSig=abc.def"
     ):
         errors.append("cast_ready_url must rewrite an mDNS Home Assistant host")
+    addon_media = "http://homeassistant.local:2032/api/media/token/audio.m4a"
+    if ready(plain_hass, addon_media) != (
+        "http://192.168.1.42:2032/api/media/token/audio.m4a"
+    ):
+        errors.append("cast_ready_url must keep the add-on media port")
     googlevideo = "https://rr3---sn-x.googlevideo.com/videoplayback?x=1"
     if ready(plain_hass, googlevideo) != googlevideo:
         errors.append("cast_ready_url must keep an already reachable host")
