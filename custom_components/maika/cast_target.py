@@ -15,6 +15,7 @@ from urllib.parse import urlsplit, urlunsplit
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url, is_hass_url
 
+from .media_relay import public_relay_url
 from .media_url import is_reachable_media_host, rewrite_media_origin
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,6 +92,11 @@ def cast_ready_url(hass: HomeAssistant, media_url: str, override: str = "") -> s
     host = parsed.hostname or ""
     if parsed.scheme.lower() not in _HTTP_SCHEMES or not host:
         return media_url
+
+    relay_url = public_relay_url(hass, media_url)
+    if relay_url:
+        _LOGGER.debug("MAIKA cloud cast proxied add-on media through Home Assistant")
+        return relay_url
 
     explicit = _clean_origin(override)
     if explicit:

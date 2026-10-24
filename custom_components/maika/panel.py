@@ -54,6 +54,7 @@ from .license import (
 )
 from .license_config import DEFAULT_LICENSE_SERVER_URL, LICENSE_PORTAL_URL
 from .license_store import MaikaLicenseStore, MaikaStoredLicense
+from .media_relay import MaikaMediaRelayView
 from .media_url import is_valid_http_media_url
 from .voice_rules import (
     MAX_PHRASE_LENGTH,
@@ -141,6 +142,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         MaikaPanelActionView(hass),
         MaikaPanelChatView(hass),
         MaikaPanelAudioLibraryView(hass),
+        MaikaMediaRelayView(hass),
     ):
         hass.http.register_view(view)
 

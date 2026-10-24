@@ -148,6 +148,7 @@ khi clip ưu tiên đã bắt đầu, sensor ghi
 - URL local `http://<IP-HASS>:8123/...` chỉ hoạt động khi loa truy cập được Home Assistant trong cùng mạng.
 - Từ `1.15.0`, nếu Home Assistant tạo URL bằng hostname mà loa không phân giải được, integration tự đổi sang địa chỉ LAN; chỉ cần điền **Địa chỉ Home Assistant cho loa tải nhạc** khi mạng có nhiều dải hoặc địa chỉ tự dò không đúng.
 - URL public HTTPS vẫn hữu ích khi loa nằm ngoài mạng LAN của Home Assistant.
+- Từ `1.21.0`, nếu URL là relay của add-on YouTube Pro trên IP LAN cổng `2032` và Home Assistant có `external_url` HTTPS, integration tự tạo URL proxy `/api/maika/relay/<token>` trên Home Assistant. Loa tải media qua HTTPS của Home Assistant; không cần reverse proxy riêng cho add-on. Token hết hạn sau 24 giờ.
 - URL có query token hoặc chữ ký tạm được gửi nguyên vẹn trong metadata tới cloud MAIKA.
 - Không dùng URL chứa bí mật dài hạn. Ưu tiên URL tạm, file ngắn và quyền tối thiểu.
 

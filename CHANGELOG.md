@@ -2,6 +2,18 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.21.0] - 2026-10-24
+
+### Added
+
+- **Proxy media add-on qua HTTPS của Home Assistant**: khi loa MAIKA nhận URL relay HTTP LAN của YouTube Pro (`:2032/api/media-*`) và Home Assistant có `external_url` HTTPS, integration đăng ký một URL proxy tạm thời trên Home Assistant và stream response của add-on qua đó. Loa chỉ cần truy cập Home Assistant bằng HTTPS, không cần nginx riêng hay mở thêm cổng.
+- Token proxy ngẫu nhiên, chỉ dùng cho URL add-on đã xác thực (IP private, cổng 2032, path media), hết hạn sau 24 giờ; không proxy URL tùy ý.
+
+### Changed
+
+- `cast_ready_url` ưu tiên proxy HTTPS cho media add-on trước khi fallback sang địa chỉ LAN HTTP cũ.
+- Kiểm thử: thêm `scripts/test_media_relay.py`; 99 test pass; `validate_repository.py` pass.
+
 ## [1.20.4] - 2026-10-24
 
 ### Changed

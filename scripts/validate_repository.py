@@ -736,6 +736,7 @@ def _validate_media_cast_config(errors: list[str]) -> None:
         "is_hass_url": is_hass_url,
         "is_reachable_media_host": is_reachable,
         "rewrite_media_origin": rewrite,
+        "public_relay_url": lambda home_assistant, media_url: None,
     }
     cast_path = directory / "cast_target.py"
     cast_namespace: dict[str, Any] = dict(namespace)
@@ -1068,6 +1069,10 @@ def validate(
                 str(ROOT / "scripts/test_content_store.py")
             )
             errors.extend(content_store_tests["validate_content_store"]())
+            media_relay_tests = runpy.run_path(
+                str(ROOT / "scripts/test_media_relay.py")
+            )
+            errors.extend(media_relay_tests["validate_media_relay"]())
             _validate_panel_configuration(errors)
 
     if hacs_path.is_file():
