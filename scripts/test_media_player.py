@@ -94,6 +94,15 @@ class ContentStoreStub:
         self.async_episodes = AsyncMock(return_value=[])
 
 
+class NhacCuaTuiStub:
+    def __init__(self, client):
+        self.client = client
+        self.async_feed = AsyncMock(return_value=[])
+        self.async_charts = AsyncMock(return_value=[])
+        self.async_chart_tracks = AsyncMock(return_value=[])
+        self.async_song = AsyncMock(return_value={})
+
+
 class Clock:
     current = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -157,6 +166,10 @@ def load_player():
             MUSIC="music",
         ),
         "MaikaContentStore": ContentStoreStub,
+        "MaikaNhacCuaTui": NhacCuaTuiStub,
+        "parse_nct_song_key": runpy.run_path(
+            str(ROOT / "custom_components/maika/nhaccuatui.py")
+        )["parse_nct_song_key"],
         "media_source": SimpleNamespace(
             is_media_source_id=lambda value: (
                 isinstance(value, str) and value.startswith("media-source://")
@@ -454,6 +467,10 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(playlist.media_content_type, "maika_playlist")
         self.assertEqual(playlist.media_content_id, "maika_playlist")
         self.assertEqual(len(playlist.children), 2)
+        self.assertEqual(
+            [child.media_content_id for child in result.children],
+            ["maika_playlist", "maika_nct_root", "maika_cs_root"],
+        )
         self.media_source.async_browse_media.assert_not_awaited()
         self.coordinator.async_refresh_live.assert_awaited_once_with(
             "speaker-one", required_fields=("latest_playlist",)
@@ -1185,6 +1202,9 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
     def content_store(self):
         return self.player._content_store
 
+    def nct(self):
+        return self.player._nct
+
     async def test_content_store_browse_tree_and_play(self):
         self.content_store().async_channels.return_value = [
             {"id": 7, "name": "VOV Giao thông", "cover": None}
@@ -1201,7 +1221,12 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         root = await self.player.async_browse_media("maika_cs_root", "maika_cs_root")
         self.assertEqual(
             [child.media_content_id for child in root.children],
-            ["maika_cs_channels", "maika_cs_categories", "maika_cs_highlights"],
+            [
+                "maika_cs_channels",
+                "maika_cs_categories",
+                "maika_cs_highlights",
+                "maika_nct_root",
+            ],
         )
         channels = await self.player.async_browse_media(
             "maika_cs_channels", "maika_cs_channels"
@@ -1281,6 +1306,89 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             error.exception.translation_key, "maika_content_store_invalid_selection"
         )
+
+    async def test_nhaccuatui_browse_and_play(self):
+        self.nct().async_feed.return_value = [
+            {
+                "key": "Track0001",
+                "title": "Bài mới",
+                "artist": "Ca sĩ",
+                "cover": "https://cdn/cover.jpg",
+                "duration": 180,
+                "stream_url": "https://stream/320.mp3",
+            }
+        ]
+        self.nct().async_charts.return_value = [
+            {
+                "key": "chart-1",
+                "title": "Top 50",
+                "cover": None,
+                "tracks": [],
+            }
+        ]
+        self.nct().async_chart_tracks.return_value = [
+            {"key": "Track0002", "title": "Chart song", "artist": None}
+        ]
+        root = await self.player.async_browse_media("maika_nct_root", "maika_nct_root")
+        self.assertEqual(
+            [child.media_content_id for child in root.children],
+            ["maika_nct_feed", "maika_nct_charts"],
+        )
+        feed = await self.player.async_browse_media("maika_nct_feed", "maika_nct_feed")
+        track = feed.children[0]
+        self.assertEqual(track.media_content_type, "maika_nct_track")
+        self.assertEqual(track.media_content_id, "Track0001")
+        self.assertEqual(track.title, "Bài mới — Ca sĩ")
+        charts = await self.player.async_browse_media(
+            "maika_nct_charts", "maika_nct_charts"
+        )
+        chart = charts.children[0]
+        self.assertEqual(chart.media_content_id, "maika_nct_chart:chart-1")
+        chart_tracks = await self.player.async_browse_media(
+            chart.media_content_id, chart.media_content_id
+        )
+        self.assertEqual(chart_tracks.children[0].media_content_id, "Track0002")
+        self.nct().async_chart_tracks.assert_awaited_once_with("chart-1")
+
+        self.nct().async_song.return_value = {
+            "key": "Track0001",
+            "title": "Bài mới",
+            "artist": "Ca sĩ",
+            "stream_url": "https://stream/320.mp3",
+        }
+        await self.player.async_play_media("maika_nct_track", "Track0001")
+        self.nct().async_song.assert_awaited_once_with("Track0001")
+        self.client.async_cast_media.assert_awaited_once()
+        args, kwargs = self.client.async_cast_media.call_args
+        self.assertEqual(args[0], "speaker-one")
+        self.assertEqual(args[1], "https://stream/320.mp3")
+        self.assertEqual(kwargs["stream_format"], "AUDIO_MPEG")
+        self.assertEqual(kwargs["title"], "Bài mới — Ca sĩ")
+
+    async def test_nhaccuatui_direct_url_resolves_song(self):
+        self.nct().async_song.return_value = {
+            "key": "Track0001",
+            "title": "Bài mới",
+            "artist": None,
+            "stream_url": "https://stream/320.mp3",
+        }
+        await self.player.async_play_media(
+            "music", "https://www.nhaccuatui.com/song/Track0001"
+        )
+        self.nct().async_song.assert_awaited_once_with("Track0001")
+        self.client.async_cast_media.assert_awaited_once()
+
+    async def test_nhaccuatui_rejects_invalid_key_and_missing_stream(self):
+        with self.assertRaises(ValidationError) as error:
+            await self.player.async_play_media("maika_nct_track", "../bad")
+        self.assertEqual(error.exception.translation_key, "nhaccuatui_invalid_track")
+        self.nct().async_song.return_value = {"title": "No stream"}
+        with self.assertRaises(HomeError) as error:
+            await self.player.async_play_media("maika_nct_track", "Track0001")
+        self.assertEqual(
+            error.exception.translation_key, "nhaccuatui_track_unavailable"
+        )
+        self.client.async_cast_media.assert_not_awaited()
 
 
 def validate_media_player():

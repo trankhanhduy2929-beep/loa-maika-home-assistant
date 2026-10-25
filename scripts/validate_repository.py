@@ -1069,6 +1069,8 @@ def validate(
                 str(ROOT / "scripts/test_content_store.py")
             )
             errors.extend(content_store_tests["validate_content_store"]())
+            nhaccuatui_tests = runpy.run_path(str(ROOT / "scripts/test_nhaccuatui.py"))
+            errors.extend(nhaccuatui_tests["validate_nhaccuatui"]())
             media_relay_tests = runpy.run_path(
                 str(ROOT / "scripts/test_media_relay.py")
             )

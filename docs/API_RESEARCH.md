@@ -294,6 +294,20 @@ Duyệt Content Store không cần cloud cast (chỉ cần entity available), nh
 
 Schema và semantics field được xác minh tĩnh từ APK và kiểm thử bằng mock (`scripts/test_content_store.py`, `scripts/test_media_player.py`), chưa gọi API thật hoặc phát trên loa vật lý. Vì vậy duyệt có thể lỗi nếu API trả field khác; lỗi được báo qua `maika_content_store_failed`.
 
+## NhạcCủaTui
+
+Từ `1.22.0`, integration thêm nguồn **NhạcCủaTui** vào Thư viện giải trí MAIKA; từ `1.22.1` mục này cũng nằm trực tiếp dưới gốc **MAIKA** trong trình duyệt media. Đây là API công khai của NhạcCủaTui mà app MAIKA không gọi trực tiếp trong APK 3.2.3; integration gọi thẳng API web để lấy dữ liệu và stream.
+
+- Base: `https://graph.nhaccuatui.com/api/v1/`.
+- **Bài hát mới**: `GET song/feed?pageindex=1&pagesize=50`. Mỗi item có `key`, `name`, `artistName`, `duration`, ảnh `image`/`imageShare` và mảng `streamURL`; mỗi phần tử stream có `stream`, `type` (`128`, `320`, `lossless`), `onlyVIP`, `status`.
+- **Top thịnh hành**: `GET playlist/charts` trả các chart (`key`, `title`, `titleDetail`, `image`); `GET app/charts/more?chartKey=<chart>&pageindex=1&pagesize=50` trả danh sách bài của chart.
+- Không cần token/header đặc biệt. Response JSON có `data` bọc danh sách hoặc object.
+- Chọn stream trong `streamURL`: bỏ option `status != 1`, ưu tiên option không `onlyVIP`, rồi tới thứ tự `320` → `128` → `lossless`. Integration không chọn link cần quyền VIP nếu còn lựa chọn công khai. URL stream có thể hết hạn, nên resolve lại ở thời điểm phát thay vì lưu lâu dài.
+- Phát qua đúng cloud cast MAIKA (`enable_experimental_cloud_cast`). Có thể gọi trực tiếp `media_player.play_media` với `https://www.nhaccuatui.com/song/<key>`, link `/bai-hat/...<key>.html`, hoặc `nct:<key>`; media player resolve key rồi cast URL stream.
+- Cây duyệt dùng `maika_nct_root`, `maika_nct_feed`, `maika_nct_charts`, `maika_nct_chart:<key>`, và track có `media_content_type` `maika_nct_track` với `media_content_id` là `<key>`; panel nhận `maika_nct_track` nhưng vẫn dùng `media_player.play_media` chuẩn.
+
+Đã kiểm tra API trực tiếp: feed trả bài, `playlist/charts` trả 12 chart, chart trả tối đa 50 bài, detail trả stream 320. Chưa kiểm thử cast/phát trên loa thật.
+
 ## Smart-home linking
 
 APK mới và APK lịch sử 2.5.0 lấy danh sách partner/OAuth hoàn toàn từ backend `smarthome.iviet.com`; không có cấu hình Home Assistant cố định trong app.
@@ -340,6 +354,8 @@ Danh sách 27 entity an toàn/hữu ích nằm trong `docs/ENTITIES.md`.
 | `CommandHandOver` media cast trong APK | Pass, xác minh tĩnh |
 | `media_player.play_media` payload/build | Pass, kiểm thử local không gửi cloud |
 | Cloud cast phát trên loa vật lý | Chưa xác minh |
+| NhạcCủaTui API feed/chart/detail live | Pass |
+| NhạcCủaTui cast trên loa vật lý | Chưa xác minh |
 | Voice command vật lý → Assist | Chưa xác minh |
 | Assist response → loa MAIKA | Không triển khai |
 

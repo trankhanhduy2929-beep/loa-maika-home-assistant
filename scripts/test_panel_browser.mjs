@@ -438,10 +438,12 @@ async function verifySpeakerGestures() {
   try {
     await touchPage.goto(base);
     await touchPage.locator(".speaker-pager").waitFor();
+    await touchPage.waitForFunction(() => document.querySelector("maika-panel")._busy === false);
     await touchPage.locator('[name="license_key"]').fill("MAIKA-UNSAVED-KEY");
     await touchPage.locator('[name="scan_interval"]').fill("91");
     await touchPage.locator("maika-voice-editor").locator("#phrase").fill("bản nháp giọng nói");
     await overview();
+    await touchPage.evaluate(() => { document.querySelector("maika-panel").scrollTop = 0; });
     const initial = await activeSpeaker();
     const initialImage = await touchPage.locator(".hero-media").boundingBox();
     assert(initialImage.width <= 180 && initialImage.height <= 200);
@@ -716,7 +718,7 @@ async function verifyContentStore() {
   await page.evaluate(() => { window.browseCalls.length = 0; });
   await opener.click();
   await dialog.locator(".pl-item").first().waitFor();
-  assert.equal(await dialog.locator(".pl-item").count(), 2);
+  assert.equal(await dialog.locator(".pl-item").count(), 3);
   assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_root");
   console.log("PASS content store opens at the MAIKA library root");
 
@@ -751,6 +753,23 @@ async function verifyContentStore() {
   console.log("PASS content store track dispatches one media_player.play_media with the maika_cs_track id");
 }
 
+async function verifyNhacCuaTui() {
+  await load();
+  const media = await page.evaluate(() => panel._entity("media_player"));
+  const dialog = page.locator("dialog.library");
+  await page.locator('[data-action="library"]').click();
+  await dialog.getByRole("button", {name: "NhạcCủaTui"}).click();
+  await dialog.getByRole("button", {name: "Bài hát mới"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_nct_root");
+  await dialog.getByRole("button", {name: "Bài hát mới"}).click();
+  await dialog.getByRole("button", {name: "Bài NCT — Ca sĩ NCT"}).click();
+  await page.waitForFunction(() => { const current = document.querySelector("maika-panel"); return !current.shadowRoot.querySelector("dialog.library")?.open && current._cs === null; });
+  const played = await page.evaluate((entity) => calls.filter((call) => call.service === "play_media" && call.data.entity_id === entity), media);
+  assert.equal(played.length, 1);
+  assert.deepEqual(played[0].data, {entity_id: media, media_content_type: "maika_nct_track", media_content_id: "Track0001"});
+  console.log("PASS NhacCuaTui track dispatches media_player.play_media with maika_nct_track");
+}
+
 try {
   await verifyGlassAndMotion();
   await verifyDesktopScrolling();
@@ -761,6 +780,7 @@ try {
   await verifyPlaylistPicker();
   await verifyChat();
   await verifyContentStore();
+  await verifyNhacCuaTui();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
     await load();

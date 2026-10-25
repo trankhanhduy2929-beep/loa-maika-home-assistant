@@ -40,6 +40,7 @@ from .const import CONF_CLOUD_CAST_BASE_URL, CONF_ENABLE_CLOUD_CAST, DOMAIN
 from .content_store import MaikaContentStore
 from .entity import MaikaCommandEntity
 from .media_url import is_valid_http_media_url
+from .nhaccuatui import MaikaNhacCuaTui, parse_nct_song_key
 
 _BASE_SUPPORTED_FEATURES = (
     MediaPlayerEntityFeature.VOLUME_SET
@@ -93,10 +94,19 @@ _MEDIA_CS_CHANNEL_PREFIX = "maika_cs_channel:"
 _MEDIA_CS_CATEGORY_PREFIX = "maika_cs_category:"
 _MEDIA_CS_MEDIA_PREFIX = "maika_cs_media:"
 _MEDIA_CS_TRACK = "maika_cs_track"
+_MEDIA_NCT_ROOT = "maika_nct_root"
+_MEDIA_NCT_FEED = "maika_nct_feed"
+_MEDIA_NCT_CHARTS = "maika_nct_charts"
+_MEDIA_NCT_CHART_PREFIX = "maika_nct_chart:"
+_MEDIA_NCT_TRACK = "maika_nct_track"
 _CS_ROOT_TITLE = "Thư viện giải trí MAIKA"
 _CS_CHANNELS_TITLE = "Kênh"
 _CS_CATEGORIES_TITLE = "Thể loại"
 _CS_HIGHLIGHTS_TITLE = "Nổi bật"
+_NCT_ROOT_TITLE = "NhạcCủaTui"
+_NCT_FEED_TITLE = "Bài hát mới"
+_NCT_CHARTS_TITLE = "Top thịnh hành"
+_NCT_CHART_TITLE = "NhạcCủaTui"
 _QUEUE_TITLE = "Danh sách trên loa MAIKA"
 _MAX_SONG_KEY_BYTES = 512
 _MAX_QUEUE_ITEM_ID_LENGTH = 71 + _MAX_SONG_KEY_BYTES * 3
@@ -131,6 +141,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         self._volume_before_mute: float | None = None
         self._last_cast_media: dict[str, Any] | None = None
         self._content_store = MaikaContentStore(coordinator.client)
+        self._nct = MaikaNhacCuaTui(coordinator.client)
         self._cloud_cast_enabled = bool(
             coordinator.entry.options.get(CONF_ENABLE_CLOUD_CAST, False)
         )
@@ -356,7 +367,9 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             and media_content_id == _MEDIA_PLAYLIST
         ):
             return await self._async_browse_playlist()
-        if media_content_id and media_content_id.startswith("maika_cs_"):
+        if media_content_id and media_content_id.startswith(
+            ("maika_cs_", "maika_nct_")
+        ):
             return await self._async_browse_content_store(media_content_id)
         if media_content_id and media_source.is_media_source_id(media_content_id):
             return await self._async_browse_sources(media_content_id)
@@ -366,6 +379,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             children = [await self._async_browse_playlist()]
             if self._cloud_cast_enabled:
                 children.append(await self._async_browse_sources(None))
+            children.append(await self._async_browse_nct_root())
             children.append(self._content_store_root())
             return BrowseMedia(
                 media_class=MediaClass.DIRECTORY,
@@ -394,6 +408,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 self._cs_directory(_MEDIA_CS_CHANNELS, _CS_CHANNELS_TITLE),
                 self._cs_directory(_MEDIA_CS_CATEGORIES, _CS_CATEGORIES_TITLE),
                 self._cs_directory(_MEDIA_CS_HIGHLIGHTS, _CS_HIGHLIGHTS_TITLE),
+                self._cs_directory(_MEDIA_NCT_ROOT, _NCT_ROOT_TITLE),
             ],
         )
 
@@ -425,6 +440,15 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 return await self._async_browse_cs_highlights(
                     None, _CS_HIGHLIGHTS_TITLE
                 )
+            if media_content_id == _MEDIA_NCT_ROOT:
+                return await self._async_browse_nct_root()
+            if media_content_id == _MEDIA_NCT_FEED:
+                return await self._async_browse_nct_feed()
+            if media_content_id == _MEDIA_NCT_CHARTS:
+                return await self._async_browse_nct_charts()
+            if media_content_id.startswith(_MEDIA_NCT_CHART_PREFIX):
+                chart_key = media_content_id[len(_MEDIA_NCT_CHART_PREFIX) :]
+                return await self._async_browse_nct_chart(chart_key)
             if media_content_id.startswith(_MEDIA_CS_CHANNEL_PREFIX):
                 channel_id = self._cs_int(media_content_id, _MEDIA_CS_CHANNEL_PREFIX)
                 return await self._async_browse_cs_channel_medias(
@@ -585,6 +609,87 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             can_play=True,
             can_expand=False,
             thumbnail=cover if cover and is_valid_http_media_url(cover) else None,
+        )
+
+    async def _async_browse_nct_root(self) -> BrowseMedia:
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_NCT_ROOT,
+            media_content_id=_MEDIA_NCT_ROOT,
+            title=_NCT_ROOT_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.DIRECTORY,
+            children=[
+                self._cs_directory(_MEDIA_NCT_FEED, _NCT_FEED_TITLE),
+                self._cs_directory(_MEDIA_NCT_CHARTS, _NCT_CHARTS_TITLE),
+            ],
+        )
+
+    async def _async_browse_nct_feed(self) -> BrowseMedia:
+        tracks = await self._nct.async_feed()
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_NCT_FEED,
+            media_content_id=_MEDIA_NCT_FEED,
+            title=_NCT_FEED_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.MUSIC,
+            children=[self._nct_track_node(track) for track in tracks],
+        )
+
+    async def _async_browse_nct_charts(self) -> BrowseMedia:
+        charts = await self._nct.async_charts()
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_NCT_CHARTS,
+            media_content_id=_MEDIA_NCT_CHARTS,
+            title=_NCT_CHARTS_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.ALBUM,
+            children=[
+                BrowseMedia(
+                    media_class=MediaClass.ALBUM,
+                    media_content_type=f"{_MEDIA_NCT_CHART_PREFIX}{chart['key']}",
+                    media_content_id=f"{_MEDIA_NCT_CHART_PREFIX}{chart['key']}",
+                    title=chart["title"],
+                    can_play=False,
+                    can_expand=True,
+                    thumbnail=self._cs_cover(chart.get("cover")),
+                )
+                for chart in charts
+            ],
+        )
+
+    async def _async_browse_nct_chart(self, chart_key: str) -> BrowseMedia:
+        tracks = await self._nct.async_chart_tracks(chart_key)
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=f"{_MEDIA_NCT_CHART_PREFIX}{chart_key}",
+            media_content_id=f"{_MEDIA_NCT_CHART_PREFIX}{chart_key}",
+            title=_NCT_CHART_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.MUSIC,
+            children=[self._nct_track_node(track) for track in tracks],
+        )
+
+    @staticmethod
+    def _nct_track_node(track: dict[str, Any]) -> BrowseMedia:
+        title = track.get("title") or "NhacCuaTui"
+        artist = track.get("artist")
+        return BrowseMedia(
+            media_class=MediaClass.MUSIC,
+            media_content_type=_MEDIA_NCT_TRACK,
+            media_content_id=track["key"],
+            title=f"{title} — {artist}" if artist else title,
+            can_play=True,
+            can_expand=False,
+            thumbnail=track.get("cover")
+            if is_valid_http_media_url(track.get("cover"))
+            else None,
         )
 
     async def _async_browse_sources(self, media_content_id: str | None) -> BrowseMedia:
@@ -798,6 +903,12 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         if media_type == _MEDIA_CS_TRACK:
             await self._async_cast_content_store(media_id, kwargs.get("extra"))
             return
+        if media_type == _MEDIA_NCT_TRACK:
+            await self._async_cast_nct(media_id, kwargs.get("extra"))
+            return
+        if nct_key := parse_nct_song_key(media_id):
+            await self._async_cast_nct(nct_key, kwargs.get("extra"))
+            return
         if not self._cloud_cast_enabled:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -911,6 +1022,36 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 translation_key="cloud_cast_failed",
             ) from err
         self._schedule_live_refresh()
+
+    async def _async_cast_nct(self, key: str, extra: Any) -> None:
+        if not self._cloud_cast_enabled:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_cast_disabled",
+            )
+        key = parse_nct_song_key(f"nct:{key}")
+        if key is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="nhaccuatui_invalid_track",
+            )
+        try:
+            track = await self._nct.async_song(key)
+        except MaikaApiError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="nhaccuatui_failed",
+            ) from err
+        stream_url = track.get("stream_url") if track else None
+        if not stream_url:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="nhaccuatui_track_unavailable",
+            )
+        title = track["title"]
+        if track.get("artist"):
+            title = f"{title} — {track['artist']}"
+        await self._async_cast_content_store(stream_url, {"title": title})
 
     async def _async_jump_to_song(self, media_id: str, enqueue: Any) -> None:
         if not self.available:

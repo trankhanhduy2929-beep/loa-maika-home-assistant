@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.21.1**.
+Bản hiện tại: **v1.22.1**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -38,6 +38,7 @@ integration, không xóa thiết bị và không cần nhập lại license key.
   câu trả lời mặc định của loa, hoặc chỉ phát sau khi HASS thành công.
 - Chọn bài trong danh sách bài trên loa ngay trong panel, kể cả khi tắt cast cloud.
 - Duyệt **Thư viện giải trí MAIKA** (kênh/radio, thể loại, nội dung nổi bật) trong trình duyệt media của Home Assistant hoặc ngay trong panel.
+- Duyệt và phát **NhạcCủaTui** ngay trên mục MAIKA và trong thư viện giải trí: bài hát mới, top thịnh hành; phát link bài NhạcCủaTui bằng `media_player.play_media`.
 - Gõ câu lệnh **trò chuyện với loa** từ panel; integration gửi event `Recognize` tới đúng loa và hiện phản hồi của loa.
 - **Lịch sử câu lệnh được lưu lại** qua các lần khởi động lại Home Assistant.
 - Duyệt các nguồn audio Home Assistant trực tiếp từ giao diện media player.
@@ -70,6 +71,18 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.22.1` đưa **NhạcCủaTui** ra thẳng mục gốc **MAIKA** trong trình duyệt
+media Home Assistant, không chỉ nằm cuối Thư viện giải trí. Không đổi dữ liệu hay
+cấu hình; sau khi cập nhật chỉ cần restart Home Assistant rồi mở lại trình duyệt
+media.
+
+Bản `1.22.0` thêm **NhạcCủaTui trong thư viện MAIKA**: mục `NhạcCủaTui` có
+**Bài hát mới** và **Top thịnh hành** (danh sách chart đầy đủ khi mở). Chọn bài
+sẽ lấy stream công khai từ API NhạcCủaTui rồi cast qua cloud MAIKA; stream
+không cần VIP được ưu tiên, sau đó tới chất lượng 320 kbps. Có thể phát trực tiếp bằng `media_player.play_media` với link
+`https://www.nhaccuatui.com/song/<key>` hoặc `nct:<key>`. Tính năng cần bật cast
+cloud; chưa kiểm thử phát trên loa thật.
 
 Bản `1.20.3` chỉ giữ cổng media gốc ở nhánh tự chọn host LAN, không ép cổng
 khi người dùng đã đặt `cloud_cast_base_url` (tránh thêm `:8123` vào URL HTTPS có
@@ -183,13 +196,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.21.1
+## File phát hành v1.22.1
 
-- `maika.zip` và `maika-v1.21.1-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.21.1` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.21.1-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.22.1-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.22.1` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.22.1-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.21.1-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.22.1-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

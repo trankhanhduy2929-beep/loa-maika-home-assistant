@@ -25,6 +25,7 @@ from .const import (
     CONTENT_STORE_GRAPHQL_URL,
     DEVICE_DISCOVERY_FIELDS,
     DEVICE_INFO_FIELDS,
+    NCT_API_BASE_URL,
     REST_UPDATE_FIELDS,
     USERS_BASE_URL,
 )
@@ -909,6 +910,38 @@ class MaikaApiClient:
                 f"MAIKA API returned code {code}",
                 status=status,
             )
+        return payload
+
+    async def async_nct_json(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Run a public NhacCuaTui API request."""
+        try:
+            async with self._session.get(
+                f"{NCT_API_BASE_URL}{path}",
+                params=params,
+                headers={"Accept": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            ) as response:
+                if response.status >= 400:
+                    await response.read()
+                    raise MaikaConnectionError(
+                        f"NhacCuaTui API returned HTTP {response.status}",
+                        status=response.status,
+                    )
+                payload = await self._read_json(response)
+        except MaikaApiError:
+            raise
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise MaikaConnectionError("Unable to communicate with NhacCuaTui") from err
+
+        if not isinstance(payload, dict):
+            raise MaikaConnectionError("NhacCuaTui returned invalid JSON")
+        code = payload.get("code")
+        if code not in (None, 0, 200):
+            raise MaikaConnectionError(f"NhacCuaTui API returned code {code}")
         return payload
 
     async def async_graphql(

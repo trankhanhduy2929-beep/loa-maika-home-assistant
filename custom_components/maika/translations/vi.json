@@ -83,6 +83,15 @@
     "maika_content_store_invalid_selection": {
       "message": "Mục trong thư viện giải trí không hợp lệ. Duyệt lại thư viện MAIKA rồi chọn lại."
     },
+    "nhaccuatui_failed": {
+      "message": "Không tải được bài hát NhạcCủaTui. Kiểm tra kết nối rồi thử lại."
+    },
+    "nhaccuatui_track_unavailable": {
+      "message": "Bài hát NhạcCủaTui này không có bản stream công khai để phát."
+    },
+    "nhaccuatui_invalid_track": {
+      "message": "Mã bài hát NhạcCủaTui không hợp lệ."
+    },
     "cloud_cast_disabled": {
       "message": "Cast âm thanh cloud đang tắt. Mở MAIKA → Cấu hình loa để bật."
     },

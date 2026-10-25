@@ -1779,7 +1779,7 @@ class MaikaPanel extends HTMLElement {
           id: child.media_content_id,
           type: child.media_content_type || "",
           title: child.title || "Mục MAIKA",
-          directory: child.media_content_type !== "maika_cs_track",
+          directory: !["maika_cs_track", "maika_nct_track"].includes(child.media_content_type),
           busy: false,
         }));
       this._cs = {...cs, status: items.length ? "ready" : "empty", items, title: result?.title || node.title};
@@ -1803,6 +1803,11 @@ class MaikaPanel extends HTMLElement {
       maika_content_store_failed: "Không tải được thư viện giải trí.",
       maika_content_store_invalid_selection: "Mục này không còn trong thư viện.",
       maika_queue_unavailable: "Loa đang mất kết nối.",
+      nhaccuatui_failed: "Không tải được bài hát NhạcCủaTui.",
+      nhaccuatui_track_unavailable: "Bài NhạcCủaTui này không có bản stream công khai.",
+      nhaccuatui_invalid_track: "Mã bài hát NhạcCủaTui không hợp lệ.",
+      cloud_cast_disabled: "Chưa bật cast cloud cho loa.",
+      cloud_cast_failed: "Loa không nhận lệnh phát bài này.",
     };
     return labels[key] || "Không tải được thư viện giải trí.";
   }
@@ -1837,7 +1842,7 @@ class MaikaPanel extends HTMLElement {
     try {
       await this._hass.callService("media_player", "play_media", {
         entity_id: cs.entity,
-        media_content_type: "maika_cs_track",
+        media_content_type: item.type || "maika_cs_track",
         media_content_id: id,
       });
       if (this._cs !== cs) return;

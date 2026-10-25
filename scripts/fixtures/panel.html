@@ -37,6 +37,20 @@
       maika_cs_root: {title: "Thư viện giải trí", children: [
         {media_class: "directory", media_content_type: "maika_cs_channels", media_content_id: "maika_cs_channels", title: "Kênh", can_play: false, can_expand: true},
         {media_class: "directory", media_content_type: "maika_cs_categories", media_content_id: "maika_cs_categories", title: "Thể loại", can_play: false, can_expand: true},
+        {media_class: "directory", media_content_type: "maika_nct_root", media_content_id: "maika_nct_root", title: "NhạcCủaTui", can_play: false, can_expand: true},
+      ]},
+      maika_nct_root: {title: "NhạcCủaTui", children: [
+        {media_class: "directory", media_content_type: "maika_nct_feed", media_content_id: "maika_nct_feed", title: "Bài hát mới", can_play: false, can_expand: true},
+        {media_class: "directory", media_content_type: "maika_nct_charts", media_content_id: "maika_nct_charts", title: "Top thịnh hành", can_play: false, can_expand: true},
+      ]},
+      maika_nct_feed: {title: "Bài hát mới", children: [
+        {media_class: "music", media_content_type: "maika_nct_track", media_content_id: "Track0001", title: "Bài NCT — Ca sĩ NCT", can_play: true, can_expand: false},
+      ]},
+      maika_nct_charts: {title: "Top thịnh hành", children: [
+        {media_class: "album", media_content_type: "maika_nct_chart:chart-1", media_content_id: "maika_nct_chart:chart-1", title: "Top 50", can_play: false, can_expand: true},
+      ]},
+      "maika_nct_chart:chart-1": {title: "NhạcCủaTui", children: [
+        {media_class: "music", media_content_type: "maika_nct_track", media_content_id: "Track0002", title: "Chart NCT", can_play: true, can_expand: false},
       ]},
       maika_cs_channels: {title: "Kênh", children: [
         {media_class: "channel", media_content_type: "maika_cs_channel:7", media_content_id: "maika_cs_channel:7", title: "Kênh thiếu nhi", can_play: false, can_expand: true},

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "maika"
-INTEGRATION_VERSION = "1.21.1"
+INTEGRATION_VERSION = "1.22.1"
 
 APP_VERSION = "3.2.3"
 APP_DEVICE_TYPE = "android"
@@ -14,6 +14,7 @@ APP_ORGANIZATION_CODE = "MAIKA"
 USERS_BASE_URL = "https://users.iviet.com"
 CHATBOT_BASE_URL = "https://chatbot.iviet.com"
 CONTENT_STORE_GRAPHQL_URL = "https://core.ocs.iviet.com/v1/graphql"
+NCT_API_BASE_URL = "https://graph.nhaccuatui.com"
 
 CONF_PHONE_NUMBER = "phone_number"
 CONF_PASSWORD = "password"

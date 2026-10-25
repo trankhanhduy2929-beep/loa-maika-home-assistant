@@ -2,6 +2,38 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.22.1] - 2026-10-25
+
+### Fixed
+
+- **NhạcCủaTui không thấy trong trình duyệt media**: thêm mục gốc `NhạcCủaTui` trực tiếp dưới **MAIKA**, thay vì chỉ nằm cuối `Thư viện giải trí MAIKA`. Vẫn giữ lối vào trong thư viện và panel.
+
+### Tests
+
+- Cập nhật kiểm tra cây gốc MAIKA gồm `maika_playlist`, `maika_nct_root`, `maika_cs_root`.
+- Unit test media player/NhạcCủaTui và panel browser pass.
+
+## [1.22.0] - 2026-10-25
+
+### Added
+
+- **NhạcCủaTui trong Thư viện giải trí MAIKA**: thêm thư mục `NhạcCủaTui` với **Bài hát mới** (`song/feed`) và **Top thịnh hành** (`playlist/charts` + `app/charts/more`). Chọn bài sẽ lấy stream công khai mới nhất từ API NhạcCủaTui, ưu tiên stream không cần VIP rồi tới 320 kbps, sau đó cast qua MAIKA cloud.
+- Phát trực tiếp link NhạcCủaTui qua `media_player.play_media` với URL `/song/<key>`, link `/bai-hat/...<key>.html`, hoặc `nct:<key>`.
+- Panel nhận `maika_nct_track`, hiển thị bài NhạcCủaTui và gửi đúng `media_content_type` khi phát.
+
+### Changes
+
+- Thêm `custom_components/maika/nhaccuatui.py` và `MaikaApiClient.async_nct_json`.
+- Thêm khóa dịch lỗi NhạcCủaTui cho `strings.json`, `en.json`, `vi.json`.
+
+### Tests
+
+- Thêm `scripts/test_nhaccuatui.py` cho parser stream/chart/URL.
+- `test_media_player.py`: duyệt cây NhạcCủaTui, phát track, link trực tiếp, mã lỗi.
+- Panel browser: fixture và kiểm tra phát `maika_nct_track`.
+- Kiểm tra API trực tiếp: feed, 12 chart, chart 50 bài, detail stream 320.
+- Chưa kiểm thử cast/phát trên loa MAIKA thật.
+
 ## [1.21.1] - 2026-10-25
 
 ### Fixed
