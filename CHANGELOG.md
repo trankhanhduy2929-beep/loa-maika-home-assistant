@@ -2,6 +2,17 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.21.1] - 2026-10-25
+
+### Fixed
+
+- **Sửa lỗi "Không tải được thư viện giải trí" khi mở kênh**: API Content Store đã chuyển danh sách media từ `rel_channel_category.medias` sang `category.medias`. Query `ContentChannelMedias` và parser được cập nhật theo schema hiện tại; trước đó Hasura trả `field 'medias' not found in type: 'rel_channel_category'` và integration báo lỗi chung.
+- Giữ tương thích với response cũ nếu `medias` vẫn nằm trực tiếp trên relation.
+
+### Tests
+
+- Cập nhật fixture Content Store sang cấu trúc `category.medias`; thêm kiểm tra query không quay lại shape cũ. `validate_repository.py` pass.
+
 ## [1.21.0] - 2026-10-24
 
 ### Added

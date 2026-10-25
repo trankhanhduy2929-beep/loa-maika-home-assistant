@@ -33,15 +33,17 @@ query ContentChannelMedias($id: Int!, $offset: Int!, $limit: Int!) {
       limit: $limit
       offset: $offset
     ) {
-      category { description id title }
-      medias(
-        where: { media: { is_published: { _eq: true } } }
-        limit: 50
-        offset: 0
-      ) {
-        media {
-          audio cover description duration id large_cover title
-          _type { description value }
+      category {
+        description id title
+        medias(
+          where: { media: { is_published: { _eq: true } } }
+          limit: 50
+          offset: 0
+        ) {
+          media {
+            audio cover description duration id large_cover title
+            _type { description value }
+          }
         }
       }
     }
@@ -172,7 +174,12 @@ class MaikaContentStore:
         medias: list[dict[str, Any]] = []
         seen: set[int] = set()
         for group in _as_list(channel.get("categories")):
-            for entry in _as_list(_as_dict(group).get("medias")):
+            relation = _as_dict(group)
+            category = _as_dict(relation.get("category"))
+            entries = category.get("medias")
+            if entries is None:
+                entries = relation.get("medias")
+            for entry in _as_list(entries):
                 media = normalize_media(_as_dict(entry).get("media"))
                 if media is None or media["id"] in seen:
                     continue

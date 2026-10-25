@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.21.0**.
+Bản hiện tại: **v1.21.1**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -183,13 +183,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.21.0
+## File phát hành v1.21.1
 
-- `maika.zip` và `maika-v1.21.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.21.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.21.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.21.1-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.21.1` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.21.1-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.21.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.21.1-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

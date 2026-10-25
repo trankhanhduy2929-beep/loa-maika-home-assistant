@@ -78,29 +78,35 @@ CHANNEL_MEDIAS_RESPONSE = {
     "media_channel_by_pk": {
         "categories": [
             {
-                "category": {"id": 1, "title": "Tin tức"},
-                "medias": [
-                    {
-                        "media": {
-                            "id": 100,
-                            "title": "Bản tin sáng",
-                            "audio": "https://cdn/100.mp3",
-                        }
-                    },
-                    {"media": {"id": 101, "title": "Bản tin tối", "audio": None}},
-                ],
+                "category": {
+                    "id": 1,
+                    "title": "Tin tức",
+                    "medias": [
+                        {
+                            "media": {
+                                "id": 100,
+                                "title": "Bản tin sáng",
+                                "audio": "https://cdn/100.mp3",
+                            }
+                        },
+                        {"media": {"id": 101, "title": "Bản tin tối", "audio": None}},
+                    ],
+                },
             },
             {
-                "category": {"id": 2, "title": "Khác"},
-                "medias": [
-                    {
-                        "media": {
-                            "id": 100,
-                            "title": "Bản tin sáng",
-                            "audio": "https://cdn/100.mp3",
-                        }
-                    },
-                ],
+                "category": {
+                    "id": 2,
+                    "title": "Khác",
+                    "medias": [
+                        {
+                            "media": {
+                                "id": 100,
+                                "title": "Bản tin sáng",
+                                "audio": "https://cdn/100.mp3",
+                            }
+                        },
+                    ],
+                },
             },
         ]
     }
@@ -166,7 +172,11 @@ class ContentStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([media["id"] for media in medias], [100, 101])
         self.assertEqual(medias[0]["audio"], "https://cdn/100.mp3")
         self.assertIsNone(medias[1]["audio"])
-        _query, variables = self.client.calls[0]
+        query, variables = self.client.calls[0]
+        self.assertIn(
+            "category { description id title medias(",
+            " ".join(query.split()),
+        )
         self.assertEqual(variables, {"id": 7, "offset": 0, "limit": 50})
 
     async def test_categories_parse_and_skip_missing_value(self):
