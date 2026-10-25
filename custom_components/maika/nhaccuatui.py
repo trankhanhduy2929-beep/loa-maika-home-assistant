@@ -143,6 +143,21 @@ class MaikaNhacCuaTui:
         )
         return _tracks(payload.get("data"))
 
+    async def async_search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
+        keyword = str(query or "").strip()
+        if not keyword:
+            return []
+        payload = await self._client.async_nct_json(
+            "/api/v1/search/song",
+            {
+                "keyword": keyword,
+                "pageindex": 1,
+                "pagesize": limit,
+                "correct": "false",
+            },
+        )
+        return _tracks(_as_dict(payload.get("data")).get("songs"))
+
     async def async_song(self, key: str) -> dict[str, Any] | None:
         payload = await self._client.async_nct_json(f"/api/v1/song/detail/{key}")
         return _track(payload.get("data"))

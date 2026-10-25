@@ -770,6 +770,30 @@ async function verifyNhacCuaTui() {
   console.log("PASS NhacCuaTui track dispatches media_player.play_media with maika_nct_track");
 }
 
+async function verifyNhacCuaTuiSearch() {
+  await load();
+  const media = await page.evaluate(() => panel._entity("media_player"));
+  const dialog = page.locator("dialog.library");
+  await page.locator('[data-action="library"]').click();
+  const input = dialog.getByRole("searchbox", {name: "Tìm bài hát trên NhạcCủaTui"});
+  await dialog.getByRole("button", {name: "NhạcCủaTui"}).waitFor();
+  await input.fill("sơn tùng");
+  await input.press("Enter");
+  const result = dialog.getByRole("button", {name: "Tìm thấy — Sơn Tùng"});
+  await result.waitFor();
+  const searchCall = await page.evaluate(() => window.browseCalls.at(-1));
+  assert.equal(searchCall.type, "media_player/search_media");
+  assert.equal(searchCall.search_query, "sơn tùng");
+  assert.equal(searchCall.entity_id, media);
+  assert(await page.evaluate(() => panel.shadowRoot.activeElement === panel.shadowRoot.querySelector(".pl-item")), "Focus moves to first search result");
+  await result.click();
+  await page.waitForFunction(() => { const current = document.querySelector("maika-panel"); return !current.shadowRoot.querySelector("dialog.library")?.open && current._cs === null; });
+  const played = await page.evaluate((entity) => calls.filter((call) => call.service === "play_media" && call.data.entity_id === entity), media);
+  assert.equal(played.length, 1);
+  assert.deepEqual(played[0].data, {entity_id: media, media_content_type: "maika_nct_track", media_content_id: "Track0009"});
+  console.log("PASS NhacCuaTui search dispatches media_player/search_media and plays the selected track");
+}
+
 try {
   await verifyGlassAndMotion();
   await verifyDesktopScrolling();
@@ -781,6 +805,7 @@ try {
   await verifyChat();
   await verifyContentStore();
   await verifyNhacCuaTui();
+  await verifyNhacCuaTuiSearch();
   for (const width of [320, 360, 390, 620, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({width, height: width < 621 ? 844 : 1000});
     await load();

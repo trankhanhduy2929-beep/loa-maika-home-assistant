@@ -2,6 +2,18 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.23.0] - 2026-10-25
+
+### Added
+
+- **Tìm kiếm NhạcCủaTui**: thêm tìm bài qua `GET /api/v1/search/song` và `media_player/search_media`. Panel có ô tìm ngay trong thư viện giải trí; kết quả trả về track `maika_nct_track`, chọn bài sẽ cast qua cloud MAIKA như luồng NhạcCủaTui hiện có.
+- Hỗ trợ `SEARCH_MEDIA` trong `supported_features`, để trình duyệt media Home Assistant và lệnh WebSocket `media_player/search_media` dùng được.
+
+### Tests
+
+- Thêm unit test chuẩn hóa search, query rỗng không gọi API, search trả track và panel gửi đúng `media_player/search_media`.
+- Unit test media player/NhạcCủaTui, panel browser, ruff, validate và build pass.
+
 ## [1.22.1] - 2026-10-25
 
 ### Fixed

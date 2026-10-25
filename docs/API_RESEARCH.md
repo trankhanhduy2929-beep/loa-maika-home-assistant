@@ -296,17 +296,18 @@ Schema và semantics field được xác minh tĩnh từ APK và kiểm thử b�
 
 ## NhạcCủaTui
 
-Từ `1.22.0`, integration thêm nguồn **NhạcCủaTui** vào Thư viện giải trí MAIKA; từ `1.22.1` mục này cũng nằm trực tiếp dưới gốc **MAIKA** trong trình duyệt media. Đây là API công khai của NhạcCủaTui mà app MAIKA không gọi trực tiếp trong APK 3.2.3; integration gọi thẳng API web để lấy dữ liệu và stream.
+Từ `1.22.0`, integration thêm nguồn **NhạcCủaTui** vào Thư viện giải trí MAIKA; từ `1.22.1` mục này cũng nằm trực tiếp dưới gốc **MAIKA** trong trình duyệt media. Từ `1.23.0`, integration hỗ trợ tìm kiếm qua API search và `media_player/search_media`. Đây là API công khai của NhạcCủaTui mà app MAIKA không gọi trực tiếp trong APK 3.2.3; integration gọi thẳng API web để lấy dữ liệu và stream.
 
 - Base: `https://graph.nhaccuatui.com/api/v1/`.
 - **Bài hát mới**: `GET song/feed?pageindex=1&pagesize=50`. Mỗi item có `key`, `name`, `artistName`, `duration`, ảnh `image`/`imageShare` và mảng `streamURL`; mỗi phần tử stream có `stream`, `type` (`128`, `320`, `lossless`), `onlyVIP`, `status`.
 - **Top thịnh hành**: `GET playlist/charts` trả các chart (`key`, `title`, `titleDetail`, `image`); `GET app/charts/more?chartKey=<chart>&pageindex=1&pagesize=50` trả danh sách bài của chart.
+- **Tìm kiếm**: `GET search/song?keyword=<q>&pageindex=1&pagesize=50&correct=false` trả `data.songs`; item cùng cấu trúc với feed. Integration bỏ item thiếu `key`, chuẩn hóa stream như các luồng khác. Media player trả kết quả qua `media_player/search_media` với `maika_nct_track`.
 - Không cần token/header đặc biệt. Response JSON có `data` bọc danh sách hoặc object.
 - Chọn stream trong `streamURL`: bỏ option `status != 1`, ưu tiên option không `onlyVIP`, rồi tới thứ tự `320` → `128` → `lossless`. Integration không chọn link cần quyền VIP nếu còn lựa chọn công khai. URL stream có thể hết hạn, nên resolve lại ở thời điểm phát thay vì lưu lâu dài.
 - Phát qua đúng cloud cast MAIKA (`enable_experimental_cloud_cast`). Có thể gọi trực tiếp `media_player.play_media` với `https://www.nhaccuatui.com/song/<key>`, link `/bai-hat/...<key>.html`, hoặc `nct:<key>`; media player resolve key rồi cast URL stream.
 - Cây duyệt dùng `maika_nct_root`, `maika_nct_feed`, `maika_nct_charts`, `maika_nct_chart:<key>`, và track có `media_content_type` `maika_nct_track` với `media_content_id` là `<key>`; panel nhận `maika_nct_track` nhưng vẫn dùng `media_player.play_media` chuẩn.
 
-Đã kiểm tra API trực tiếp: feed trả bài, `playlist/charts` trả 12 chart, chart trả tối đa 50 bài, detail trả stream 320. Chưa kiểm thử cast/phát trên loa thật.
+Đã kiểm tra API trực tiếp: feed trả bài, `playlist/charts` trả 12 chart, chart trả tối đa 50 bài, detail trả stream 320; search `sơn tùng` trả `total: 42763`, `loadmore: true`, có stream 128/320/lossless. Chưa kiểm thử cast/phát trên loa thật.
 
 ## Smart-home linking
 
@@ -355,6 +356,8 @@ Danh sách 27 entity an toàn/hữu ích nằm trong `docs/ENTITIES.md`.
 | `media_player.play_media` payload/build | Pass, kiểm thử local không gửi cloud |
 | Cloud cast phát trên loa vật lý | Chưa xác minh |
 | NhạcCủaTui API feed/chart/detail live | Pass |
+| NhạcCủaTui search API live | Pass, `sơn tùng` trả 42.763 bài |
+| `media_player/search_media` + panel search | Pass, mock HA 2026.2.3 và browser |
 | NhạcCủaTui cast trên loa vật lý | Chưa xác minh |
 | Voice command vật lý → Assist | Chưa xác minh |
 | Assist response → loa MAIKA | Không triển khai |

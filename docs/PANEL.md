@@ -78,6 +78,10 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   Content Store (`maika_cs_*`): kênh → media → tập/bài, thể loại và nội dung
   nổi bật. Chọn một bài phát qua `media_player.play_media` kiểu `maika_cs_track`;
   nút quay lại trên breadcrumb trở về mục cha.
+- Ô **Tìm bài hát trên NhạcCủaTui** trong hộp thoại thư viện gọi
+  `media_player/search_media`; kết quả là track `maika_nct_track`, chọn bài sẽ
+  cast qua cloud MAIKA. Enter hoặc nút **Tìm** đều chạy tìm kiếm; lỗi có nút
+  **Thử lại**.
 - **Lịch sử câu lệnh** giờ được lưu xuống HA `Store`
   (`maika.command_history.<entry_id>`) và khôi phục sau khi khởi động lại.
 

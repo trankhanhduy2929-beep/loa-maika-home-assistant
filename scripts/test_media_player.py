@@ -32,6 +32,7 @@ class Features(IntFlag):
     STOP = 4096
     PLAY = 16384
     BROWSE_MEDIA = 131072
+    SEARCH_MEDIA = 4194304
 
 
 class State(StrEnum):
@@ -53,6 +54,15 @@ class ValidationError(HomeError):
 
 class BrowseError(HomeError):
     pass
+
+
+class SearchError(Exception):
+    pass
+
+
+class SearchMedia:
+    def __init__(self, *, result):
+        self.result = result
 
 
 class BrowseMedia:
@@ -100,6 +110,7 @@ class NhacCuaTuiStub:
         self.async_feed = AsyncMock(return_value=[])
         self.async_charts = AsyncMock(return_value=[])
         self.async_chart_tracks = AsyncMock(return_value=[])
+        self.async_search = AsyncMock(return_value=[])
         self.async_song = AsyncMock(return_value={})
 
 
@@ -156,6 +167,8 @@ def load_player():
         "MediaPlayerEnqueue": SimpleNamespace(PLAY="play", REPLACE="replace"),
         "BrowseMedia": BrowseMedia,
         "BrowseError": BrowseError,
+        "SearchError": SearchError,
+        "SearchMedia": SearchMedia,
         "MediaClass": SimpleNamespace(
             DIRECTORY="directory",
             PLAYLIST="playlist",
@@ -459,6 +472,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.native_playlist()
         self.assertTrue(player._attr_supported_features & Features.BROWSE_MEDIA)
         self.assertTrue(player._attr_supported_features & Features.PLAY_MEDIA)
+        self.assertTrue(player._attr_supported_features & Features.SEARCH_MEDIA)
         self.assertFalse(player._attr_supported_features & Features.SEEK)
         result = await player.async_browse_media()
         self.assertEqual(result.media_content_type, "maika_root")
@@ -485,6 +499,33 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             "speaker-one"
         )
         self.client.async_cast_media.assert_not_awaited()
+
+    async def test_search_media_returns_nct_tracks(self):
+        self.player._nct.async_search.return_value = [
+            {
+                "key": "Track0009",
+                "title": "Tìm thấy",
+                "artist": "Sơn Tùng",
+                "cover": "https://cdn.example.test/search.jpg",
+            }
+        ]
+        result = await self.player.async_search_media(
+            SimpleNamespace(search_query="  Sơn Tùng  ")
+        )
+        self.player._nct.async_search.assert_awaited_once_with("Sơn Tùng")
+        self.assertEqual(len(result.result), 1)
+        node = result.result[0]
+        self.assertEqual(node.media_content_type, "maika_nct_track")
+        self.assertEqual(node.media_content_id, "Track0009")
+        self.assertEqual(node.title, "Tìm thấy — Sơn Tùng")
+        self.assertTrue(node.can_play)
+
+    async def test_blank_search_returns_empty_without_request(self):
+        result = await self.player.async_search_media(
+            SimpleNamespace(search_query="   ")
+        )
+        self.assertEqual(result.result, [])
+        self.player._nct.async_search.assert_not_awaited()
 
     async def test_root_combines_native_playlist_with_existing_ha_sources(self):
         self.native_playlist()

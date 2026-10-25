@@ -22,8 +22,11 @@ from homeassistant.components.media_player import (
     MediaPlayerEntityFeature,
     MediaPlayerState,
     MediaType,
+    SearchMedia,
+    SearchMediaQuery,
     async_process_play_media_url,
 )
+from homeassistant.components.media_player.errors import SearchError
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
@@ -52,6 +55,7 @@ _BASE_SUPPORTED_FEATURES = (
     | MediaPlayerEntityFeature.PREVIOUS_TRACK
     | MediaPlayerEntityFeature.PLAY_MEDIA
     | MediaPlayerEntityFeature.BROWSE_MEDIA
+    | MediaPlayerEntityFeature.SEARCH_MEDIA
 )
 _CLOUD_CAST_SUPPORTED_FEATURES = MediaPlayerEntityFeature.SEEK
 _CLOUD_CAST_STREAM_FORMATS = {
@@ -610,6 +614,20 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             can_expand=False,
             thumbnail=cover if cover and is_valid_http_media_url(cover) else None,
         )
+
+    async def async_search_media(self, query: SearchMediaQuery) -> SearchMedia:
+        """Search NhacCuaTui songs."""
+        keyword = str(query.search_query or "").strip()
+        if not keyword:
+            return SearchMedia(result=[])
+        try:
+            tracks = await self._nct.async_search(keyword)
+        except (MaikaApiError, ConfigEntryAuthFailed) as err:
+            raise SearchError(
+                translation_domain=DOMAIN,
+                translation_key="nhaccuatui_failed",
+            ) from err
+        return SearchMedia(result=[self._nct_track_node(track) for track in tracks])
 
     async def _async_browse_nct_root(self) -> BrowseMedia:
         return BrowseMedia(

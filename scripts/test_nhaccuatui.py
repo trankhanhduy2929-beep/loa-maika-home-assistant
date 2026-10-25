@@ -80,6 +80,23 @@ CHART_TRACKS_RESPONSE = {
     ],
 }
 
+SEARCH_RESPONSE = {
+    "code": 0,
+    "data": {
+        "songs": [
+            {
+                "key": "Track0006",
+                "name": "Tìm thấy",
+                "artistName": "Sơn Tùng",
+                "image": "https://cdn/search.jpg",
+                "duration": "210",
+                "streamURL": [stream("https://stream/search-320.mp3", "320")],
+            },
+            {"key": "", "name": "Broken"},
+        ]
+    },
+}
+
 SONG_RESPONSE = {
     "code": 0,
     "data": {
@@ -135,6 +152,31 @@ class NhacCuaTuiTests(unittest.IsolatedAsyncioTestCase):
                 {"chartKey": "chart-1", "pageindex": 1, "pagesize": 50},
             ),
         )
+
+    async def test_search_normalizes_and_skips_blank(self):
+        store = self.store({"/api/v1/search/song": SEARCH_RESPONSE})
+        tracks = await store.async_search("  Sơn Tùng  ")
+        self.assertEqual([track["key"] for track in tracks], ["Track0006"])
+        self.assertEqual(tracks[0]["title"], "Tìm thấy")
+        self.assertEqual(tracks[0]["artist"], "Sơn Tùng")
+        self.assertEqual(tracks[0]["stream_url"], "https://stream/search-320.mp3")
+        self.assertEqual(
+            self.client.calls[0],
+            (
+                "/api/v1/search/song",
+                {
+                    "keyword": "Sơn Tùng",
+                    "pageindex": 1,
+                    "pagesize": 50,
+                    "correct": "false",
+                },
+            ),
+        )
+
+    async def test_blank_search_skips_request(self):
+        store = self.store({})
+        self.assertEqual(await store.async_search("   "), [])
+        self.assertEqual(self.client.calls, [])
 
     async def test_song_detail_and_missing_key(self):
         store = self.store({"/api/v1/song/detail/Track0005": SONG_RESPONSE})

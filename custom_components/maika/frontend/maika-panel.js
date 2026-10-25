@@ -797,6 +797,10 @@ class MaikaPanel extends HTMLElement {
       .sheet__close { min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; font-size: .84rem; cursor: pointer; }
       .sheet__close:hover { background: var(--surface-3); }
       .sheet__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .sheet__body { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+      .library-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px var(--pad); border-bottom: 1px solid var(--line); }
+      .library-search input { min-height: 42px; border-radius: 12px; }
+      .library-search .btn { min-height: 42px; }
       .pl-list { overflow: auto; overscroll-behavior: contain; padding: 9px; display: grid; gap: 6px; }
       .pl-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid transparent; background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
       .pl-item:hover:not(:disabled) { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 26%, var(--line)); }
@@ -1731,6 +1735,7 @@ class MaikaPanel extends HTMLElement {
     if (this._csDialog?.open) return;
     this._csToken += 1;
     this._csReturnFocus = true;
+    this._csSearchDraft = "";
     const root = {type: "maika_cs_root", id: "maika_cs_root", title: "Thư viện giải trí"};
     this._cs = {status: "loading", items: [], entity: media, serial: this._activeSerial(), stack: [root], title: root.title};
     const dialog = this._ensureContentStoreDialog();
@@ -1750,6 +1755,7 @@ class MaikaPanel extends HTMLElement {
     this._csToken += 1;
     this._cs = null;
     this._csBusy = false;
+    this._csSearchDraft = "";
     if (!this._csReturnFocus) return;
     this._csReturnFocus = false;
     const opener = this.shadowRoot.querySelector('[data-action="library"]');
@@ -1785,6 +1791,47 @@ class MaikaPanel extends HTMLElement {
       this._cs = {...cs, status: items.length ? "ready" : "empty", items, title: result?.title || node.title};
       this._renderContentStore();
       this.shadowRoot.querySelector(".sheet__close")?.focus();
+    } catch (err) {
+      if (token !== this._csToken) return;
+      this._setContentStoreState("error", this._contentStoreError(err));
+    }
+  }
+
+  async _searchContentStore(query) {
+    const cs = this._cs;
+    if (!cs || typeof this._hass?.callWS !== "function") {
+      this._setContentStoreState("error", "Không tìm được bài hát NhạcCủaTui.");
+      return;
+    }
+    const token = ++this._csToken;
+    this._csSearchDraft = query;
+    const node = {id: "maika_nct_search", type: "maika_nct_search", title: `Tìm: ${query}`};
+    const stack = cs.stack[cs.stack.length - 1]?.type === "maika_nct_search" ? cs.stack.slice(0, -1) : cs.stack;
+    const state = {...cs, status: "loading", items: [], message: null, searchQuery: query, stack: [...stack, node], title: node.title};
+    this._cs = state;
+    this._renderContentStore();
+    try {
+      const result = await this._hass.callWS({
+        type: "media_player/search_media",
+        entity_id: cs.entity,
+        search_query: query,
+      });
+      if (token !== this._csToken || this._cs !== state) return;
+      if (this._activeSerial() !== cs.serial || this._entity("media_player") !== cs.entity) return;
+      const children = Array.isArray(result?.result) ? result.result : [];
+      const items = children
+        .filter((child) => child?.media_content_id)
+        .map((child) => ({
+          id: child.media_content_id,
+          type: child.media_content_type || "",
+          title: child.title || "Bài hát NhạcCủaTui",
+          directory: false,
+          busy: false,
+        }));
+      this._cs = {...state, status: items.length ? "ready" : "empty", items};
+      this._renderContentStore();
+      const focus = this.shadowRoot.querySelector(".pl-item") || this.shadowRoot.querySelector('[name="library_search"]');
+      focus?.focus();
     } catch (err) {
       if (token !== this._csToken) return;
       this._setContentStoreState("error", this._contentStoreError(err));
@@ -1893,7 +1940,13 @@ class MaikaPanel extends HTMLElement {
       ]),
       h("button", {class: "sheet__close", type: "button", dataset: {action: "library-close"}, text: "Đóng"}),
     ]);
-    const sheet = h("div", {class: "sheet", tabindex: "-1"}, [head, rows]);
+    const search = h("form", {class: "library-search", dataset: {form: "library-search"}, role: "search"}, [
+      h("label", {class: "sr-only", for: "library-search-input", text: "Tìm bài hát trên NhạcCủaTui"}),
+      h("input", {type: "search", id: "library-search-input", name: "library_search", value: this._csSearchDraft ?? cs.searchQuery ?? "", placeholder: "Tìm bài hát trên NhạcCủaTui", autocomplete: "off", enterkeyhint: "search"}),
+      h("button", {class: "btn btn--primary", type: "submit", text: "Tìm"}),
+    ]);
+    const body = h("div", {class: "sheet__body"}, [search, rows]);
+    const sheet = h("div", {class: "sheet", tabindex: "-1"}, [head, body]);
     dialog.replaceChildren(sheet);
     return dialog;
   }
@@ -2643,6 +2696,10 @@ class MaikaPanel extends HTMLElement {
 
   _onInput(event) {
     const el = event.target;
+    if (el?.name === "library_search") {
+      this._csSearchDraft = el.value;
+      return;
+    }
     const field = el?.dataset?.field;
     if (!field) return;
     if (el.type === "checkbox") return;
@@ -2727,8 +2784,13 @@ class MaikaPanel extends HTMLElement {
 
     if (action === "library-retry") {
       if (!this._cs) return;
+      const node = this._cs.stack[this._cs.stack.length - 1];
       this._csToken += 1;
       this._csBusy = false;
+      if (node?.type === "maika_nct_search" && this._cs.searchQuery) {
+        this._searchContentStore(this._cs.searchQuery);
+        return;
+      }
       this._cs = {...this._cs, status: "loading", message: null};
       this._renderContentStore();
       this._loadContentStore(this._csToken);
@@ -2859,6 +2921,19 @@ class MaikaPanel extends HTMLElement {
     if (!kind) return;
     event.preventDefault();
     if (this._busy || this.shadowRoot.querySelector("maika-voice-editor")?.isBusy) return;
+
+    if (kind === "library-search") {
+      const cs = this._cs;
+      const query = String(form.elements.namedItem("library_search")?.value || "").trim();
+      if (!cs || cs.status === "loading" || this._csBusy) return;
+      if (!query) {
+        this._notify("error", "Nhập tên bài hát trước khi tìm.");
+        this.shadowRoot.querySelector('[name="library_search"]')?.focus();
+        return;
+      }
+      this._searchContentStore(query);
+      return;
+    }
 
     if (kind === "chat") {
       const entry = this._entry();
