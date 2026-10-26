@@ -336,6 +336,48 @@ async function verifyGlassAndMotion() {
   console.log("PASS solid readable fallback for reduced transparency/high contrast; no settings or device actions from visual effects");
 }
 
+async function verifyDeviceAccordion() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  assert.deepEqual(await page.locator(".nav .pill").allTextContents(), ["Tổng quan", "Trò chuyện", "Giọng nói", "Thiết bị", "Trợ lý", "Bản quyền", "Cấu hình", "Công cụ"]);
+  for (const section of ["status", "identity", "info", "firmware", "warranty"]) {
+    assert.equal(await page.locator(`[data-action="jump"][data-section="${section}"]`).count(), 0);
+  }
+  await page.locator('[data-action="jump"][data-section="device"]').click();
+  assert.equal(await page.locator('[data-action="jump"][data-section="device"]').getAttribute("aria-current"), "location");
+  const card = page.locator('[data-sec="device"]');
+  await card.waitFor();
+  const status = card.locator(".device-accordion--status");
+  const identity = card.locator(".device-accordion--identity");
+  const firmware = card.locator(".device-accordion--firmware");
+  assert.equal(await card.locator(".device-accordion").count(), 5);
+  assert.deepEqual(await card.locator(".device-accordion__copy b").allTextContents(), ["Trạng thái loa", "Tên & vị trí", "Thông tin thiết bị", "Firmware & hệ thống", "Bảo hành"]);
+  assert.equal(await status.getAttribute("open"), "");
+  assert.equal(await identity.getAttribute("open"), null);
+  assert.equal(await firmware.getAttribute("open"), null);
+  assert.equal(await status.locator(".tile").count(), 6);
+  assert.equal(await card.locator(".device-accordion--info .row").count(), 7);
+  assert.equal(await firmware.locator(".row").count(), 3);
+  assert.equal(await card.locator(".device-accordion--warranty .tile").count(), 2);
+  assert.equal(await identity.locator("input").count(), 3);
+  assert.equal(await firmware.locator(".rows").isVisible(), false);
+
+  await identity.locator("summary").click();
+  assert.equal(await identity.getAttribute("open"), "");
+  assert.notEqual(await identity.locator(".device-accordion__arrow").evaluate((node) => getComputedStyle(node).transform), "none");
+  await page.evaluate(() => { states[panel._entity("binary_sensor", "online")].state = "off"; tick(); });
+  await waitRender();
+  assert.equal(await identity.getAttribute("open"), "", "Open accordion survives live data re-render");
+  assert.equal(await status.locator(".tile .v").first().innerText(), "Mất kết nối");
+  await identity.locator("summary").press("Enter");
+  assert.equal(await identity.getAttribute("open"), null);
+  await identity.locator("summary").press("Enter");
+  assert.equal(await identity.getAttribute("open"), "");
+  await page.evaluate(() => { states[panel._entity("binary_sensor", "online")].state = "on"; tick(); });
+  await waitRender();
+  console.log("PASS one device tab, five accessible accordions, live data and keyboard/open-state preservation");
+}
+
 async function verifyDesktopScrolling() {
   await page.setViewportSize({width: 1440, height: 900});
   await load();
@@ -507,10 +549,10 @@ async function verifySpeakerGestures() {
     await touchPage.emulateMedia({reducedMotion: "no-preference"});
     await touchPage.waitForTimeout(100);
     await touchPage.locator('[data-action="open-voice"]').click();
-    await touchPage.waitForTimeout(650);
-    assert.equal(await touchPage.locator('[data-action="jump"][data-section="voice"]').getAttribute("aria-current"), "location");
+    await touchPage.waitForFunction(() => panel.shadowRoot.querySelector('[data-action="jump"][data-section="voice"]')?.getAttribute("aria-current") === "location");
     await touchPage.locator('[data-action="jump"][data-section="settings"]').click();
-    await touchPage.waitForTimeout(650);
+    await touchPage.waitForFunction(() => panel.shadowRoot.querySelector('[data-action="jump"][data-section="settings"]')?.getAttribute("aria-current") === "location");
+    await touchPage.waitForFunction(() => panel.shadowRoot.querySelector(".hero")?.hasAttribute("data-motion-paused"));
     assert.equal(await touchPage.locator(".hero-media").evaluate((element) => getComputedStyle(element, "::before").animationPlayState), "paused");
     await overview();
     await touchPage.waitForFunction(() => getComputedStyle(panel.shadowRoot.querySelector(".hero-media"), "::before").animationPlayState === "running");
@@ -796,6 +838,7 @@ async function verifyNhacCuaTuiSearch() {
 
 try {
   await verifyGlassAndMotion();
+  await verifyDeviceAccordion();
   await verifyDesktopScrolling();
   await verifySpeakerGestures();
   await verifyVoiceEditor();
@@ -818,7 +861,7 @@ try {
         imageWidth: panel.shadowRoot.querySelector(".hero-media").clientWidth,
         imageHeight: panel.shadowRoot.querySelector(".hero-media").clientHeight,
         columns: getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length,
-        overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
+        overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, .device-accordion, .device-accordion__copy, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
           const rect = node.getBoundingClientRect();
           return rect.width && (rect.right > panel.getBoundingClientRect().right + 1 || rect.left < -1);
         }).map((node) => node.className || node.tagName),
@@ -1017,6 +1060,8 @@ try {
   console.log("PASS reduced motion and disconnect/reconnect lifecycle");
   await page.setViewportSize({width: 390, height: 844});
   await load();
+  await page.locator('[data-action="jump"][data-section="device"]').click();
+  await page.locator('[data-sec="device"] .device-accordion--identity summary').click();
   const textId = await page.evaluate(() => panel._entity("text", "speaker_name"));
   const nameInput = page.locator(`input[data-entity="${textId}"]`);
   await nameInput.fill("Tên loa đang viết");

@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.24.0] - 2026-10-26
+
+### Changed
+
+- **Gộp thông tin loa vào một tab Thiết bị**: trạng thái, tên & vị trí, thông tin
+  thiết bị, firmware và bảo hành nay nằm trong cùng một tab thay vì tách thành
+  nhiều mục trên thanh điều hướng.
+- Mỗi nhóm thông tin là một accordion có nút mũi tên để mở/đóng; trạng thái mở
+  được giữ khi dữ liệu loa cập nhật. Trạng thái loa mở sẵn, các nhóm còn lại thu
+  gọn để panel gọn hơn trên điện thoại.
+- Giữ nguyên entity, handler và toàn bộ chức năng chỉnh tên, xem firmware và bảo
+  hành; không thay đổi dữ liệu integration.
+
+### Tests
+
+- Panel browser: kiểm tra một tab Thiết bị, đủ năm accordion, điều khiển bằng
+  bàn phím, giữ trạng thái mở khi dữ liệu cập nhật và không tràn ngang ở
+  320–1920px.
+- Unit test, panel browser, ruff và validate repository pass.
+
 ## [1.23.0] - 2026-10-25
 
 ### Added

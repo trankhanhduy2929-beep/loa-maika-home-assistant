@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.23.0**.
+Bản hiện tại: **v1.24.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -71,6 +71,11 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.24.0` gộp **Trạng thái loa**, **Tên & vị trí**, **Thông tin thiết bị**,
+**Firmware & hệ thống** và **Bảo hành** vào một tab **Thiết bị**. Mỗi nhóm là
+một accordion có nút mũi tên để mở/đóng; trạng thái loa mở sẵn và trạng thái
+mở/đóng được giữ khi dữ liệu cập nhật. Không đổi entity hay cấu hình.
 
 Bản `1.23.0` thêm **tìm kiếm NhạcCủaTui** trong panel và qua
 `media_player/search_media` của Home Assistant. Nhập tên bài hoặc ca sĩ trong ô
@@ -201,13 +206,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.23.0
+## File phát hành v1.24.0
 
-- `maika.zip` và `maika-v1.23.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.23.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.23.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.24.0-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.24.0` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.24.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.23.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.24.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

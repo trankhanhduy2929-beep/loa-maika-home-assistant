@@ -96,7 +96,7 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
   sáng/tối của Home Assistant; lựa chọn được nhớ riêng trong trình duyệt.
   Nếu trình duyệt chặn lưu trữ, vẫn đổi được cho phiên đang mở.
-- Chạm **Tổng quan / Trò chuyện / Giọng nói / Trạng thái / Trợ lý / Tên & vị trí / Thiết bị / Bản quyền /
+- Chạm **Tổng quan / Trò chuyện / Giọng nói / Thiết bị / Trợ lý / Bản quyền /
   Cấu hình / Công cụ** để tới đúng mục. Vuốt ngang thanh mục trên điện thoại.
 - Nút menu ở góc trên mở sidebar HA khi màn hình hẹp. Thanh công cụ bám trên
   đầu khi cuộn; trên màn hình thấp (điện thoại ngang) thanh này cuộn cùng nội dung.
@@ -114,29 +114,32 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
    Store), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
    thanh thời gian kéo tua (khi loa báo thời lượng), form cast URL MP3/AAC qua
    cloud.
-3. **Trạng thái loa**: 6 tile — trực tuyến, Wi-Fi, âm lượng, đang phát, cuộc gọi,
-   yêu thích.
+3. **Thiết bị**: một tab gồm năm accordion mở/đóng bằng nút mũi tên:
+   - **Trạng thái loa** (mở sẵn): 6 tile — trực tuyến, Wi-Fi, âm lượng, đang
+     phát, cuộc gọi, yêu thích.
+   - **Tên & vị trí**: sửa trực tiếp tên loa, tên khi gọi, địa chỉ (lưu bằng
+     `text.set_value`).
+   - **Thông tin thiết bị**: model, phòng, ngôn ngữ, Wi-Fi SSID, serial, ngày
+     kích hoạt, trạng thái.
+   - **Firmware & hệ thống**: phiên bản firmware, trạng thái cập nhật, nhà sản
+     xuất.
+   - **Bảo hành**: còn/hết bảo hành và ngày hết hạn — chỉ hiện khi loa có dữ
+     liệu.
 4. **Trợ lý Maika**: chọn giọng đọc, độ nhạy đánh thức, phản hồi khi gọi, công
    tắc tắt microphone.
-5. **Tên & vị trí**: sửa trực tiếp tên loa, tên khi gọi, địa chỉ (lưu bằng
-   `text.set_value`).
-6. **Thông tin thiết bị**: model, phòng, ngôn ngữ, Wi-Fi SSID, serial, ngày kích
-   hoạt, trạng thái.
-7. **Firmware & hệ thống**: phiên bản firmware, trạng thái cập nhật, nhà sản xuất.
-8. **Bảo hành**: còn/hết bảo hành và ngày hết hạn — chỉ hiện khi loa có dữ liệu.
-9. **Bản quyền**: trạng thái, gói, hạn dùng, key dạng rút gọn, mã cài đặt, form
+5. **Bản quyền**: trạng thái, gói, hạn dùng, key dạng rút gọn, mã cài đặt, form
    nhập key mới và liên kết mua/gia hạn.
-10. **Cấu hình**: chu kỳ cập nhật, cast âm thanh cloud, địa chỉ Home Assistant
-    cho loa tải nhạc (tuỳ chọn), nút lưu và nút tải lại integration. Lưu tại đây
-    không ghi đè cấu hình giọng nói.
-11. **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
-12. **Giọng nói**, nằm ngay sau điều khiển MAIKA: trình tạo câu lệnh ba bước,
-    danh sách tìm kiếm/sửa/thêm cách nói/xóa/chạy thử, cài đặt âm phản hồi.
+6. **Cấu hình**: chu kỳ cập nhật, cast âm thanh cloud, địa chỉ Home Assistant
+   cho loa tải nhạc (tuỳ chọn), nút lưu và nút tải lại integration. Lưu tại đây
+   không ghi đè cấu hình giọng nói.
+7. **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
+8. **Giọng nói**, nằm ngay sau điều khiển MAIKA: trình tạo câu lệnh ba bước,
+   danh sách tìm kiếm/sửa/thêm cách nói/xóa/chạy thử, cài đặt âm phản hồi.
 
 Nếu có nhiều config entry, các chip chọn **tài khoản** xuất hiện ở đầu panel.
 Nếu một tài khoản có nhiều loa, thêm hàng chip chọn **loa** ngay bên dưới: chạm
-để đổi loa và mọi mục trong panel (media, trạng thái, trợ lý, tên/vị trí, thông
-tin thiết bị, firmware, bảo hành, công cụ) chỉ hiển thị entity của loa đó.
+để đổi loa và mọi mục trong panel (media, trợ lý, các accordion trong tab Thiết
+bị, công cụ) chỉ hiển thị entity của loa đó.
 Mục **Bản quyền**, **Giọng nói** và **Cấu hình** là của tài khoản/Home Assistant nên dùng
 chung cho mọi loa.
 
