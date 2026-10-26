@@ -35,7 +35,7 @@ mươi** rồi lưu. Không phải viết entity ID, action hoặc JSON.
 
 **Giọng nói & âm phản hồi** nằm ngay trong mục này. Chọn MP3 có sẵn hoặc URL,
 chế độ ưu tiên/sau thành công và loa MAIKA cùng tài khoản. Bật cast cloud ở
-**Cấu hình loa**; có nhiều loa thì chọn cố định một loa phát âm báo.
+**Thiết lập → Cấu hình loa**; có nhiều loa thì chọn cố định một loa phát âm báo.
 Các cài đặt giọng nói áp dụng cho mọi loa trong cùng tài khoản MAIKA.
 
 ## Luồng dữ liệu

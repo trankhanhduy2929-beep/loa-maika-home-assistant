@@ -2,6 +2,25 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.25.0] - 2026-10-26
+
+### Changed
+
+- **Gộp thiết lập vào một tab Thiết lập**: Trợ lý Maika, Bản quyền, Cấu hình
+  loa và Công cụ nay nằm trong một tab thay vì bốn mục riêng trên thanh điều
+  hướng.
+- Mỗi nhóm là một accordion có nút mũi tên để mở/đóng. Trợ lý Maika mở sẵn;
+  trạng thái mở/đóng được giữ khi dữ liệu loa cập nhật.
+- Giữ nguyên entity, handler và toàn bộ chức năng nhập key, chỉnh cấu hình,
+  làm mới và khởi động lại loa; không thay đổi dữ liệu integration.
+
+### Tests
+
+- Panel browser: kiểm tra một tab Thiết lập, đủ bốn accordion, điều khiển bằng
+  bàn phím, giữ trạng thái mở khi dữ liệu cập nhật và không tràn ngang ở
+  320–1920px.
+- Unit test, panel browser, ruff và validate repository pass.
+
 ## [1.24.0] - 2026-10-26
 
 ### Changed

@@ -39,10 +39,7 @@ const SECTIONS = [
   {id: "chat", label: "Trò chuyện"},
   {id: "voice", label: "Giọng nói"},
   {id: "device", label: "Thiết bị"},
-  {id: "assistant", label: "Trợ lý"},
-  {id: "license", label: "Bản quyền"},
-  {id: "settings", label: "Cấu hình"},
-  {id: "tools", label: "Công cụ"},
+  {id: "settings", label: "Thiết lập"},
 ];
 
 function fmtTime(value) {
@@ -687,8 +684,8 @@ class MaikaPanel extends HTMLElement {
       }
 
       .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-      .device-accordion--status .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      @container (max-width: 440px) { .device-accordion--status .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      .panel-accordion--status .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      @container (max-width: 440px) { .panel-accordion--status .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       .tile {
         position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 7px; padding: 12px 12px 12px 15px;
         border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid transparent;
@@ -965,42 +962,44 @@ class MaikaPanel extends HTMLElement {
       .cast-drawer[open] summary::after { transform: rotate(45deg); }
       .cast-drawer[open] > form { padding-top: 2px; animation: slidein .25s var(--ease); }
 
-      .device-accordions { display: grid; gap: 9px; }
-      .device-accordion {
+      .panel-accordions { display: grid; gap: 9px; }
+      .panel-accordion {
         border: 1px solid var(--line); border-radius: var(--radius-sm);
         background: var(--surface-2);
         transition: background .22s ease, border-color .22s ease;
       }
-      .device-accordion[open] {
+      .panel-accordion[open] {
         background: var(--surface);
         border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
       }
-      .device-accordion > summary {
+      .panel-accordion > summary {
         display: flex; align-items: center; gap: 11px; min-height: 56px; padding: 9px 11px;
         list-style: none; cursor: pointer; user-select: none; -webkit-user-select: none;
       }
-      .device-accordion > summary::-webkit-details-marker { display: none; }
-      .device-accordion > summary .ico {
+      .panel-accordion > summary::-webkit-details-marker { display: none; }
+      .panel-accordion > summary .ico {
         width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex: none;
         background: color-mix(in srgb, currentColor 15%, var(--surface-2));
         box-shadow: inset 0 1px 0 var(--glass-sheen);
       }
-      .device-accordion > summary .ico svg { width: 18px; height: 18px; fill: currentColor; }
-      .device-accordion__copy { display: grid; gap: 1px; min-width: 0; flex: 1; }
-      .device-accordion__copy b { font-size: .9rem; font-weight: 660; line-height: 1.3; }
-      .device-accordion__copy small { font-size: .74rem; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
-      .device-accordion__arrow {
+      .panel-accordion > summary .ico svg { width: 18px; height: 18px; fill: currentColor; }
+      .panel-accordion__copy { display: grid; gap: 1px; min-width: 0; flex: 1; }
+      .panel-accordion__copy b { font-size: .9rem; font-weight: 660; line-height: 1.3; }
+      .panel-accordion__copy small { font-size: .74rem; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
+      .panel-accordion__arrow {
         width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px;
         background: var(--surface-2); color: var(--accent);
         transition: transform .24s var(--ease), background .2s ease;
       }
-      .device-accordion > summary:hover .device-accordion__arrow { background: var(--surface-3); }
-      .device-accordion[open] .device-accordion__arrow { transform: rotate(180deg); }
-      .device-accordion__arrow svg { width: 18px; height: 18px; fill: currentColor; }
-      .device-accordion__body { padding: 1px 11px 12px; animation: slidein .24s var(--ease); }
-      .device-accordion__body > .rows { gap: 7px; }
-      .device-accordion--info .rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      @container (max-width: 700px) { .device-accordion--info .rows { grid-template-columns: 1fr; } }
+      .panel-accordion > summary:hover .panel-accordion__arrow { background: var(--surface-3); }
+      .panel-accordion[open] .panel-accordion__arrow { transform: rotate(180deg); }
+      .panel-accordion__arrow svg { width: 18px; height: 18px; fill: currentColor; }
+      .panel-accordion__body { padding: 1px 11px 12px; animation: slidein .24s var(--ease); }
+      .panel-accordion__body > .rows { gap: 7px; }
+      .license-summary { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+      .license-rows { margin-bottom: 14px; }
+      .panel-accordion--info .rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      @container (max-width: 700px) { .panel-accordion--info .rows { grid-template-columns: 1fr; } }
       @keyframes orbit { to { transform: rotate(360deg); } }
       @keyframes sound-ripple { 0% { transform: scale(.48); opacity: 0; } 25% { opacity: .3; } 100% { transform: scale(1.22); opacity: 0; } }
       @keyframes speaker-float { 0%, 100% { transform: translateY(1px); } 50% { transform: translateY(-3px); } }
@@ -1203,17 +1202,17 @@ class MaikaPanel extends HTMLElement {
     return head;
   }
 
-  _deviceAccordion({key, icon, title, subtitle, color, open}, children) {
-    return h("details", {class: `device-accordion device-accordion--${key}`, open}, [
-      h("summary", {class: "device-accordion__summary"}, [
+  _accordion({key, icon, title, subtitle, color, open}, children) {
+    return h("details", {class: `panel-accordion panel-accordion--${key}`, open}, [
+      h("summary", {class: "panel-accordion__summary"}, [
         h("span", {class: ["ico", color].filter(Boolean).join(" ")}, [svgIcon(ICONS[icon] || ICONS.info)]),
-        h("span", {class: "device-accordion__copy"}, [
+        h("span", {class: "panel-accordion__copy"}, [
           h("b", {text: title}),
           h("small", {text: subtitle}),
         ]),
-        h("span", {class: "device-accordion__arrow", "aria-hidden": "true"}, [svgIcon(ICONS.chevron)]),
+        h("span", {class: "panel-accordion__arrow", "aria-hidden": "true"}, [svgIcon(ICONS.chevron)]),
       ]),
-      h("div", {class: "device-accordion__body"}, children),
+      h("div", {class: "panel-accordion__body"}, children),
     ]);
   }
 
@@ -2039,7 +2038,7 @@ class MaikaPanel extends HTMLElement {
     return h("button", {class: "sbtn", type: "button", title: label, "aria-label": label, dataset: {action: "seek-step", entity, delta: String(delta), position: String(position), duration: Number.isFinite(duration) && duration > 0 ? String(duration) : ""}}, text);
   }
 
-  _assistantSection(delay) {
+  _assistantRows() {
     const rows = [];
     const voice = this._entity("select", "tts_voice");
     const sensitivity = this._entity("select", "wakeword_sensitivity");
@@ -2061,10 +2060,7 @@ class MaikaPanel extends HTMLElement {
       rows.push(box);
     }
 
-    return this._card("span1", [
-      this._sectionHead("mic", "Trợ lý Maika", "Giọng nói và đánh thức", "c-purple"),
-      h("div", {class: "rows"}, rows.filter(Boolean)),
-    ], delay);
+    return h("div", {class: "rows"}, rows.filter(Boolean));
   }
 
   _selectRow(label, entityId, icon) {
@@ -2143,19 +2139,19 @@ class MaikaPanel extends HTMLElement {
 
   _deviceSection(delay) {
     const warranty = this._warrantyTiles();
-    return this._card("span3", [
+    return this._card("span2", [
       this._sectionHead("speaker", "Thiết bị", "Trạng thái, nhận dạng và hệ thống", "c-blue"),
-      h("div", {class: "device-accordions"}, [
-        this._deviceAccordion({key: "status", icon: "online", title: "Trạng thái loa", subtitle: "Kết nối và hoạt động hiện tại", color: "c-ok", open: true}, this._statusTiles()),
-        this._deviceAccordion({key: "identity", icon: "speaker", title: "Tên & vị trí", subtitle: "Tên loa, tên khi gọi và địa chỉ", color: "c-blue"}, this._identityRows()),
-        this._deviceAccordion({key: "info", icon: "info", title: "Thông tin thiết bị", subtitle: "Model, phòng và kết nối", color: "c-blue"}, this._deviceRows()),
-        this._deviceAccordion({key: "firmware", icon: "chip", title: "Firmware & hệ thống", subtitle: "Phiên bản phần mềm của loa", color: "c-cyan"}, this._firmwareRows()),
-        warranty ? this._deviceAccordion({key: "warranty", icon: "shield", title: "Bảo hành", subtitle: "Theo dõi thời hạn thiết bị", color: this._isOn(this._entity("binary_sensor", "warranty_active")) ? "c-ok" : "c-bad"}, warranty) : null,
+      h("div", {class: "panel-accordions"}, [
+        this._accordion({key: "status", icon: "online", title: "Trạng thái loa", subtitle: "Kết nối và hoạt động hiện tại", color: "c-ok", open: true}, this._statusTiles()),
+        this._accordion({key: "identity", icon: "speaker", title: "Tên & vị trí", subtitle: "Tên loa, tên khi gọi và địa chỉ", color: "c-blue"}, this._identityRows()),
+        this._accordion({key: "info", icon: "info", title: "Thông tin thiết bị", subtitle: "Model, phòng và kết nối", color: "c-blue"}, this._deviceRows()),
+        this._accordion({key: "firmware", icon: "chip", title: "Firmware & hệ thống", subtitle: "Phiên bản phần mềm của loa", color: "c-cyan"}, this._firmwareRows()),
+        warranty ? this._accordion({key: "warranty", icon: "shield", title: "Bảo hành", subtitle: "Theo dõi thời hạn thiết bị", color: this._isOn(this._entity("binary_sensor", "warranty_active")) ? "c-ok" : "c-bad"}, warranty) : null,
       ].filter(Boolean)),
     ], delay);
   }
 
-  _toolsSection(delay) {
+  _toolsContent() {
     const refresh = this._entity("button", "refresh_status");
     const restart = this._entity("button", "restart");
     const buttons = [];
@@ -2165,9 +2161,20 @@ class MaikaPanel extends HTMLElement {
     if (restart) {
       buttons.push(this._actionButton("Khởi động lại", "restart", restart, "btn--danger"));
     }
-    return this._card("span1", [
-      this._sectionHead("tune", "Công cụ", "Quản lý và bảo trì loa", "c-amber"),
-      h("div", {class: "btn-row"}, buttons),
+    return h("div", {class: "btn-row"}, buttons);
+  }
+
+  _setupSection(delay) {
+    const license = this._entry()?.license || {};
+    const lifetime = license.plan === "lifetime";
+    return this._card("span2", [
+      this._sectionHead("tune", "Thiết lập", "Trợ lý, bản quyền, cấu hình và công cụ", "c-purple"),
+      h("div", {class: "panel-accordions"}, [
+        this._accordion({key: "assistant", icon: "mic", title: "Trợ lý Maika", subtitle: "Giọng nói và đánh thức", color: "c-purple", open: true}, this._assistantRows()),
+        this._accordion({key: "license", icon: "key", title: "Bản quyền", subtitle: lifetime ? "Key vĩnh viễn, không giới hạn thời gian" : "Key, gói và hạn sử dụng", color: "c-amber"}, this._licenseContent(license)),
+        this._accordion({key: "config", icon: "tune", title: "Cấu hình loa", subtitle: "Chu kỳ cập nhật và cast âm thanh", color: "c-purple"}, this._settingsForm()),
+        this._accordion({key: "tools", icon: "tune", title: "Công cụ", subtitle: "Làm mới và khởi động lại loa", color: "c-amber"}, this._toolsContent()),
+      ]),
     ], delay);
   }
 
@@ -2210,9 +2217,7 @@ class MaikaPanel extends HTMLElement {
     ]);
   }
 
-  _licenseSection(delay) {
-    const entry = this._entry();
-    const license = entry?.license || {};
+  _licenseContent(license) {
     const plan = license.plan ? planLabel(license.plan) : "Chưa kích hoạt";
     const lifetime = license.plan === "lifetime";
     const licenseExpiresAt = license.license_expires_at ?? license.expires_at ?? null;
@@ -2238,26 +2243,25 @@ class MaikaPanel extends HTMLElement {
       h("p", {class: "hint", text: "Nhập key mới để nâng gói hoặc gia hạn. Hệ thống tự thay máy sang key mới, không cần admin xoá máy."}),
     ]);
 
-    return this._card("span2", [
-      this._sectionHead("key", "Bản quyền", lifetime ? "Key vĩnh viễn, không giới hạn thời gian" : "Key, gói và hạn sử dụng", "c-amber"),
+    return [
       this._licenseReminder(license),
-      h("div", {style: "display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"}, [
+      h("div", {class: "license-summary"}, [
         this._licenseBadge(license),
         h("span", {class: "badge", text: plan}),
       ]),
-      h("div", {class: "rows", style: "margin-bottom:14px"}, rows),
+      h("div", {class: "rows license-rows"}, rows.filter(Boolean)),
       form,
-    ], delay);
+    ];
   }
 
-  _settingsSection(delay) {
+  _settingsForm() {
     const options = this._entry()?.options || {};
     const bounds = this._snapshot?.scan_interval_bounds || [15, 3600];
     const draft = this._draft;
 
     const value = (key, fallback) => (key in draft ? draft[key] : fallback);
 
-    const form = h("form", {class: "field", style: "gap:14px", dataset: {form: "options"}}, [
+    return h("form", {class: "field", style: "gap:14px", dataset: {form: "options"}}, [
       h("div", {class: "field"}, [
         h("label", {text: `Chu kỳ cập nhật (${bounds[0]}–${bounds[1]} giây)`}),
         h("input", {type: "number", name: "scan_interval", min: String(bounds[0]), max: String(bounds[1]), value: String(value("scan_interval", options[OPTION_KEYS.scanInterval] ?? 60)), dataset: {field: "scan_interval"}}),
@@ -2279,11 +2283,6 @@ class MaikaPanel extends HTMLElement {
         h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reload"}, text: "Tải lại integration"}),
       ]),
     ]);
-
-    return this._card("span2", [
-      this._sectionHead("tune", "Cấu hình loa", "Áp dụng cho mọi loa cùng tài khoản", "c-purple"),
-      form,
-    ], delay);
   }
 
   _toolbar() {
@@ -2472,10 +2471,7 @@ class MaikaPanel extends HTMLElement {
         ["chat", this._chatSection(75)],
         ["voice", this._card("span4", [h("maika-voice-editor")], 90)],
         ["device", this._deviceSection(105)],
-        ["assistant", this._assistantSection(135)],
-        ["license", this._licenseSection(165)],
-        ["settings", this._settingsSection(195)],
-        ["tools", this._toolsSection(225)],
+        ["settings", this._setupSection(120)],
       );
     }
     const previous = new Map([...this._stage.children].map((card) => [card.dataset.card, card]));

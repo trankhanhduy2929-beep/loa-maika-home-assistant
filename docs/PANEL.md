@@ -49,7 +49,7 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   Đã thực hiện / Lỗi / Đang chạy / Chưa có rule) được gộp vào mục **Trò chuyện**
   từ v1.20.1. Panel ưu tiên thuộc tính `recent_commands` của cảm biến câu lệnh
   để cập nhật ngay, dự phòng bằng snapshot; giữ tối đa 20 câu lệnh.
-- **Nhắc hạn key**: mục **Bản quyền** hiện băng nhắc khi key còn ≤ 7 ngày
+- **Nhắc hạn key**: mục **Thiết lập → Bản quyền** hiện băng nhắc khi key còn ≤ 7 ngày
   hoặc đã hết hạn, và Home Assistant tạo thông báo hệ thống một lần mỗi
   ngày. Key vĩnh viễn không nhắc. Dòng **Hạn dùng** dùng hạn thật
   `license_expires_at` do máy chủ ký kèm (cần worker cấp phép đã cập nhật).
@@ -96,8 +96,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
   sáng/tối của Home Assistant; lựa chọn được nhớ riêng trong trình duyệt.
   Nếu trình duyệt chặn lưu trữ, vẫn đổi được cho phiên đang mở.
-- Chạm **Tổng quan / Trò chuyện / Giọng nói / Thiết bị / Trợ lý / Bản quyền /
-  Cấu hình / Công cụ** để tới đúng mục. Vuốt ngang thanh mục trên điện thoại.
+- Chạm **Tổng quan / Trò chuyện / Giọng nói / Thiết bị / Thiết lập** để tới
+  đúng mục. Vuốt ngang thanh mục trên điện thoại.
 - Nút menu ở góc trên mở sidebar HA khi màn hình hẹp. Thanh công cụ bám trên
   đầu khi cuộn; trên màn hình thấp (điện thoại ngang) thanh này cuộn cùng nội dung.
 - Animation nhẹ cho thẻ, trạng thái phát nhạc và nút; tự tắt theo cài đặt
@@ -125,23 +125,24 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
      xuất.
    - **Bảo hành**: còn/hết bảo hành và ngày hết hạn — chỉ hiện khi loa có dữ
      liệu.
-4. **Trợ lý Maika**: chọn giọng đọc, độ nhạy đánh thức, phản hồi khi gọi, công
-   tắc tắt microphone.
-5. **Bản quyền**: trạng thái, gói, hạn dùng, key dạng rút gọn, mã cài đặt, form
-   nhập key mới và liên kết mua/gia hạn.
-6. **Cấu hình**: chu kỳ cập nhật, cast âm thanh cloud, địa chỉ Home Assistant
-   cho loa tải nhạc (tuỳ chọn), nút lưu và nút tải lại integration. Lưu tại đây
-   không ghi đè cấu hình giọng nói.
-7. **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
-8. **Giọng nói**, nằm ngay sau điều khiển MAIKA: trình tạo câu lệnh ba bước,
+4. **Thiết lập**: một tab gồm bốn accordion mở/đóng bằng nút mũi tên:
+   - **Trợ lý Maika** (mở sẵn): chọn giọng đọc, độ nhạy đánh thức, phản hồi khi
+     gọi, công tắc tắt microphone.
+   - **Bản quyền**: trạng thái, gói, hạn dùng, key dạng rút gọn, mã cài đặt,
+     form nhập key mới và liên kết mua/gia hạn.
+   - **Cấu hình loa**: chu kỳ cập nhật, cast âm thanh cloud, địa chỉ Home
+     Assistant cho loa tải nhạc (tuỳ chọn), nút lưu và nút tải lại integration.
+     Lưu tại đây không ghi đè cấu hình giọng nói.
+   - **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
+5. **Giọng nói**, nằm ngay sau điều khiển MAIKA: trình tạo câu lệnh ba bước,
    danh sách tìm kiếm/sửa/thêm cách nói/xóa/chạy thử, cài đặt âm phản hồi.
 
 Nếu có nhiều config entry, các chip chọn **tài khoản** xuất hiện ở đầu panel.
 Nếu một tài khoản có nhiều loa, thêm hàng chip chọn **loa** ngay bên dưới: chạm
 để đổi loa và mọi mục trong panel (media, trợ lý, các accordion trong tab Thiết
 bị, công cụ) chỉ hiển thị entity của loa đó.
-Mục **Bản quyền**, **Giọng nói** và **Cấu hình** là của tài khoản/Home Assistant nên dùng
-chung cho mọi loa.
+Mục **Bản quyền** và **Cấu hình loa** dùng chung cho tài khoản/Home Assistant;
+**Trợ lý Maika**, **Giọng nói** và **Công cụ** bám theo loa đang chọn.
 
 ## Thao tác
 
@@ -157,7 +158,7 @@ chung cho mọi loa.
 - **Chạy thử**: chỉ thực hiện sau khi bạn xác nhận; không kiểm thử khả năng
   nhận dạng giọng nói hay phát MP3. Lưu câu lệnh không tự điều khiển thiết bị.
 - **Âm phản hồi**: chọn MP3 có sẵn/URL riêng/tắt, thời điểm và loa MAIKA trong
-  cùng tài khoản. Bật cast cloud ở Cấu hình; nếu nhiều loa cần chọn một loa
+  cùng tài khoản. Bật cast cloud ở **Thiết lập → Cấu hình loa**; nếu nhiều loa cần chọn một loa
   phát, không tự suy ra loa nhận câu nói. Ưu tiên che giọng chỉ là best-effort.
 - **Đổi loa**: cấu hình và key chưa lưu vẫn giữ khi chuyển loa cùng tài khoản;
   ô cast và tên/vị trí tách theo loa. Có xác nhận trước khi đổi tài khoản nếu
@@ -180,14 +181,14 @@ chung cho mọi loa.
   lại khi đọc lỗi. Chọn một bài gửi `media_player.play_media` kiểu `maika_song`;
   hộp thoại đóng khi xong, có thể đóng bằng phím Esc, và danh sách tự vô hiệu
   nếu dữ liệu của loa khác về sau. Không tự dựng playlist từ lịch sử hay câu nói.
-- **Tải lại integration**: bấm nút trong mục Cấu hình nếu cần nạp lại thủ công.
+- **Tải lại integration**: bấm nút trong **Thiết lập → Cấu hình loa** nếu cần nạp lại thủ công.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.
 
 ## Khi key hết hạn hoặc loa chưa kết nối
 
 Panel vẫn đăng ký ngay khi Home Assistant bắt đầu tải tài khoản MAIKA,
-trước khi kiểm tra license và kết nối loa. Mở **MAIKA → Bản quyền** để
+trước khi kiểm tra license và kết nối loa. Mở **MAIKA → Thiết lập → Bản quyền** để
 nhập/thay key kể cả khi tích hợp đang báo cần kích hoạt. Một số trạng thái
 loa có thể chưa có dữ liệu; không cần xoá thiết bị hoặc nhờ admin xoá máy.
 Panel không bị gỡ khi tải lại; chỉ gỡ khi xoá tài khoản MAIKA cuối cùng.

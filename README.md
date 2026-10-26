@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.24.0**.
+Bản hiện tại: **v1.25.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -66,11 +66,16 @@ cài thêm Mushroom hoặc card-mod. Bản `1.10.0` có mục **Giọng nói** r
 chọn thiết bị/automation, chọn thao tác và nhập câu nói — không cần viết rule.
 Kích hoạt chỉ cần dán key, không còn ô URL máy chủ. Từ `1.10.1`, bỏ nút
 **Configure / Tùy chọn MAIKA** bên trang tích hợp: nhập/thay key tại
-**MAIKA → Bản quyền**, chỉnh tính năng tại **Cấu hình loa** và **Giọng nói**.
+**MAIKA → Thiết lập → Bản quyền**, chỉnh tính năng tại **Thiết lập → Cấu hình loa** và **Giọng nói**.
 Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết nối để bạn tự
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.25.0` gộp **Trợ lý Maika**, **Bản quyền**, **Cấu hình loa** và
+**Công cụ** vào một tab **Thiết lập**. Mỗi nhóm là một accordion; trợ lý mở
+sẵn, ba nhóm còn lại thu gọn và trạng thái mở/đóng được giữ khi dữ liệu cập
+nhật. Không đổi entity hay cấu hình.
 
 Bản `1.24.0` gộp **Trạng thái loa**, **Tên & vị trí**, **Thông tin thiết bị**,
 **Firmware & hệ thống** và **Bảo hành** vào một tab **Thiết bị**. Mỗi nhóm là
@@ -152,7 +157,7 @@ Bản `1.15.0` sửa cast nhạc local khi Home Assistant tạo URL bằng tên 
 loopback mà loa không phân giải được: integration tự đổi scheme/host/port
 sang địa chỉ LAN mà loa truy cập được. Bản này cũng thêm tính năng tua bài
 đang cast bằng `media_player.media_seek` (thanh thời gian trong panel), ô
-**Địa chỉ Home Assistant cho loa tải nhạc** trong Cấu hình để tự chỉ định
+**Địa chỉ Home Assistant cho loa tải nhạc** trong **Thiết lập → Cấu hình loa** để tự chỉ định
 địa chỉ LAN, chấp nhận thêm MIME audio (FLAC, WAV, OGG, Opus, WebM) và giảm
 độ trễ sau cast/play/pause/next/previous/đổi âm lượng.
 
@@ -170,7 +175,7 @@ sáng và nút cam chuyển sắc, có thêm nhịp sóng nhỏ ở logo, vệt 
 kết nối thì dừng hiệu ứng phát nhạc. Đây không phải sóng âm thu từ micro.
 
 Hoạt ảnh **tự động bật**, chỉ tắt khi thiết bị bật **Giảm chuyển động**; không
-còn nút bật/tắt hoạt ảnh. Với key **vĩnh viễn**, mục **Bản quyền** ẩn dòng
+còn nút bật/tắt hoạt ảnh. Với key **vĩnh viễn**, mục **Thiết lập → Bản quyền** ẩn dòng
 **Hạn dùng** và ghi rõ không giới hạn thời gian; gói theo tháng/năm vẫn hiện
 hạn. **Vuốt ngang đổi loa**, bản nháp key/câu lệnh và mọi cài đặt vẫn giữ
 nguyên. Phần phát URL MP3/AAC mở bằng **Phát âm thanh từ đường dẫn**.
@@ -206,13 +211,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.24.0
+## File phát hành v1.25.0
 
-- `maika.zip` và `maika-v1.24.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.24.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.24.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.25.0-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.25.0` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.25.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.24.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.25.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
@@ -292,7 +297,7 @@ hình bị redact khỏi diagnostics. Xem [Câu lệnh giọng nói](docs/VOICE_
 
 ## Cloud cast thử nghiệm
 
-Trong **MAIKA → Cấu hình loa**, bật **Cast âm thanh cloud** rồi bấm **Lưu cấu hình**; tích hợp tự tải lại. Entity loa sẽ có thêm feature `PLAY_MEDIA`, `BROWSE_MEDIA` và `SEEK`.
+Trong **MAIKA → Thiết lập → Cấu hình loa**, bật **Cast âm thanh cloud** rồi bấm **Lưu cấu hình**; tích hợp tự tải lại. Entity loa sẽ có thêm feature `PLAY_MEDIA`, `BROWSE_MEDIA` và `SEEK`.
 
 Ví dụ phát MP3 trực tiếp:
 

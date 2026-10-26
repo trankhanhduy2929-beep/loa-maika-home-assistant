@@ -51,7 +51,7 @@ Khi đó luồng khách hàng là:
 8. Khách bấm kiểm tra lại, sau đó mới nhập tài khoản MAIKA.
 
 Entry đã tạo trước `1.6.0` sẽ không tải cho đến khi được kích hoạt tại
-**MAIKA → Bản quyền** trong sidebar. Từ `1.10.1`, không còn màn hình
+**MAIKA → Thiết lập → Bản quyền** trong sidebar. Từ `1.10.1`, không còn màn hình
 **Configure / Tùy chọn MAIKA**. Panel vẫn mở được khi license hết hạn hoặc
 tích hợp chưa tải thành công; dán key mới rồi bấm **Kích hoạt / thay key**.
 Không cần xoá integration, key cũ, tài khoản hoặc thiết bị.

@@ -45,7 +45,7 @@ APK dùng `ConstApp` device ID làm `fromDeviceId`, danh sách serial loa đư�
 
 ## Bật tính năng
 
-1. Mở **MAIKA → Cấu hình loa** trong sidebar Home Assistant.
+1. Mở **MAIKA → Thiết lập → Cấu hình loa** trong sidebar Home Assistant.
 2. Bật **Cast âm thanh cloud**.
 3. Bấm **Lưu cấu hình**; tích hợp tự tải lại.
 4. Kiểm tra entity loa có feature `PLAY_MEDIA` và `BROWSE_MEDIA`.

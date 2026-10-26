@@ -31,6 +31,11 @@ const waitRender = async () => {
   await page.waitForFunction(() => document.querySelector("maika-panel")._renderFrame === null);
 };
 const load = async () => { await page.goto(base); await page.locator('[data-sec="settings"]').waitFor(); await page.waitForTimeout(500); };
+const openSetup = async (key, targetPage = page) => {
+  const accordion = targetPage.locator(`[data-sec="settings"] .panel-accordion--${key}`);
+  await accordion.waitFor();
+  if (await accordion.getAttribute("open") === null) await accordion.locator("summary").click();
+};
 const metrics = [];
 
 async function verifyVoiceEditor() {
@@ -147,6 +152,7 @@ async function verifyVoiceEditor() {
   assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
   assert.doesNotMatch(await rules(), /Bản nháp được giữ/);
   await page.evaluate(() => { failSave = false; });
+  await openSetup("config");
   await page.locator('[name="scan_interval"]').fill("85");
   await page.locator('[data-form="options"] button[type="submit"]').click(); await waitRender();
   assert.equal(await input("phrase").inputValue(), "Bản nháp được giữ");
@@ -295,6 +301,7 @@ async function verifyGlassAndMotion() {
   console.log("PASS orange glass themes, text/button palette contrast and live playback/muted/offline/unknown animations without reloading the image");
 
   assert.equal(await page.locator('[data-action="effects"]').count(), 0, "Motion stays automatic, there is no animation toggle button");
+  await openSetup("license");
   await page.locator('[name="license_key"]').fill("MAIKA-MOTION-DRAFT");
   await page.locator("maika-voice-editor").locator("#phrase").fill("bản nháp không mất khi đổi giao diện");
   await page.locator('[data-action="theme"]').selectOption("light");
@@ -339,7 +346,7 @@ async function verifyGlassAndMotion() {
 async function verifyDeviceAccordion() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
-  assert.deepEqual(await page.locator(".nav .pill").allTextContents(), ["Tổng quan", "Trò chuyện", "Giọng nói", "Thiết bị", "Trợ lý", "Bản quyền", "Cấu hình", "Công cụ"]);
+  assert.deepEqual(await page.locator(".nav .pill").allTextContents(), ["Tổng quan", "Trò chuyện", "Giọng nói", "Thiết bị", "Thiết lập"]);
   for (const section of ["status", "identity", "info", "firmware", "warranty"]) {
     assert.equal(await page.locator(`[data-action="jump"][data-section="${section}"]`).count(), 0);
   }
@@ -347,24 +354,24 @@ async function verifyDeviceAccordion() {
   assert.equal(await page.locator('[data-action="jump"][data-section="device"]').getAttribute("aria-current"), "location");
   const card = page.locator('[data-sec="device"]');
   await card.waitFor();
-  const status = card.locator(".device-accordion--status");
-  const identity = card.locator(".device-accordion--identity");
-  const firmware = card.locator(".device-accordion--firmware");
-  assert.equal(await card.locator(".device-accordion").count(), 5);
-  assert.deepEqual(await card.locator(".device-accordion__copy b").allTextContents(), ["Trạng thái loa", "Tên & vị trí", "Thông tin thiết bị", "Firmware & hệ thống", "Bảo hành"]);
+  const status = card.locator(".panel-accordion--status");
+  const identity = card.locator(".panel-accordion--identity");
+  const firmware = card.locator(".panel-accordion--firmware");
+  assert.equal(await card.locator(".panel-accordion").count(), 5);
+  assert.deepEqual(await card.locator(".panel-accordion__copy b").allTextContents(), ["Trạng thái loa", "Tên & vị trí", "Thông tin thiết bị", "Firmware & hệ thống", "Bảo hành"]);
   assert.equal(await status.getAttribute("open"), "");
   assert.equal(await identity.getAttribute("open"), null);
   assert.equal(await firmware.getAttribute("open"), null);
   assert.equal(await status.locator(".tile").count(), 6);
-  assert.equal(await card.locator(".device-accordion--info .row").count(), 7);
+  assert.equal(await card.locator(".panel-accordion--info .row").count(), 7);
   assert.equal(await firmware.locator(".row").count(), 3);
-  assert.equal(await card.locator(".device-accordion--warranty .tile").count(), 2);
+  assert.equal(await card.locator(".panel-accordion--warranty .tile").count(), 2);
   assert.equal(await identity.locator("input").count(), 3);
   assert.equal(await firmware.locator(".rows").isVisible(), false);
 
   await identity.locator("summary").click();
   assert.equal(await identity.getAttribute("open"), "");
-  assert.notEqual(await identity.locator(".device-accordion__arrow").evaluate((node) => getComputedStyle(node).transform), "none");
+  assert.notEqual(await identity.locator(".panel-accordion__arrow").evaluate((node) => getComputedStyle(node).transform), "none");
   await page.evaluate(() => { states[panel._entity("binary_sensor", "online")].state = "off"; tick(); });
   await waitRender();
   assert.equal(await identity.getAttribute("open"), "", "Open accordion survives live data re-render");
@@ -376,6 +383,49 @@ async function verifyDeviceAccordion() {
   await page.evaluate(() => { states[panel._entity("binary_sensor", "online")].state = "on"; tick(); });
   await waitRender();
   console.log("PASS one device tab, five accessible accordions, live data and keyboard/open-state preservation");
+}
+
+async function verifySetupAccordion() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  for (const section of ["assistant", "license", "tools"]) {
+    assert.equal(await page.locator(`[data-action="jump"][data-section="${section}"]`).count(), 0);
+  }
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  const card = page.locator('[data-sec="settings"]');
+  await card.waitFor();
+  const assistant = card.locator(".panel-accordion--assistant");
+  const license = card.locator(".panel-accordion--license");
+  const config = card.locator(".panel-accordion--config");
+  const tools = card.locator(".panel-accordion--tools");
+  assert.equal(await card.locator(".panel-accordion").count(), 4);
+  assert.deepEqual(await card.locator(".panel-accordion__copy b").allTextContents(), ["Trợ lý Maika", "Bản quyền", "Cấu hình loa", "Công cụ"]);
+  assert.equal(await assistant.getAttribute("open"), "");
+  assert.equal(await license.getAttribute("open"), null);
+  assert.equal(await config.getAttribute("open"), null);
+  assert.equal(await tools.getAttribute("open"), null);
+  assert.equal(await license.getByRole("textbox", {name: "License key"}).isVisible(), false);
+  assert.equal(await config.locator('[name="scan_interval"]').isVisible(), false);
+
+  await openSetup("license");
+  assert.equal(await license.getAttribute("open"), "");
+  assert.equal(await license.getByRole("textbox", {name: "License key"}).isVisible(), true);
+  await openSetup("config");
+  assert.equal(await config.locator('[name="scan_interval"]').isVisible(), true);
+  await openSetup("tools");
+  assert.equal(await tools.getByRole("button", {name: "Làm mới"}).isVisible(), true);
+  await page.evaluate(() => {
+    const licenseExpiresAt = Math.floor(Date.now() / 1000) + 40 * 86400;
+    snapshot.entries[0].license = {...snapshot.entries[0].license, plan: "month_1", expires_at: licenseExpiresAt, license_expires_at: licenseExpiresAt};
+    tick();
+  });
+  await waitRender();
+  assert.equal(await license.getAttribute("open"), "", "Open settings accordion survives live data re-render");
+  await license.locator("summary").press("Enter");
+  assert.equal(await license.getAttribute("open"), null);
+  await license.locator("summary").press("Enter");
+  assert.equal(await license.getAttribute("open"), "");
+  console.log("PASS one settings tab, four accessible accordions and preserved open state");
 }
 
 async function verifyDesktopScrolling() {
@@ -403,6 +453,7 @@ async function verifyDesktopScrolling() {
     await page.mouse.wheel(0, -360);
     await page.waitForFunction(() => panel.scrollTop < 5);
   }
+  await openSetup("config");
   await pointAt(page.locator(".nav"));
   await page.mouse.wheel(0, 20000);
   await page.waitForFunction(() => Math.abs(panel.scrollHeight - panel.clientHeight - panel.scrollTop) < 2);
@@ -419,6 +470,9 @@ async function verifyDesktopScrolling() {
   await top();
   assert.equal(await page.evaluate(() => panel.clientHeight), 720);
   const nav = page.locator(".nav");
+  if (!await nav.evaluate((element) => element.scrollWidth > element.clientWidth)) {
+    await page.evaluate(() => { panel.shadowRoot.querySelector(".nav").style.maxWidth = "360px"; });
+  }
   assert(await nav.evaluate((element) => element.scrollWidth > element.clientWidth));
   await pointAt(nav);
   await page.mouse.wheel(240, 0);
@@ -427,7 +481,7 @@ async function verifyDesktopScrolling() {
   await page.waitForTimeout(150);
   await page.mouse.wheel(0, 360);
   await page.waitForFunction(() => panel.scrollTop > 200);
-  await page.evaluate(() => { document.querySelector("ha-panel-custom").style.height = "540px"; });
+  await page.evaluate(() => { panel.shadowRoot.querySelector(".nav").style.maxWidth = ""; document.querySelector("ha-panel-custom").style.height = "540px"; });
   assert.equal(await page.evaluate(() => panel.clientHeight), 540, "A shorter explicit HA container still constrains the panel");
   await page.evaluate(() => { document.querySelector("ha-panel-custom").style.height = ""; });
   console.log("PASS resized desktop, HA sidebar, horizontal trackpad and vertical wheel over overflowing navigation");
@@ -481,6 +535,8 @@ async function verifySpeakerGestures() {
     await touchPage.goto(base);
     await touchPage.locator(".speaker-pager").waitFor();
     await touchPage.waitForFunction(() => document.querySelector("maika-panel")._busy === false);
+    await openSetup("license", touchPage);
+    await openSetup("config", touchPage);
     await touchPage.locator('[name="license_key"]').fill("MAIKA-UNSAVED-KEY");
     await touchPage.locator('[name="scan_interval"]').fill("91");
     await touchPage.locator("maika-voice-editor").locator("#phrase").fill("bản nháp giọng nói");
@@ -593,12 +649,14 @@ async function verifySpeakerGestures() {
 async function verifyLifetimeLicense() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
-  await page.locator('[data-action="jump"][data-section="license"]').click();
-  const labels = () => page.locator('[data-sec="license"] .row .lbl').allTextContents();
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await openSetup("license");
+  const license = page.locator('[data-sec="settings"] .panel-accordion--license');
+  const labels = () => license.locator(".row .lbl").allTextContents();
   assert.equal(await page.evaluate(() => snapshot.entries[0].license.plan), "lifetime");
   assert.deepEqual(await labels(), ["Gói hiện tại", "Key đang dùng", "Mã cài đặt"]);
-  assert.match(await page.locator('[data-sec="license"] .sec-head span').innerText(), /vĩnh viễn/);
-  assert.equal(await page.locator('[data-sec="license"] .reminder').count(), 0);
+  assert.match(await license.locator(".panel-accordion__copy small").innerText(), /vĩnh viễn/);
+  assert.equal(await license.locator(".reminder").count(), 0);
   const soon = await page.evaluate(() => {
     const licenseExpiresAt = Math.floor(Date.now() / 1000) + 3 * 86400;
     snapshot.entries[0].license = {...snapshot.entries[0].license, plan: "month_1", expires_at: licenseExpiresAt, license_expires_at: licenseExpiresAt};
@@ -608,9 +666,9 @@ async function verifyLifetimeLicense() {
   assert.ok(soon);
   await page.locator('[data-action="refreshdata"]').click();
   await waitRender();
-  await page.locator('[data-action="jump"][data-section="license"]').click();
+  await openSetup("license");
   assert.deepEqual(await labels(), ["Gói hiện tại", "Hạn dùng", "Key đang dùng", "Mã cài đặt"]);
-  assert.match(await page.locator('[data-sec="license"] .reminder').innerText(), /còn 3 ngày/);
+  assert.match(await license.locator(".reminder").innerText(), /còn 3 ngày/);
   await page.evaluate(() => {
     const licenseExpiresAt = Math.floor(Date.now() / 1000) + 40 * 86400;
     snapshot.entries[0].license = {...snapshot.entries[0].license, license_expires_at: licenseExpiresAt, expires_at: licenseExpiresAt};
@@ -618,8 +676,8 @@ async function verifyLifetimeLicense() {
   });
   await page.locator('[data-action="refreshdata"]').click();
   await waitRender();
-  await page.locator('[data-action="jump"][data-section="license"]').click();
-  assert.equal(await page.locator('[data-sec="license"] .reminder').count(), 0);
+  await openSetup("license");
+  assert.equal(await license.locator(".reminder").count(), 0);
   console.log("PASS lifetime key hides the expiry row; paid plans show it with a near-expiry reminder");
 }
 
@@ -839,6 +897,7 @@ async function verifyNhacCuaTuiSearch() {
 try {
   await verifyGlassAndMotion();
   await verifyDeviceAccordion();
+  await verifySetupAccordion();
   await verifyDesktopScrolling();
   await verifySpeakerGestures();
   await verifyVoiceEditor();
@@ -861,7 +920,7 @@ try {
         imageWidth: panel.shadowRoot.querySelector(".hero-media").clientWidth,
         imageHeight: panel.shadowRoot.querySelector(".hero-media").clientHeight,
         columns: getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length,
-        overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, .device-accordion, .device-accordion__copy, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
+        overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, .panel-accordion, .panel-accordion__copy, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
           const rect = node.getBoundingClientRect();
           return rect.width && (rect.right > panel.getBoundingClientRect().right + 1 || rect.left < -1);
         }).map((node) => node.className || node.tagName),
@@ -1022,6 +1081,7 @@ try {
   const positions = await page.evaluate(() => ({toolbar: panel.shadowRoot.querySelector(".toolbar").getBoundingClientRect().bottom, target: panel.shadowRoot.querySelector('[data-sec="settings"]').getBoundingClientRect().top}));
   assert(positions.target >= positions.toolbar, JSON.stringify(positions));
   const beforeOptions = await page.evaluate(() => ({...snapshot.entries[0].options}));
+  await openSetup("config");
   await page.locator('[name="scan_interval"]').fill("90");
   await page.locator('[name="cloud_cast_base_url"]').fill("http://192.168.1.42:8123");
   await page.locator('[data-form="options"] button[type="submit"]').click();
@@ -1061,7 +1121,7 @@ try {
   await page.setViewportSize({width: 390, height: 844});
   await load();
   await page.locator('[data-action="jump"][data-section="device"]').click();
-  await page.locator('[data-sec="device"] .device-accordion--identity summary').click();
+  await page.locator('[data-sec="device"] .panel-accordion--identity summary').click();
   const textId = await page.evaluate(() => panel._entity("text", "speaker_name"));
   const nameInput = page.locator(`input[data-entity="${textId}"]`);
   await nameInput.fill("Tên loa đang viết");
@@ -1070,7 +1130,8 @@ try {
   await waitRender();
   assert.equal(await nameInput.inputValue(), "Tên loa đang viết");
   assert.deepEqual(await nameInput.evaluate((element) => [element.selectionStart, element.selectionEnd]), [4, 7]);
-  await page.locator('[data-action="jump"][data-section="license"]').click();
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await openSetup("license");
   await page.locator('[name="license_key"]').fill("MAIKA-TEST-TEST-TEST-TEST");
   await page.locator('[data-form="license"] button[type="submit"]').click();
   await waitRender();
@@ -1145,7 +1206,8 @@ try {
   });
   await page.locator('[data-action="refreshdata"]').click();
   await waitRender();
-  await page.locator('[data-action="jump"][data-section="license"]').click();
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await openSetup("license");
   const recoveryKey = page.locator('[name="license_key"]');
   assert.ok(await recoveryKey.isVisible());
   await recoveryKey.fill("MAIKA-RECOVERY-TEST-ONLY");
