@@ -5,9 +5,10 @@ const AUDIO_KEYS = {
   url: "voice_success_audio_url", player: "voice_success_media_player_entity_id",
   path: "voice_success_audio_path",
 };
+const RESPONSE_TTS_KEY = "voice_response_tts_entity_id";
 const DOMAIN_NAMES = {
   light: "Đèn", switch: "Công tắc", fan: "Quạt", cover: "Rèm / cửa",
-  climate: "Điều hòa", media_player: "Loa / TV", automation: "Automation",
+  climate: "Điều hòa", sensor: "Cảm biến", binary_sensor: "Cảm biến nhị phân", media_player: "Loa / TV", automation: "Automation",
   script: "Kịch bản", scene: "Cảnh", vacuum: "Robot hút bụi", button: "Nút bấm",
   input_button: "Nút ảo", input_boolean: "Công tắc ảo", humidifier: "Máy tạo ẩm",
   water_heater: "Bình nóng lạnh", number: "Giá trị số", input_number: "Số tùy chỉnh",
@@ -17,7 +18,7 @@ const DOMAIN_NAMES = {
   camera: "Camera", remote: "Điều khiển từ xa",
 };
 const ACTION_NAMES = {
-  turn_on: "Bật", turn_off: "Tắt", toggle: "Đảo trạng thái bật / tắt", trigger: "Kích hoạt automation",
+  read: "Đọc trạng thái và trả lời", turn_on: "Bật", turn_off: "Tắt", toggle: "Đảo trạng thái bật / tắt", trigger: "Kích hoạt automation",
   press: "Bấm nút", open_cover: "Mở rèm / cửa", close_cover: "Đóng rèm / cửa", stop_cover: "Dừng rèm / cửa",
   set_cover_position: "Đặt độ mở (%)", open_cover_tilt: "Mở lá rèm", close_cover_tilt: "Đóng lá rèm",
   stop_cover_tilt: "Dừng lá rèm", toggle_cover_tilt: "Đảo trạng thái lá rèm", set_cover_tilt_position: "Đặt góc lá rèm (%)",
@@ -268,6 +269,8 @@ class MaikaVoiceEditor extends HTMLElement {
               <button id="audio-library-refresh" type="button" hidden>Tải lại danh sách MP3</button>
               <p id="audio-library-note" class="note" hidden>Đặt file vào /config/www, /config/mp3 hoặc /config/media (mp3, m4a, aac, wav, ogg, flac). Home Assistant phải truy cập được từ Internet để loa tải file.</p>
               <label for="audio-player">Phát âm phản hồi qua<select id="audio-player"><option value="">Tự chọn khi tài khoản chỉ có một loa</option></select></label>
+              <label for="response-tts">Giọng đọc câu trả lời trạng thái<select id="response-tts"><option value="">Tự chọn khi Home Assistant chỉ có một TTS</option></select></label>
+              <p id="response-tts-note" class="note" hidden>Thêm TTS trong Home Assistant để nghe câu trả lời như “Nhiệt độ phòng khách là 28,5 độ C”.</p>
               <p id="audio-note" class="note"></p>
               <label for="audio-timing">Thời điểm phản hồi<select id="audio-timing"><option value="priority">Ưu tiên che giọng mặc định của loa</option><option value="after_success">Sau khi điều khiển thành công</option></select></label>
               <p class="note">Chế độ ưu tiên cố gắng che câu trả lời mặc định, không đảm bảo tắt hoàn toàn giọng cloud của loa. Các cài đặt này áp dụng cho mọi loa cùng tài khoản MAIKA.</p>
@@ -310,7 +313,8 @@ class MaikaVoiceEditor extends HTMLElement {
   _refreshEntities() {
     const states = this._hass?.states || {};
     const ids = Object.keys(states).filter((entityId) => this._catalog[entityId.split(".")[0]]).sort((first, second) => this._name(first).localeCompare(this._name(second), "vi") || first.localeCompare(second));
-    const signature = JSON.stringify(ids.map((entityId) => [entityId, this._name(entityId), ["unknown", "unavailable"].includes(states[entityId].state)]));
+    const ttsIds = Object.keys(states).filter((entityId) => entityId.startsWith("tts.")).sort((first, second) => this._name(first).localeCompare(this._name(second), "vi") || first.localeCompare(second));
+    const signature = JSON.stringify([ids.map((entityId) => [entityId, this._name(entityId), ["unknown", "unavailable"].includes(states[entityId].state)]), ttsIds.map((entityId) => [entityId, this._name(entityId)])]);
     if (signature === this._entitySignature) return;
     this._entitySignature = signature;
     this._entityIds = ids;
@@ -326,6 +330,11 @@ class MaikaVoiceEditor extends HTMLElement {
     playerSelect.replaceChildren(element("option", {value: "", text: "Tự chọn khi tài khoản chỉ có một loa"}));
     for (const entityId of this._entry.entities?.media_player || []) playerSelect.append(element("option", {value: entityId, text: `${this._name(entityId)} · ${entityId}`}));
     this._retainOption(playerSelect, selectedPlayer);
+    const ttsSelect = this._query("response-tts");
+    const selectedTts = ttsSelect.value;
+    ttsSelect.replaceChildren(element("option", {value: "", text: "Tự chọn khi Home Assistant chỉ có một TTS"}));
+    for (const entityId of ttsIds) ttsSelect.append(element("option", {value: entityId, text: `${this._name(entityId)} · ${entityId}`}));
+    this._retainOption(ttsSelect, selectedTts);
     this._refreshTargets();
     this._renderList();
   }
@@ -365,7 +374,7 @@ class MaikaVoiceEditor extends HTMLElement {
   _targetChanged(action, data = {}, editing = false) {
     const domain = this._query("target").value.split(".")[0];
     const select = this._query("action");
-    const available = Object.keys(this._catalog[domain] || {}).filter((name) => !this._hass?.services?.[domain] || this._hass.services[domain][name] || name === action);
+    const available = Object.keys(this._catalog[domain] || {}).filter((name) => name === "read" || !this._hass?.services?.[domain] || this._hass.services[domain][name] || name === action);
     select.replaceChildren();
     if (!available.length) select.append(element("option", {value: "", text: "Chọn thiết bị có thể điều khiển"}));
     for (const name of available) select.append(element("option", {value: name, text: this._actionName(domain, name)}));
@@ -384,8 +393,9 @@ class MaikaVoiceEditor extends HTMLElement {
     const params = this._query("parameters");
     params.replaceChildren();
     const note = this._query("action-note");
-    note.hidden = domain !== "automation" || action !== "trigger";
-    note.textContent = "Kích hoạt automation ngay, không đợi trigger. Lệnh mới kiểm tra điều kiện; ‘Giữ mặc định’ giữ hành vi HA (bỏ qua điều kiện). Automation cần dữ liệu trigger có thể không chạy được theo cách này.";
+    note.hidden = action !== "read" && (domain !== "automation" || action !== "trigger");
+    note.textContent = action === "read" ? "Khi nói câu này, loa đọc trạng thái hiện tại bằng giọng TTS. Không điều khiển thiết bị và không dùng được nút chạy thử." : "Kích hoạt automation ngay, không đợi trigger. Lệnh mới kiểm tra điều kiện; ‘Giữ mặc định’ giữ hành vi HA (bỏ qua điều kiện). Automation cần dữ liệu trigger có thể không chạy được theo cách này.";
+    this._query("test-command").hidden = action === "read";
     this._unknownData = {};
     this._originalData = data;
     if (!this._schema) { this._preview(); return; }
@@ -509,6 +519,7 @@ class MaikaVoiceEditor extends HTMLElement {
     this._retainedPath = options[AUDIO_KEYS.path] || "";
     this._libraryLoaded = false;
     this._retainOption(this._query("audio-player"), options[AUDIO_KEYS.player] || "");
+    this._retainOption(this._query("response-tts"), options[RESPONSE_TTS_KEY] || "");
     this._retainAudioPath();
     this._dirty = false;
     this._audioVisibility();
@@ -559,6 +570,16 @@ class MaikaVoiceEditor extends HTMLElement {
     librarySelect.disabled = this.isBusy || source !== "library";
     if (source === "library" && !this._libraryLoaded && !this._libraryLoading && !this.isBusy) this._loadAudioLibrary();
     const notes = [];
+    const ttsEntities = Object.keys(this._hass?.states || {}).filter((entityId) => entityId.startsWith("tts."));
+    const hasReadRule = this._lines.some((line) => line.rule?.action === "read");
+    const ttsNote = this._query("response-tts-note");
+    ttsNote.hidden = !hasReadRule;
+    if (hasReadRule) {
+      if (!this._entry?.options?.enable_experimental_cloud_cast) notes.push("Bật ‘Cast âm thanh cloud’ để loa đọc câu trả lời.");
+      if (!ttsEntities.length) notes.push("Chưa có TTS trong Home Assistant: chưa thể đọc câu trả lời.");
+      else if (ttsEntities.length > 1 && !this._query("response-tts").value) notes.push("Có nhiều TTS: chọn giọng đọc câu trả lời.");
+      if ((this._entry?.entities?.media_player || []).length > 1 && !this._query("audio-player").value) notes.push("Có nhiều loa: chọn loa trả lời trạng thái.");
+    }
     if (source !== "disabled") {
       if (!this._entry?.options?.enable_experimental_cloud_cast) notes.push("Bật ‘Cast âm thanh cloud’ trong Cấu hình loa để phát âm báo.");
       if (source === "library" && !this._query("audio-library").value) notes.push("Chọn một file MP3 trong thư viện.");
@@ -640,6 +661,7 @@ class MaikaVoiceEditor extends HTMLElement {
       [AUDIO_KEYS.url]: this._query("audio-url").value.trim(),
       [AUDIO_KEYS.path]: this._query("audio-library").value,
       [AUDIO_KEYS.player]: this._query("audio-player").value,
+      [RESPONSE_TTS_KEY]: this._query("response-tts").value,
     };
     this._saving = true;
     this._status();
@@ -654,7 +676,7 @@ class MaikaVoiceEditor extends HTMLElement {
     } catch (error) {
       const code = error?.body?.message || error?.body?.error || error?.message || "";
       const errors = Object.values(error?.body?.errors || {});
-      const hint = errors.includes("voice_success_audio_media_player_invalid") ? "Chọn lại loa phát âm phản hồi." : errors.includes("invalid_voice_success_audio_url") ? "Kiểm tra URL MP3." : errors.includes("invalid_voice_success_audio_path") ? "File MP3 không còn trong thư viện, hãy chọn lại." : "Kiểm tra kết nối, câu nói trùng hoặc thông số của thiết bị rồi thử lại.";
+      const hint = errors.includes("voice_success_audio_media_player_invalid") ? "Chọn lại loa phát âm phản hồi." : errors.includes("voice_response_tts_invalid") ? "Chọn lại giọng TTS đang có trong Home Assistant." : errors.includes("invalid_voice_success_audio_url") ? "Kiểm tra URL MP3." : errors.includes("invalid_voice_success_audio_path") ? "File MP3 không còn trong thư viện, hãy chọn lại." : "Kiểm tra kết nối, câu nói trùng hoặc thông số của thiết bị rồi thử lại.";
       this._message(code === "voice_rules_changed" ? "Cấu hình đã đổi ở nơi khác. Tải lại cấu hình đã lưu trước khi sửa tiếp; bản nháp hiện tại vẫn được giữ." : `Chưa lưu được. ${hint} Bản nháp vẫn được giữ.`, "error");
       this._query("reload-rules").hidden = false;
       return false;
@@ -672,7 +694,7 @@ class MaikaVoiceEditor extends HTMLElement {
   }
 
   _voiceOptions(options) {
-    return Object.fromEntries([RULES_KEY, ENABLED_KEY, ...Object.values(AUDIO_KEYS)].filter((key) => key in options).map((key) => [key, options[key]]));
+    return Object.fromEntries([RULES_KEY, ENABLED_KEY, RESPONSE_TTS_KEY, ...Object.values(AUDIO_KEYS)].filter((key) => key in options).map((key) => [key, options[key]]));
   }
 
   _status() {
@@ -753,6 +775,7 @@ class MaikaVoiceEditor extends HTMLElement {
       const domain = rule.entity.split(".")[0];
       this._validateRule(rule);
       if (!this._catalog[domain]?.[rule.action] || !this._hass.states[rule.entity]) throw new Error("Thiết bị hoặc thao tác không khả dụng.");
+      if (rule.action === "read") throw new Error("Câu đọc trạng thái chỉ chạy khi nói với loa, không dùng nút chạy thử.");
       if (!window.confirm(`Chạy thử sẽ điều khiển thật: ${this._actionName(domain, rule.action)} — ${this._name(rule.entity)}. Tiếp tục?`)) return;
       this._testing = true;
       this._status();

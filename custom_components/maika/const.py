@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "maika"
-INTEGRATION_VERSION = "1.25.0"
+INTEGRATION_VERSION = "1.26.0"
 
 APP_VERSION = "3.2.3"
 APP_DEVICE_TYPE = "android"
@@ -32,6 +32,7 @@ CONF_VOICE_SUCCESS_AUDIO_TIMING = "voice_success_audio_timing"
 CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID = "voice_success_media_player_entity_id"
 CONF_VOICE_SUCCESS_AUDIO_URL = "voice_success_audio_url"
 CONF_VOICE_SUCCESS_AUDIO_PATH = "voice_success_audio_path"
+CONF_VOICE_RESPONSE_TTS_ENTITY_ID = "voice_response_tts_entity_id"
 
 DEFAULT_SCAN_INTERVAL = 60
 MIN_SCAN_INTERVAL = 15

@@ -227,6 +227,13 @@ async function verifyVoiceEditor() {
   assert.equal((await serverOptions()).enable_voice_command_sensor, true);
   const unlabeled = await editor.evaluate((node) => [...node.shadowRoot.querySelectorAll("input,select")].filter((control) => !control.getAttribute("aria-label") && !control.labels?.length).map((control) => control.id));
   assert.deepEqual(unlabeled, []);
+  await choose("sensor.nhiet_do", "read");
+  assert(await input("test-command").isHidden(), "Reading a state cannot be run as a control service");
+  assert.match(await input("action-note").innerText(), /đọc trạng thái/i);
+  await input("response-tts").selectOption("tts.piper");
+  await save("nhiệt độ phòng khách");
+  assert.match(await rules(), /nhiệt độ phòng khách \| sensor\.nhiet_do \| read(?:\n|$)/);
+  assert.equal((await serverOptions()).voice_response_tts_entity_id, "tts.piper");
   await choose("light.phong_khach", "turn_on");
   await confirm(() => page.locator('[data-action="entry"][data-index="1"]').click());
   assert.equal(await input("phrase").inputValue(), "");

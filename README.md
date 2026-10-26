@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.25.0**.
+Bản hiện tại: **v1.26.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -50,6 +50,8 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Restart an toàn; không expose factory reset.
 - Sensor câu nói mới nhất và rule toàn câu để điều khiển đèn, quạt, rèm, điều
   hòa, media, scene, script, robot hút bụi và helper Home Assistant, mặc định tắt.
+- Hỏi trạng thái cảm biến hoặc điều hòa bằng câu lệnh đã đặt; loa trả lời bằng
+  TTS, ví dụ “Nhiệt độ phòng khách là 28,5 độ C”.
 
 ## Panel quản lý loa trong sidebar
 
@@ -71,6 +73,11 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.26.0` thêm thao tác **Đọc trạng thái và trả lời** cho câu lệnh giọng nói.
+Chọn cảm biến hoặc điều hòa, chọn giọng TTS rồi đặt câu như “nhiệt độ phòng
+khách bao nhiêu”; loa trả lời bằng giọng nói. Điều khiển điều hòa bằng câu lệnh
+vẫn dùng các thao tác sẵn có.
 
 Bản `1.25.0` gộp **Trợ lý Maika**, **Bản quyền**, **Cấu hình loa** và
 **Công cụ** vào một tab **Thiết lập**. Mỗi nhóm là một accordion; trợ lý mở
@@ -211,13 +218,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.25.0
+## File phát hành v1.26.0
 
-- `maika.zip` và `maika-v1.25.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.25.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.25.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.26.0-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.26.0` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.26.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.25.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.26.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

@@ -88,11 +88,13 @@ def load_modules():
         },
     )
     rules = runpy.run_path(str(DIRECTORY / "voice_rules.py"))
+    voice_state = runpy.run_path(str(DIRECTORY / "voice_state.py"))
     coordinator = load_code(
         "coordinator.py",
         {
             **constants,
             **rules,
+            **voice_state,
             **{
                 name: api[name]
                 for name in (
@@ -1161,6 +1163,106 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "setup failed"):
             await namespace["async_setup_entry"](self.hass, self.entry)
         self.assertEqual(events, ["coordinator", "client"])
+
+    async def test_voice_read_state_speaks_tts_without_service_call(self):
+        options = {
+            "enable_voice_command_sensor": True,
+            "enable_experimental_cloud_cast": True,
+            "voice_response_tts_entity_id": "tts.piper",
+            "voice_success_media_player_entity_id": "media_player.one",
+            "voice_command_rules": (
+                "nhiệt độ phòng khách | sensor.nhiet_do | read\n"
+                "bật máy lạnh | climate.phong_khach | set_temperature | "
+                '{"temperature":26,"hvac_mode":"cool"}'
+            ),
+        }
+        entry = SimpleNamespace(
+            entry_id="rules",
+            options=options,
+            async_create_background_task=self.create_task,
+        )
+        sensor_state = SimpleNamespace(
+            entity_id="sensor.nhiet_do",
+            state="28.5",
+            attributes={
+                "friendly_name": "Nhiệt độ phòng khách",
+                "unit_of_measurement": "°C",
+            },
+        )
+        tts_state = SimpleNamespace(
+            entity_id="tts.piper",
+            state="idle",
+            attributes={"friendly_name": "Piper"},
+        )
+        known_states = {
+            "sensor.nhiet_do": sensor_state,
+            "tts.piper": tts_state,
+        }
+        self.hass.states = SimpleNamespace(
+            get=lambda entity_id: known_states.get(entity_id),
+            async_entity_ids=lambda domain: ["tts.piper"] if domain == "tts" else [],
+        )
+        self.hass.services = SimpleNamespace(
+            has_service=lambda *args: True,
+            async_call=AsyncMock(),
+        )
+        self.module["Context"] = SimpleNamespace
+        self.module["STATE_UNAVAILABLE"] = "unavailable"
+        coordinator = self.module["MaikaDataUpdateCoordinator"](
+            self.hass, entry, self.client
+        )
+        coordinator._voice_media_player_for_response = lambda: (
+            "media_player.one",
+            None,
+        )
+        rule = coordinator._voice_command_rules["nhiet do phong khach"]
+        self.assertTrue(rule.is_read)
+        self.assertIsNone(rule.service)
+        climate_rule = coordinator._voice_command_rules["bat may lanh"]
+        self.assertFalse(climate_rule.is_read)
+        self.assertEqual(climate_rule.service, "climate.set_temperature")
+
+        coordinator._record_voice_command(
+            "nhiệt độ phòng khách",
+            source_session=None,
+            message_id="read-test",
+            dialog_request_id=None,
+            conversation_message_id=None,
+            server_message_id=None,
+        )
+        await self.tasks[-1]
+
+        self.hass.services.async_call.assert_awaited_once()
+        domain, service, data = self.hass.services.async_call.call_args.args[:3]
+        self.assertEqual((domain, service), ("tts", "speak"))
+        self.assertEqual(data["entity_id"], "tts.piper")
+        self.assertEqual(data["media_player_entity_id"], "media_player.one")
+        self.assertEqual(data["message"], "Nhiệt độ phòng khách là 28,5 độ C.")
+        command = coordinator._last_voice_command
+        self.assertTrue(command["executed"])
+        self.assertIsNone(command["error"])
+        self.assertEqual(command["response_text"], data["message"])
+        await coordinator.async_stop()
+
+    def test_voice_state_formats_climate_values(self):
+        state = SimpleNamespace(
+            entity_id="climate.phong_khach",
+            state="cool",
+            attributes={
+                "friendly_name": "Điều hòa phòng khách",
+                "current_temperature": 28.5,
+                "current_humidity": 60,
+                "temperature": 26,
+                "temperature_unit": "°C",
+            },
+        )
+        self.assertEqual(
+            self.module["format_voice_state"](state),
+            "Điều hòa phòng khách đang làm lạnh. "
+            "Nhiệt độ hiện tại 28,5 độ C. "
+            "Độ ẩm 60 phần trăm. "
+            "Nhiệt độ đặt 26 độ C.",
+        )
 
 
 def validate_live_playback() -> list[str]:

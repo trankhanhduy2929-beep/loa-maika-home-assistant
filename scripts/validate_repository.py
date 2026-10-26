@@ -359,6 +359,18 @@ def _validate_voice_rules(errors: list[str]) -> None:
             or dict(rules[2].service_data) != {"position": 50}
         ):
             errors.append("Voice rule parser returned unexpected service data")
+        read_rules = module.parse_voice_command_rules(
+            "nhiệt độ phòng khách | sensor.nhiet_do | read"
+        )
+        catalog = module.voice_action_catalog()
+        if (
+            len(read_rules) != 1
+            or not read_rules[0].is_read
+            or read_rules[0].service is not None
+            or "read" not in catalog.get("sensor", {})
+            or catalog["sensor"]["read"]["fields"]
+        ):
+            errors.append("Voice rule parser did not preserve the read action")
 
         rejected_rules = (
             'x | light.a | turn_on | {"entity_id":"light.b"}',

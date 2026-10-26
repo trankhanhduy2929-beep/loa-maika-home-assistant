@@ -33,6 +33,29 @@ mươi** rồi lưu. Không phải viết entity ID, action hoặc JSON.
 - Câu nói vẫn khớp toàn câu như trước, không phải AI tự hiểu mọi cách diễn đạt.
   Muốn thêm một cách nói, dùng nút **Thêm cách nói**.
 
+### Hỏi trạng thái và trả lời bằng giọng nói (từ v1.26.0)
+
+1. Chọn cảm biến, ví dụ **Nhiệt độ phòng khách**, hoặc điều hòa cần xem.
+2. Chọn **Đọc trạng thái và trả lời**.
+3. Nhập đúng câu sẽ nói, ví dụ **nhiệt độ phòng khách bao nhiêu**, rồi lưu.
+4. Trong **Giọng đọc câu trả lời trạng thái**, chọn entity TTS. Nếu Home
+   Assistant chỉ có một TTS thì có thể để tự chọn.
+
+Khi câu nói khớp, integration đọc trạng thái hiện tại và gọi `tts.speak` qua
+loa MAIKA đã chọn. Ví dụ cảm biến nhiệt độ trả lời “Nhiệt độ phòng khách là
+28,5 độ C”; điều hòa trả lời chế độ, nhiệt độ hiện tại, độ ẩm và nhiệt độ đặt.
+Entity `unavailable` hoặc `unknown` được trả lời là không khả dụng/chưa có dữ
+liệu, không gọi service điều khiển.
+
+Điều kiện: đã bật **Cast âm thanh cloud**, có entity TTS, và chọn loa nếu tài
+khoản có nhiều loa. Thao tác đọc không dùng nút **Chạy thử**; muốn thử, thêm
+câu lệnh rồi nói với loa. Câu vẫn khớp toàn câu, nên thêm cách nói khác nếu
+muốn hỏi “nhiệt độ bao nhiêu”, “phòng khách nóng không”…
+
+Điều khiển điều hòa dùng các thao tác có sẵn: **Bật**, **Tắt**, **Đặt nhiệt
+độ**, **Chọn chế độ điều hòa**, **Chọn chế độ quạt**, **Đặt độ ẩm**, **Chọn
+đảo gió**.
+
 **Giọng nói & âm phản hồi** nằm ngay trong mục này. Chọn MP3 có sẵn hoặc URL,
 chế độ ưu tiên/sau thành công và loa MAIKA cùng tài khoản. Bật cast cloud ở
 **Thiết lập → Cấu hình loa**; có nhiều loa thì chọn cố định một loa phát âm báo.

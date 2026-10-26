@@ -79,7 +79,7 @@
     for (let account = 0; account < 2; account += 1) {
       const entry = {
         entry_id: `account-${account}`, title: `Nhà ${account + 1}`, devices: {}, entities: {}, device_entities: {}, entity_keys: {},
-        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_audio_path: "", voice_success_media_player_entity_id: "", cloud_cast_base_url: ""},
+        options: {scan_interval: 60, enable_experimental_cloud_cast: true, enable_voice_command_sensor: true, voice_command_rules: '# Cấu hình cũ được giữ nguyên\nbật đèn | light.phong_khach | turn_on | {"rgb_color": [255, 80, 20], "brightness": 128}\nchạy lệnh cũ | automation.di_ngu | trigger\n', voice_success_audio_source: "bundled", voice_success_audio_timing: "priority", voice_success_audio_url: "", voice_success_audio_path: "", voice_success_media_player_entity_id: "", voice_response_tts_entity_id: "", cloud_cast_base_url: ""},
         license: {status: "active", plan: "lifetime", expires_at: null, license_expires_at: null, key_hint: "MAIKA-DEMO-…-1234", activation_code: "MAIKA-DEMO-TEST-ONLY-0000", server_url: "https://license.example.test"},
         command_history: [{text: "từ snapshot", normalized: "từ snapshot", received_at: "2026-10-12T10:00:00+00:00", matched_phrase: "bật đèn phòng khách", target_entity_id: "light.phong_khach", action: "turn_on", service: "light.turn_on", executed: true, entity_state_after: "on"}],
       };
@@ -126,8 +126,11 @@
       "button.chuong": ["Chuông cửa", {}],
       "lock.cua": ["Khóa cửa chính", {}],
       "timer.bep": ["Hẹn giờ bếp", {}],
+      "sensor.nhiet_do": ["Nhiệt độ phòng khách", {unit_of_measurement: "°C", device_class: "temperature"}],
     };
     for (const [entityId, [name, attributes]] of Object.entries(demoEntities)) states[entityId] = {entity_id: entityId, state: "off", attributes: {friendly_name: name, ...attributes}};
+    states["sensor.nhiet_do"].state = "28.5";
+    states["tts.piper"] = {entity_id: "tts.piper", state: "idle", attributes: {friendly_name: "Piper"}};
     window.hass = {
       states, themes: {darkMode: true},
       callApi: async (method, path, data) => {

@@ -34,6 +34,7 @@ _HISTORY_ATTRIBUTE_KEYS = (
     "executed",
     "error",
     "entity_state_after",
+    "response_text",
     "success_audio_status",
 )
 
@@ -310,6 +311,7 @@ class MaikaLastVoiceCommandSensor(
             "executed": bool(command.get("executed")),
             "result": result,
             "error": command.get("error"),
+            "response_text": command.get("response_text"),
             "success_audio_timing": command.get("success_audio_timing"),
             "success_audio_status": command.get("success_audio_status"),
             "success_audio_error": command.get("success_audio_error"),

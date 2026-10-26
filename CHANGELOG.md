@@ -2,6 +2,40 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.26.0] - 2026-10-26
+
+### Added
+
+- **Hỏi trạng thái Home Assistant bằng giọng nói**: thêm thao tác **Đọc trạng
+  thái và trả lời** cho cảm biến, cảm biến nhị phân và các entity đang hỗ trợ
+  câu lệnh. Loa đọc câu trả lời ngắn bằng TTS, ví dụ “Nhiệt độ phòng khách là
+  28,5 độ C” hoặc nhiệt độ hiện tại, độ ẩm và nhiệt độ đặt của điều hòa.
+- Chọn entity TTS trong **Thiết lập → Giọng nói → Giọng đọc câu trả lời trạng
+  thái**; nếu chỉ có một TTS thì tự chọn. Vẫn dùng loa MAIKA đã chọn cho âm
+  phản hồi và yêu cầu bật cast cloud.
+- Sensor câu lệnh lưu thêm `response_text` để kiểm tra câu trả lời đã gửi.
+
+### Changed
+
+- Thao tác `read` không gọi service điều khiển, không chạy âm báo thành công và
+  ẩn nút **Chạy thử** vì chỉ có tác dụng khi nói với loa.
+- Điều khiển điều hòa bằng câu lệnh sẵn có vẫn giữ nguyên: bật/tắt, đặt nhiệt
+  độ, chọn chế độ, tốc độ quạt và đảo gió.
+
+### Safety
+
+- Chỉ đọc entity do người dùng chọn trong rule; không nhận template hoặc entity
+  ID từ câu nói.
+- Câu trả lời được giới hạn độ dài, bỏ ký tự điều khiển và chỉ phát qua loa
+  thuộc đúng config entry MAIKA.
+
+### Tests
+
+- Thêm unit test định dạng nhiệt độ/độ ẩm điều hòa, rule `read` và gọi
+  `tts.speak`; panel browser kiểm tra chọn cảm biến, ẩn nút chạy thử và lưu
+  entity TTS.
+- Unit test, panel browser, ruff, validate và build pass.
+
 ## [1.25.0] - 2026-10-26
 
 ### Changed

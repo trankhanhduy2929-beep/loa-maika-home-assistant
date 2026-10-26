@@ -28,6 +28,7 @@ from .const import (
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_SCAN_INTERVAL,
     CONF_VOICE_COMMAND_RULES,
+    CONF_VOICE_RESPONSE_TTS_ENTITY_ID,
     CONF_VOICE_SUCCESS_AUDIO_PATH,
     CONF_VOICE_SUCCESS_AUDIO_SOURCE,
     CONF_VOICE_SUCCESS_AUDIO_TIMING,
@@ -85,6 +86,7 @@ _OPTION_KEYS = (
     CONF_CLOUD_CAST_BASE_URL,
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_VOICE_COMMAND_RULES,
+    CONF_VOICE_RESPONSE_TTS_ENTITY_ID,
     CONF_VOICE_SUCCESS_AUDIO_SOURCE,
     CONF_VOICE_SUCCESS_AUDIO_TIMING,
     CONF_VOICE_SUCCESS_AUDIO_URL,
@@ -219,6 +221,9 @@ def _public_options(options: dict[str, Any]) -> dict[str, Any]:
         CONF_VOICE_SUCCESS_AUDIO_PATH: resolve_voice_success_audio_path(options),
         CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID: str(
             options.get(CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID, "") or ""
+        ),
+        CONF_VOICE_RESPONSE_TTS_ENTITY_ID: str(
+            options.get(CONF_VOICE_RESPONSE_TTS_ENTITY_ID, "") or ""
         ),
     }
 
@@ -366,6 +371,13 @@ def _validate_options(
             )
         else:
             values[CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID] = entity_id
+
+    if CONF_VOICE_RESPONSE_TTS_ENTITY_ID in incoming:
+        entity_id = str(incoming[CONF_VOICE_RESPONSE_TTS_ENTITY_ID] or "").strip()
+        if entity_id and entity_id not in hass.states.async_entity_ids("tts"):
+            errors[CONF_VOICE_RESPONSE_TTS_ENTITY_ID] = "voice_response_tts_invalid"
+        else:
+            values[CONF_VOICE_RESPONSE_TTS_ENTITY_ID] = entity_id
 
     audio_keys = (
         CONF_VOICE_SUCCESS_AUDIO_SOURCE,

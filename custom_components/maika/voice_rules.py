@@ -452,6 +452,14 @@ _VOICE_SERVICE_SPECS: dict[str, dict[str, _VoiceActionSpec]] = {
     },
     "lawn_mower": _simple_actions("start_mowing", "pause", "dock"),
     "lock": {"lock": _spec()},
+    "sensor": {},
+    "binary_sensor": {},
+}
+
+READ_VOICE_ACTION = "read"
+_VOICE_SERVICE_SPECS = {
+    domain: {**actions, READ_VOICE_ACTION: _spec()}
+    for domain, actions in _VOICE_SERVICE_SPECS.items()
 }
 
 ALLOWED_VOICE_ACTIONS = frozenset(
@@ -492,8 +500,15 @@ class VoiceCommandRule:
     )
 
     @property
-    def service(self) -> str:
+    def is_read(self) -> bool:
+        """Return whether this rule reads an entity state instead of calling a service."""
+        return self.action == READ_VOICE_ACTION
+
+    @property
+    def service(self) -> str | None:
         """Return the fully qualified Home Assistant service name."""
+        if self.is_read:
+            return None
         return f"{self.entity_id.partition('.')[0]}.{self.action}"
 
 

@@ -31,6 +31,7 @@ from .const import (
     CONF_ENABLE_VOICE_COMMAND_SENSOR,
     CONF_SCAN_INTERVAL,
     CONF_VOICE_COMMAND_RULES,
+    CONF_VOICE_RESPONSE_TTS_ENTITY_ID,
     CONF_VOICE_SUCCESS_MEDIA_PLAYER_ENTITY_ID,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_VOICE_COMMAND_RULES,
@@ -49,6 +50,7 @@ from .voice_rules import (
     normalize_voice_phrase,
     parse_voice_command_rules,
 )
+from .voice_state import format_voice_state
 from .voice_success_audio import (
     has_voice_success_audio,
     resolve_voice_success_audio_path,
@@ -834,7 +836,11 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         rule = self._voice_command_rules.get(normalized)
         entity_state = self.hass.states.get(rule.entity_id) if rule else None
         service = rule.service if rule else None
-        success_audio_enabled = rule is not None and self._voice_success_audio_enabled()
+        success_audio_enabled = (
+            rule is not None
+            and not rule.is_read
+            and self._voice_success_audio_enabled()
+        )
         self._voice_command_sequence += 1
         sequence = self._voice_command_sequence
         self._last_voice_command = {
@@ -852,6 +858,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             "entity_state_after": None,
             "executed": False,
             "error": None,
+            "response_text": None,
             "success_audio_timing": (
                 self._voice_success_audio_timing() if success_audio_enabled else None
             ),
@@ -861,17 +868,133 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._publish_last_voice_command()
 
         if rule is not None:
-            self.entry.async_create_background_task(
-                self.hass,
-                self._async_execute_voice_rule(
+            action = (
+                self._async_execute_voice_read(rule, sequence=sequence)
+                if rule.is_read
+                else self._async_execute_voice_rule(
                     rule,
                     sequence=sequence,
                     dialog_request_id=dialog_request_id,
                     message_id=conversation_message_id,
                     server_message_id=server_message_id,
-                ),
+                )
+            )
+            self.entry.async_create_background_task(
+                self.hass,
+                action,
                 "MAIKA voice command action",
             )
+
+    async def _async_execute_voice_read(
+        self,
+        rule: VoiceCommandRule,
+        *,
+        sequence: int,
+    ) -> None:
+        """Speak the current state of a read-only voice rule target."""
+        response_text: str | None = None
+        executed = False
+        error: str | None = None
+        entity_state = self.hass.states.get(rule.entity_id)
+
+        if entity_state is None:
+            error = "entity_not_found"
+            _LOGGER.warning(
+                "MAIKA voice read target %s does not exist",
+                rule.entity_id,
+            )
+        else:
+            response_text = format_voice_state(entity_state)
+            status, error = await self._async_speak_voice_response(response_text)
+            executed = status == "played"
+
+        if sequence != self._voice_command_sequence or self._last_voice_command is None:
+            return
+        entity_state_after = self.hass.states.get(rule.entity_id)
+        self._last_voice_command = {
+            **self._last_voice_command,
+            "entity_state_after": (
+                entity_state_after.state if entity_state_after else None
+            ),
+            "executed": executed,
+            "error": error,
+            "response_text": response_text,
+        }
+        self._publish_last_voice_command()
+
+    async def _async_speak_voice_response(
+        self, response_text: str
+    ) -> tuple[str, str | None]:
+        """Render a spoken answer on the configured MAIKA speaker via TTS."""
+        if not self.entry.options.get(CONF_ENABLE_CLOUD_CAST, False):
+            return "failed", "cloud_cast_disabled"
+        if not self.hass.services.has_service("tts", "speak"):
+            return "failed", "tts_not_supported"
+
+        tts_entity_id, tts_error = self._voice_response_tts_entity_id()
+        if tts_entity_id is None:
+            return "failed", tts_error
+        media_player_entity_id, player_error = self._voice_media_player_for_response()
+        if media_player_entity_id is None:
+            return "failed", player_error
+
+        try:
+            await self.hass.services.async_call(
+                "tts",
+                "speak",
+                {
+                    "entity_id": tts_entity_id,
+                    "media_player_entity_id": media_player_entity_id,
+                    "message": response_text,
+                    "cache": True,
+                },
+                blocking=True,
+                context=Context(),
+            )
+        except Exception as err:
+            error_type = type(err).__name__
+            _LOGGER.warning("MAIKA voice response TTS failed (%s)", error_type)
+            return "failed", error_type
+        return "played", None
+
+    def _voice_response_tts_entity_id(self) -> tuple[str | None, str | None]:
+        """Resolve the configured TTS entity or the only TTS entity."""
+        configured_entity_id = str(
+            self.entry.options.get(CONF_VOICE_RESPONSE_TTS_ENTITY_ID, "")
+        ).strip()
+        if configured_entity_id:
+            if self.hass.states.get(configured_entity_id) is None:
+                return None, "tts_not_found"
+            return configured_entity_id, None
+
+        entity_ids = tuple(self.hass.states.async_entity_ids("tts"))
+        if len(entity_ids) == 1:
+            return entity_ids[0], None
+        if not entity_ids:
+            return None, "tts_not_configured"
+        return None, "tts_not_selected"
+
+    def _voice_media_player_for_response(self) -> tuple[str | None, str | None]:
+        """Validate that the answer will play on a speaker from this entry."""
+        media_player_entity_id, error = self._voice_success_media_player_entity_id()
+        if media_player_entity_id is None:
+            return None, error
+
+        registry_entry = er.async_get(self.hass).async_get(media_player_entity_id)
+        if registry_entry is None:
+            return None, "media_player_not_found"
+        if (
+            registry_entry.domain != Platform.MEDIA_PLAYER
+            or registry_entry.platform != DOMAIN
+            or registry_entry.config_entry_id != self.entry.entry_id
+        ):
+            return None, "media_player_not_maika_entry"
+        state = self.hass.states.get(media_player_entity_id)
+        if state is None:
+            return None, "media_player_not_found"
+        if state.state == STATE_UNAVAILABLE:
+            return None, "media_player_unavailable"
+        return media_player_entity_id, None
 
     async def _async_execute_voice_rule(
         self,
