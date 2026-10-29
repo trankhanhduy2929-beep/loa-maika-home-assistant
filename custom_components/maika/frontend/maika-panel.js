@@ -31,6 +31,16 @@ const OPTION_KEYS = {
 const UNKNOWN = new Set(["unknown", "unavailable", "none", "", "None", "null"]);
 const LICENSE_REMINDER_DAYS = 7;
 const HISTORY_RESULT_LABELS = {executed: "Đã thực hiện", failed: "Lỗi", pending: "Đang chạy", not_matched: "Chưa có rule"};
+const REMINDER_FREQUENCIES = [
+  ["once", "Một lần"],
+  ["daily", "Hàng ngày"],
+  ["weekly", "Hàng tuần"],
+  ["monthly", "Hàng tháng"],
+  ["yearly", "Hàng năm"],
+];
+const REMINDER_FREQUENCY_LABELS = Object.fromEntries(REMINDER_FREQUENCIES);
+const REMINDER_ALERT_OPTIONS = [0, 5, 10, 15, 30, 60];
+const REMINDER_STATUS_DISABLED = 2;
 const THEME_STORE_KEY = "maika.panel.theme";
 const THEME_MODES = ["auto", "light", "dark"];
 const THEME_MODE_LABELS = {auto: "Tự động", light: "Sáng", dark: "Tối"};
@@ -38,6 +48,7 @@ const SECTIONS = [
   {id: "overview", label: "Tổng quan"},
   {id: "chat", label: "Trò chuyện"},
   {id: "voice", label: "Giọng nói"},
+  {id: "reminders", label: "Nhắc hẹn"},
   {id: "device", label: "Thiết bị"},
   {id: "settings", label: "Thiết lập"},
 ];
@@ -61,6 +72,41 @@ function fmtDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleDateString("vi-VN");
+}
+
+function fmtReminderTime(value) {
+  if (!value) return "Chưa rõ thời gian";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("vi-VN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function defaultReminderStart() {
+  const date = new Date(Date.now() + 5 * 60000);
+  date.setSeconds(0, 0);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function reminderLocalInput(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return defaultReminderStart();
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function localDateInput(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function planLabel(plan) {
@@ -158,6 +204,7 @@ class MaikaPanel extends HTMLElement {
     this._deviceSerial = "";
     this._themeMode = "auto";
     this._activeSection = "overview";
+    this._openSections = new Set();
     this._busy = false;
     this._message = null;
     this._draft = {};
@@ -177,6 +224,11 @@ class MaikaPanel extends HTMLElement {
     this._csReturnFocus = false;
     this._chatTimer = null;
     this._chatPoll = null;
+    this._reminders = null;
+    this._remindersBusy = false;
+    this._remindersToken = 0;
+    this._editingReminderId = null;
+    this._reminderSelected = new Set();
     this._onClick = this._onClick.bind(this);
     this._onInput = this._onInput.bind(this);
     this._onChange = this._onChange.bind(this);
@@ -962,6 +1014,24 @@ class MaikaPanel extends HTMLElement {
       .cast-drawer[open] summary::after { transform: rotate(45deg); }
       .cast-drawer[open] > form { padding-top: 2px; animation: slidein .25s var(--ease); }
 
+      .section-fold { border-radius: calc(var(--radius-sm) + 2px); }
+      .section-fold__summary {
+        display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 2px;
+        list-style: none; cursor: pointer; user-select: none; -webkit-user-select: none;
+        border-radius: var(--radius-sm);
+      }
+      .section-fold__summary::-webkit-details-marker { display: none; }
+      .section-fold__summary .sec-head { flex: 1; margin-bottom: 0; }
+      .section-fold__arrow {
+        width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px;
+        background: var(--surface-2); color: var(--accent);
+        transition: transform .24s var(--ease), background .2s ease;
+      }
+      .section-fold__summary:hover .section-fold__arrow { background: var(--surface-3); }
+      .section-fold[open] .section-fold__arrow { transform: rotate(180deg); }
+      .section-fold__arrow svg { width: 18px; height: 18px; fill: currentColor; }
+      .section-fold__body { padding-top: 14px; animation: slidein .24s var(--ease); }
+      .section-fold__body > .section-head { margin-top: 0; }
       .panel-accordions { display: grid; gap: 9px; }
       .panel-accordion {
         border: 1px solid var(--line); border-radius: var(--radius-sm);
@@ -1022,6 +1092,38 @@ class MaikaPanel extends HTMLElement {
       [data-motion-paused] *, [data-motion-paused] *::before, [data-motion-paused] *::after { animation-play-state: paused !important; }
       :host([data-paused]), [data-motion-paused] { --maika-motion-state: paused; }
       :host([data-reduced-motion]), :host([data-reduced-motion]) *, :host([data-reduced-motion]) *::before, :host([data-reduced-motion]) *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+      .reminder-form { display: grid; gap: 14px; }
+      .reminder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .reminder-grid .field--wide { grid-column: 1 / -1; }
+      .reminder-form .field { gap: 7px; }
+      .reminder-form input, .reminder-form select { min-height: 46px; }
+      .reminder-list { display: grid; gap: 8px; margin-top: 14px; }
+      .reminder-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+      .reminder-item:has(.reminder-check input:checked) { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); }
+      .reminder-check { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-height: 44px; cursor: pointer; }
+      .reminder-check input[type="checkbox"] { width: 20px; min-height: 20px; height: 20px; border: 1.5px solid var(--line); border-radius: 6px; background: var(--surface); }
+      .reminder-check input[type="checkbox"]::after { top: 50%; left: 50%; width: 9px; height: 5px; border: 0; border-left: 2px solid #fff; border-bottom: 2px solid #fff; border-radius: 0; background: transparent; transform: translate(-50%, -60%) rotate(-45deg) scale(0); transition: transform .15s ease; }
+      .reminder-check input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); }
+      .reminder-check input[type="checkbox"]:checked::after { transform: translate(-50%, -60%) rotate(-45deg) scale(1); }
+      .reminder-item__body { display: grid; gap: 3px; min-width: 0; }
+      .reminder-item__body b { color: var(--text); font-size: .88rem; overflow-wrap: anywhere; }
+      .reminder-item__meta { color: var(--muted); font-size: .74rem; }
+      .reminder-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+      .reminder-actions .badge { flex: 0 0 auto; }
+      .reminder-actions .btn { min-height: 38px; padding: 7px 10px; font-size: .78rem; }
+      .reminder-empty { margin: 14px 0 0; }
+      .reminder-error { color: var(--bad); }
+      .reminder-editbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+      .reminder-editbar span { min-width: 0; font-size: .82rem; overflow-wrap: anywhere; }
+      .reminder-mute { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .78rem; }
+      .reminder-mute input { width: auto; min-height: 38px; padding: 6px 8px; }
+      @container (max-width: 560px) {
+        .reminder-grid { grid-template-columns: 1fr; }
+        .reminder-item { grid-template-columns: auto minmax(0, 1fr); }
+        .reminder-actions { grid-column: 1 / -1; justify-content: flex-start; }
+        .reminder-actions .btn { flex: 1 1 88px; }
+        .reminder-editbar { align-items: flex-start; flex-direction: column; }
+      }
       @container (max-width: 440px) {
         .toolbar-main { gap: 7px; }
         .toolbar .brand .mark { width: 30px; height: 32px; border-radius: 11px; }
@@ -1079,6 +1181,12 @@ class MaikaPanel extends HTMLElement {
     this.shadowRoot.addEventListener("pointercancel", this._onPointerEnd, {passive: true});
     this.shadowRoot.addEventListener("lostpointercapture", this._onPointerEnd, {passive: true});
     this.shadowRoot.addEventListener("keydown", this._onSpeakerKey);
+    this.shadowRoot.addEventListener("toggle", (event) => {
+      const fold = event.target.closest?.(".section-fold");
+      if (!fold) return;
+      if (fold.open) this._openSections.add(fold.dataset.fold);
+      else this._openSections.delete(fold.dataset.fold);
+    }, true);
     this.shadowRoot.addEventListener("maika-voice-saved", (event) => {
       const entry = this._snapshot?.entries?.find((item) => item.entry_id === event.detail.entry_id);
       if (entry) entry.options = {...entry.options, ...event.detail.options};
@@ -1200,6 +1308,21 @@ class MaikaPanel extends HTMLElement {
       h("div", {}, [h("h3", {text: title}), subtitle ? h("span", {text: subtitle}) : null]),
     ]);
     return head;
+  }
+
+  _foldSection(card, key) {
+    const summary = h("summary", {class: "section-fold__summary"});
+    const head = card.querySelector(":scope > .sec-head");
+    if (head) summary.append(head);
+    summary.append(h("span", {class: "section-fold__arrow", "aria-hidden": "true"}, [svgIcon(ICONS.chevron)]));
+    const body = h("div", {class: "section-fold__body"});
+    while (card.firstChild) body.append(card.firstChild);
+    card.append(h("details", {
+      class: "section-fold",
+      "data-fold": key,
+      open: this._openSections.has(key),
+    }, [summary, body]));
+    return card;
   }
 
   _accordion({key, icon, title, subtitle, color, open}, children) {
@@ -1517,6 +1640,277 @@ class MaikaPanel extends HTMLElement {
     ], delay);
   }
 
+  _resetReminders() {
+    this._remindersToken += 1;
+    this._reminders = null;
+    this._remindersBusy = false;
+    this._editingReminderId = null;
+    this._reminderSelected.clear();
+    for (const field of ["reminder_event", "reminder_start", "reminder_frequency", "reminder_alert", "reminder_tts", "reminder_mute_date"]) delete this._draft[field];
+  }
+
+  _ensureReminders(force = false) {
+    const entry = this._entry();
+    const serial = this._activeSerial();
+    if (!entry || !serial) return;
+    const current = this._reminders;
+    if (this._remindersBusy || current?.status === "loading") return;
+    if (!force && current?.entryId === entry.entry_id && current?.serial === serial && ["ready", "empty"].includes(current.status)) return;
+    this._loadReminders();
+  }
+
+  async _loadReminders() {
+    const entry = this._entry();
+    const serial = this._activeSerial();
+    if (!entry || !serial) return;
+    const token = ++this._remindersToken;
+    this._remindersBusy = true;
+    this._reminders = {status: "loading", items: this._reminders?.items || [], message: null, entryId: entry.entry_id, serial};
+    this._lastSignature = "";
+    this._maybeUpdate();
+    try {
+      const params = new URLSearchParams({entry_id: entry.entry_id, serial_number: serial});
+      const result = await this._hass.callApi("GET", `${API}/reminders?${params}`);
+      if (token !== this._remindersToken || this._entry()?.entry_id !== entry.entry_id || this._activeSerial() !== serial) return;
+      const items = Array.isArray(result?.reminders) ? result.reminders : [];
+      this._reminders = {status: items.length ? "ready" : "empty", items, message: null, entryId: entry.entry_id, serial};
+    } catch (err) {
+      if (token !== this._remindersToken) return;
+      this._reminders = {status: "error", items: [], message: this._reminderError(err), entryId: entry.entry_id, serial};
+    } finally {
+      if (token === this._remindersToken) {
+        this._remindersBusy = false;
+        this._lastSignature = "";
+        this._maybeUpdate();
+      }
+    }
+  }
+
+  _reminderError(err) {
+    const key = err?.body?.message || err?.body?.error || err?.translation_key || err?.message || "";
+    const labels = {
+      reminder_start_required: "Chọn thời gian nhắc trước khi tạo.",
+      invalid_reminder_start: "Thời gian nhắc không hợp lệ.",
+      reminder_start_in_past: "Thời gian nhắc phải ở tương lai.",
+      reminder_event_required: "Nhập nội dung nhắc hẹn.",
+      reminder_event_too_long: "Nội dung nhắc hẹn quá dài.",
+      reminder_speech_too_long: "Nội dung loa đọc quá dài.",
+      invalid_reminder_frequency: "Kiểu lặp lại không hợp lệ.",
+      invalid_reminder_alert_prior: "Thời gian báo trước không hợp lệ.",
+      reminder_device_required: "Chưa chọn loa nhận nhắc hẹn.",
+      invalid_reminder_id: "Nhắc hẹn không hợp lệ.",
+      invalid_reminder_status: "Trạng thái nhắc hẹn không hợp lệ.",
+      invalid_reminder_update: "Chưa có thay đổi để lưu.",
+      invalid_mute_days: "Ngày tạm tắt không hợp lệ.",
+      reminders_unavailable: "Không kết nối được dịch vụ nhắc hẹn MAIKA.",
+      unknown_speaker: "Không tìm thấy loa đã chọn.",
+      coordinator_unavailable: "Integration chưa sẵn sàng.",
+    };
+    return labels[key] || "Không xử lý được nhắc hẹn.";
+  }
+
+  _reminderStatus(item) {
+    if (item?.completed) return ["Đã xong", "badge--ok"];
+    if (Number(item?.status) === 2) return ["Đã tắt", "badge--warn"];
+    const start = Date.parse(item?.start_at || "");
+    if (item?.frequency === "once" && Number.isFinite(start) && start < Date.now()) return ["Đã qua", "badge--warn"];
+    return ["Sắp tới", "badge--info"];
+  }
+
+  _remindersSection(delay) {
+    const entry = this._entry();
+    const serial = this._activeSerial();
+    const state = this._reminders;
+    const busy = this._remindersBusy;
+    const items = Array.isArray(state?.items) ? state.items : [];
+    const editing = items.find((item) => item.id === this._editingReminderId) || null;
+    const selected = items.filter((item) => this._reminderSelected.has(item.id));
+    const alertValue = Number(this._draft.reminder_alert ?? editing?.alert_prior_minutes ?? 0);
+    const alertOptions = [...new Set([...REMINDER_ALERT_OPTIONS, alertValue])].filter((minutes) => Number.isFinite(minutes) && minutes >= 0).sort((a, b) => a - b);
+    const form = h("form", {class: "reminder-form", dataset: {form: "reminders"}}, [
+      editing ? h("div", {class: "reminder-editbar"}, [
+        h("span", {text: `Đang sửa: ${editing.event || "Nhắc hẹn"}`}),
+        h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-edit-cancel"}, disabled: busy}, "Hủy sửa"),
+      ]) : null,
+      h("div", {class: "reminder-grid"}, [
+        h("div", {class: "field field--wide"}, [
+          h("label", {text: "Nội dung nhắc hẹn"}),
+          h("input", {type: "text", maxlength: "200", placeholder: "Ví dụ: Uống thuốc", autocomplete: "off", value: this._draft.reminder_event || "", dataset: {field: "reminder_event"}}),
+        ]),
+        h("div", {class: "field"}, [
+          h("label", {text: "Thời gian"}),
+          h("input", {type: "datetime-local", value: this._draft.reminder_start || defaultReminderStart(), dataset: {field: "reminder_start"}}),
+        ]),
+        h("div", {class: "field"}, [
+          h("label", {text: "Lặp lại"}),
+          h("select", {dataset: {field: "reminder_frequency"}}, REMINDER_FREQUENCIES.map(([value, label]) => h("option", {value, selected: (this._draft.reminder_frequency || "once") === value, text: label}))),
+        ]),
+        h("div", {class: "field"}, [
+          h("label", {text: "Báo trước"}),
+          h("select", {dataset: {field: "reminder_alert"}}, alertOptions.map((minutes) => h("option", {value: String(minutes), selected: String(this._draft.reminder_alert ?? alertValue) === String(minutes), text: minutes ? `Trước ${minutes} phút` : "Đúng giờ"}))),
+        ]),
+        h("div", {class: "field field--wide"}, [
+          h("label", {text: "Lời loa đọc (không bắt buộc)"}),
+          h("input", {type: "text", maxlength: "500", placeholder: "Mặc định đọc nội dung nhắc hẹn", autocomplete: "off", value: this._draft.reminder_tts || "", dataset: {field: "reminder_tts"}}),
+        ]),
+      ]),
+      h("div", {class: "btn-row"}, [
+        h("button", {class: "btn btn--primary", type: "submit", disabled: busy || !entry || !serial}, [svgIcon(ICONS.calendar), busy ? (editing ? "Đang lưu..." : "Đang tạo...") : (editing ? "Lưu thay đổi" : "Tạo nhắc hẹn")]),
+        h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-refresh"}, disabled: busy || !entry || !serial}, [svgIcon(ICONS.refresh), "Làm mới"]),
+      ]),
+      h("p", {class: "hint", text: `Nhắc hẹn sẽ phát trên loa ${this._speakerName() || "đang chọn"}.`}),
+    ]);
+
+    const bulk = selected.length ? h("div", {class: "reminder-editbar", role: "group", "aria-label": `${selected.length} nhắc hẹn đã chọn`}, [
+      h("span", {text: `${selected.length} nhắc hẹn đã chọn`}),
+      h("div", {class: "reminder-actions"}, [
+        h("label", {class: "reminder-mute"}, [
+          h("span", {text: "Tạm tắt ngày"}),
+          h("input", {type: "date", value: this._draft.reminder_mute_date || localDateInput(), dataset: {field: "reminder_mute_date"}, "aria-label": "Ngày tạm tắt nhắc hẹn"}),
+        ]),
+        h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-mute"}, disabled: busy}, "Tạm tắt"),
+        h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-select-clear"}, disabled: busy}, "Bỏ chọn"),
+        h("button", {class: "btn btn--danger", type: "button", dataset: {action: "reminders-delete-selected"}, disabled: busy}, [svgIcon(ICONS.alert), "Xóa đã chọn"]),
+      ]),
+    ]) : null;
+
+    let list;
+    if (!state || state.status === "loading") {
+      list = h("p", {class: "hint reminder-empty", role: "status", text: "Đang tải nhắc hẹn..."});
+    } else if (state.status === "error") {
+      list = h("div", {class: "reminder-empty", role: "alert"}, [
+        h("p", {class: "hint reminder-error", text: state.message || "Không tải được nhắc hẹn."}),
+        h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-retry"}}, [svgIcon(ICONS.refresh), "Thử lại"]),
+      ]);
+    } else if (!items.length) {
+      list = h("p", {class: "hint reminder-empty", text: "Chưa có nhắc hẹn cho loa này."});
+    } else {
+      list = h("div", {class: "reminder-list", role: "list", "aria-live": "polite"}, items.map((item) => {
+        const [label, tone] = this._reminderStatus(item);
+        const disabled = Number(item.status) === REMINDER_STATUS_DISABLED;
+        return h("article", {class: "reminder-item", role: "listitem"}, [
+          h("label", {class: "reminder-check"}, [
+            h("input", {type: "checkbox", checked: this._reminderSelected.has(item.id), dataset: {action: "reminders-select", id: String(item.id)}, "aria-label": `Chọn nhắc hẹn ${item.event || ""}`}),
+          ]),
+          h("div", {class: "reminder-item__body"}, [
+            h("b", {text: item.event || "Nhắc hẹn"}),
+            h("span", {class: "reminder-item__meta", text: `${fmtReminderTime(item.start_at)} · ${REMINDER_FREQUENCY_LABELS[item.frequency] || item.frequency || "Một lần"}`}),
+            item.custom_tts && item.custom_tts !== item.event ? h("span", {class: "hint", text: `Loa đọc: ${item.custom_tts}`}) : null,
+          ]),
+          h("div", {class: "reminder-actions"}, [
+            h("span", {class: ["badge", tone].join(" "), text: label}),
+            h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-toggle", id: String(item.id), enabled: disabled ? "1" : "0"}, disabled: busy, "aria-label": `${disabled ? "Bật" : "Tắt"} nhắc hẹn ${item.event || ""}`}, disabled ? "Bật" : "Tắt"),
+            h("button", {class: "btn btn--ghost", type: "button", dataset: {action: "reminders-edit", id: String(item.id)}, disabled: busy, "aria-label": `Sửa nhắc hẹn ${item.event || ""}`}, "Sửa"),
+            h("button", {class: "btn btn--danger", type: "button", dataset: {action: "reminders-delete", id: String(item.id)}, disabled: busy, "aria-label": `Xóa nhắc hẹn ${item.event || ""}`}, [svgIcon(ICONS.alert), "Xóa"]),
+          ]),
+        ]);
+      }));
+    }
+
+    return this._card("span4", [
+      this._sectionHead("calendar", "Nhắc hẹn", "Tạo lịch nhắc phát trên loa MAIKA", "c-amber"),
+      form,
+      bulk,
+      list,
+    ], delay);
+  }
+
+  _applyReminders(data) {
+    const items = Array.isArray(data?.reminders) ? data.reminders : null;
+    if (items === null) return false;
+    const ids = new Set(items.map((item) => item.id));
+    this._reminderSelected = new Set([...this._reminderSelected].filter((id) => ids.has(id)));
+    if (this._editingReminderId !== null && !ids.has(this._editingReminderId)) this._editingReminderId = null;
+    this._reminders = {status: items.length ? "ready" : "empty", items, message: null, entryId: this._entry()?.entry_id, serial: this._activeSerial()};
+    return true;
+  }
+
+  _editReminder(reminderId) {
+    const item = (this._reminders?.items || []).find((entry) => entry.id === reminderId);
+    if (!item || this._remindersBusy) return;
+    this._editingReminderId = item.id;
+    this._draft.reminder_event = item.event || "";
+    this._draft.reminder_start = reminderLocalInput(item.start_at);
+    this._draft.reminder_frequency = item.frequency || "once";
+    this._draft.reminder_alert = String(item.alert_prior_minutes ?? 0);
+    this._draft.reminder_tts = item.custom_tts && item.custom_tts !== item.event ? item.custom_tts : "";
+    this._lastSignature = "";
+    this._maybeUpdate();
+    requestAnimationFrame(() => this.shadowRoot.querySelector('[data-field="reminder_event"]')?.focus());
+  }
+
+  _clearReminderEdit() {
+    this._editingReminderId = null;
+    for (const field of ["reminder_event", "reminder_start", "reminder_frequency", "reminder_alert", "reminder_tts"]) delete this._draft[field];
+    this._lastSignature = "";
+    this._maybeUpdate();
+  }
+
+  async _toggleReminder(reminderId, enabled) {
+    const entry = this._entry();
+    if (!entry || this._remindersBusy || !Number.isFinite(reminderId)) return;
+    this._remindersBusy = true;
+    this._lastSignature = "";
+    this._maybeUpdate();
+    const result = await this._post(`${API}/reminders`, {entry_id: entry.entry_id, action: "toggle", reminder_id: reminderId, enabled: Boolean(enabled), serial_number: this._activeSerial()});
+    this._remindersBusy = false;
+    if (!result.ok) {
+      this._notify("error", `${enabled ? "Bật" : "Tắt"} nhắc hẹn thất bại: ${this._reminderError(result.error)}`);
+      return;
+    }
+    if (!this._applyReminders(result.data)) await this._loadReminders();
+    this._notify("ok", `Đã ${enabled ? "bật" : "tắt"} nhắc hẹn.`);
+  }
+
+  async _deleteReminders(reminderIds, prompt) {
+    const entry = this._entry();
+    const ids = [...new Set(reminderIds)].filter((id) => Number.isFinite(id));
+    if (!entry || this._remindersBusy || !ids.length) return;
+    if (!window.confirm(prompt)) return;
+    this._remindersBusy = true;
+    this._lastSignature = "";
+    this._maybeUpdate();
+    const result = await this._post(`${API}/reminders`, {entry_id: entry.entry_id, action: "delete", reminder_ids: ids, serial_number: this._activeSerial()});
+    this._remindersBusy = false;
+    if (!result.ok) {
+      this._notify("error", `Xóa nhắc hẹn thất bại: ${this._reminderError(result.error)}`);
+      return;
+    }
+    if (!this._applyReminders(result.data)) await this._loadReminders();
+    this._notify("ok", ids.length > 1 ? `Đã xóa ${ids.length} nhắc hẹn.` : "Đã xóa nhắc hẹn.");
+  }
+
+  _deleteReminder(reminderId) {
+    return this._deleteReminders([reminderId], "Xóa nhắc hẹn này?");
+  }
+
+  async _muteReminders() {
+    const entry = this._entry();
+    const ids = [...this._reminderSelected];
+    const muteDate = String(this._draft.reminder_mute_date || localDateInput()).trim();
+    if (!entry || this._remindersBusy || !ids.length) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(muteDate)) {
+      this._notify("error", "Chọn ngày tạm tắt hợp lệ.");
+      return;
+    }
+    this._remindersBusy = true;
+    this._lastSignature = "";
+    this._maybeUpdate();
+    const result = await this._post(`${API}/reminders`, {entry_id: entry.entry_id, action: "mute", reminder_ids: ids, mute_days: [muteDate], serial_number: this._activeSerial()});
+    this._remindersBusy = false;
+    if (!result.ok) {
+      this._notify("error", `Tạm tắt nhắc hẹn thất bại: ${this._reminderError(result.error)}`);
+      return;
+    }
+    if (!this._applyReminders(result.data)) await this._loadReminders();
+    this._notify("ok", `Đã tạm tắt ${ids.length} nhắc hẹn trong ngày ${muteDate.split("-").reverse().join("/")}.`);
+  }
+
+  _deleteSelectedReminders() {
+    const ids = [...this._reminderSelected];
+    return this._deleteReminders(ids, `Xóa ${ids.length} nhắc hẹn đã chọn?`);
+  }
+
   _chatBubble(turn) {
     const role = turn?.role === "assistant" ? "assistant" : "user";
     const at = turn?.at ? Date.parse(turn.at) / 1000 : 0;
@@ -1831,7 +2225,7 @@ class MaikaPanel extends HTMLElement {
           id: child.media_content_id,
           type: child.media_content_type || "",
           title: child.title || "Mục MAIKA",
-          directory: !["maika_cs_track", "maika_nct_track"].includes(child.media_content_type),
+          directory: !["maika_cs_track", "maika_nct_track", "maika_favorite_track"].includes(child.media_content_type),
           busy: false,
         }));
       this._cs = {...cs, status: items.length ? "ready" : "empty", items, title: result?.title || node.title};
@@ -1895,6 +2289,8 @@ class MaikaPanel extends HTMLElement {
     const labels = {
       maika_content_store_failed: "Không tải được thư viện giải trí.",
       maika_content_store_invalid_selection: "Mục này không còn trong thư viện.",
+      maika_favorites_unavailable: "Chưa tải được danh sách bài hát yêu thích. Kiểm tra tài khoản MAIKA đã đăng nhập.",
+      maika_favorites_failed: "Không tải được bài hát yêu thích từ MAIKA.",
       maika_queue_unavailable: "Loa đang mất kết nối.",
       nhaccuatui_failed: "Không tải được bài hát NhạcCủaTui.",
       nhaccuatui_track_unavailable: "Bài NhạcCủaTui này không có bản stream công khai.",
@@ -2381,6 +2777,7 @@ class MaikaPanel extends HTMLElement {
 
   _setActiveSection(section, scroll) {
     if (section) this._activeSection = section;
+    if (this._activeSection === "reminders") this._ensureReminders();
     for (const pill of this.shadowRoot.querySelectorAll('[data-action="jump"]')) {
       const active = pill.dataset.section === this._activeSection;
       pill.classList.toggle("pill--on", active);
@@ -2399,6 +2796,11 @@ class MaikaPanel extends HTMLElement {
     if (!scroll) return;
     const target = this._stage.querySelector(`[data-sec="${this._activeSection}"]`);
     if (target) {
+      const fold = target.querySelector(":scope > .section-fold");
+      if (fold && !fold.open) {
+        fold.open = true;
+        this._openSections.add(fold.dataset.fold);
+      }
       target.scrollIntoView({behavior: this._reducedMotion() ? "instant" : "smooth", block: "start"});
     }
   }
@@ -2469,10 +2871,15 @@ class MaikaPanel extends HTMLElement {
         ["overview", this._heroCard(30)],
         ["media", this._mediaSection(60)],
         ["chat", this._chatSection(75)],
-        ["voice", this._card("span4", [h("maika-voice-editor")], 90)],
+        ["voice", this._card("span4", [
+          this._sectionHead("mic", "Giọng nói", "Câu lệnh, phản hồi và âm thanh", "c-purple"),
+          h("maika-voice-editor"),
+        ], 90)],
+        ["reminders", this._remindersSection(98)],
         ["device", this._deviceSection(105)],
         ["settings", this._setupSection(120)],
       );
+      for (const card of cards.slice(3)) this._foldSection(card[1], card[0]);
     }
     const previous = new Map([...this._stage.children].map((card) => [card.dataset.card, card]));
     let cursor = this._stage.firstElementChild;
@@ -2568,6 +2975,10 @@ class MaikaPanel extends HTMLElement {
       license: entry?.license,
       devices: entry?.devices,
       busy: this._busy,
+      remindersBusy: this._remindersBusy,
+      reminders: this._reminders,
+      reminderEditing: this._editingReminderId,
+      reminderSelected: [...this._reminderSelected].sort((a, b) => a - b),
       loading: this._loading,
       message: this._message,
       narrow: this._narrow,
@@ -2646,6 +3057,8 @@ class MaikaPanel extends HTMLElement {
     for (const field of Object.keys(this._draft)) {
       if (["volume", "cast_url", "cast_type"].includes(field) || field.startsWith("text:")) delete this._draft[field];
     }
+    this._resetReminders();
+    if (this._activeSection === "reminders") this._ensureReminders();
     this._lastSignature = "";
     this._maybeUpdate();
     this._setActiveSection("overview", false);
@@ -2768,6 +3181,16 @@ class MaikaPanel extends HTMLElement {
       this._draft[el.dataset.field] = el.type === "checkbox" ? el.checked : el.value;
     }
     const action = el.dataset.action;
+    if (action === "reminders-select") {
+      const reminderId = Number(el.dataset.id);
+      if (Number.isFinite(reminderId)) {
+        if (el.checked) this._reminderSelected.add(reminderId);
+        else this._reminderSelected.delete(reminderId);
+        this._lastSignature = "";
+        this._maybeUpdate();
+      }
+      return;
+    }
     if (action === "theme") {
       this._setTheme(el.value);
       return;
@@ -2876,6 +3299,7 @@ class MaikaPanel extends HTMLElement {
       this._activeIndex = Number(target.dataset.index) || 0;
       this._deviceSerial = "";
       this._draft = {};
+      this._resetReminders();
       this._message = null;
       this._activeSection = "overview";
       this._lastSignature = "";
@@ -2905,6 +3329,48 @@ class MaikaPanel extends HTMLElement {
 
     if (action === "speaker-step") {
       this._stepSpeaker(Number(target.dataset.direction));
+      return;
+    }
+
+    if (action === "reminders-refresh" || action === "reminders-retry") {
+      this._ensureReminders(true);
+      return;
+    }
+
+    if (action === "reminders-delete") {
+      this._deleteReminder(Number(target.dataset.id));
+      return;
+    }
+
+    if (action === "reminders-edit") {
+      this._editReminder(Number(target.dataset.id));
+      return;
+    }
+
+    if (action === "reminders-edit-cancel") {
+      this._clearReminderEdit();
+      return;
+    }
+
+    if (action === "reminders-toggle") {
+      this._toggleReminder(Number(target.dataset.id), target.dataset.enabled === "1");
+      return;
+    }
+
+    if (action === "reminders-mute") {
+      this._muteReminders();
+      return;
+    }
+
+    if (action === "reminders-select-clear") {
+      this._reminderSelected.clear();
+      this._lastSignature = "";
+      this._maybeUpdate();
+      return;
+    }
+
+    if (action === "reminders-delete-selected") {
+      this._deleteSelectedReminders();
       return;
     }
 
@@ -3000,6 +3466,56 @@ class MaikaPanel extends HTMLElement {
       this._notify("ok", "Đã gửi câu lệnh tới loa, đang chờ phản hồi.");
       this._pollChatReplies(serial);
       this._load();
+      return;
+    }
+
+    if (kind === "reminders") {
+      const entry = this._entry();
+      const serial = this._activeSerial();
+      if (!entry || !serial || this._remindersBusy) return;
+      const field = (name) => form.querySelector(`[data-field="${name}"]`);
+      const event = String(field("reminder_event")?.value || "").trim();
+      const rawStart = String(field("reminder_start")?.value || "");
+      const frequency = String(field("reminder_frequency")?.value || "once");
+      const alertPrior = Number(field("reminder_alert")?.value || 0);
+      const customTts = String(field("reminder_tts")?.value || "").trim();
+      if (!event) {
+        this._notify("error", "Nhập nội dung nhắc hẹn.");
+        field("reminder_event")?.focus();
+        return;
+      }
+      const start = rawStart ? new Date(rawStart) : null;
+      if (!start || Number.isNaN(start.getTime())) {
+        this._notify("error", "Chọn thời gian nhắc hợp lệ.");
+        field("reminder_start")?.focus();
+        return;
+      }
+      const editingId = this._editingReminderId;
+      this._remindersBusy = true;
+      this._lastSignature = "";
+      this._maybeUpdate();
+      const result = await this._post(`${API}/reminders`, {
+        entry_id: entry.entry_id,
+        action: editingId === null ? "create" : "update",
+        reminder_id: editingId === null ? undefined : editingId,
+        serial_number: serial,
+        event,
+        start_at: start.toISOString(),
+        frequency,
+        alert_prior: Number.isFinite(alertPrior) ? alertPrior : 0,
+        custom_tts: customTts,
+      });
+      this._remindersBusy = false;
+      if (!result.ok) {
+        this._notify("error", `${editingId === null ? "Tạo" : "Cập nhật"} nhắc hẹn thất bại: ${this._reminderError(result.error)}`);
+        this._lastSignature = "";
+        this._maybeUpdate();
+        return;
+      }
+      this._editingReminderId = null;
+      for (const name of ["reminder_event", "reminder_start", "reminder_frequency", "reminder_alert", "reminder_tts"]) delete this._draft[name];
+      if (!this._applyReminders(result.data)) await this._loadReminders();
+      this._notify("ok", editingId === null ? `Đã tạo nhắc hẹn cho ${this._speakerName() || "loa"}.` : "Đã cập nhật nhắc hẹn.");
       return;
     }
 

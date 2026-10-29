@@ -1244,6 +1244,92 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(command["response_text"], data["message"])
         await coordinator.async_stop()
 
+    def test_voice_rules_split_comma_separated_phrases(self):
+        rules = self.module["parse_voice_command_rules"](
+            "bật điện, bật quạt | switch.den | turn_on"
+        )
+        self.assertEqual([rule.phrase for rule in rules], ["bật điện", "bật quạt"])
+        self.assertTrue(all(rule.entity_id == "switch.den" for rule in rules))
+        self.assertTrue(all(rule.action == "turn_on" for rule in rules))
+
+    def test_voice_rules_reject_duplicate_comma_phrase(self):
+        with self.assertRaises(self.module["VoiceCommandRulesError"]):
+            self.module["parse_voice_command_rules"](
+                "bật điện, bật quạt | switch.den | turn_on\n"
+                "bật quạt | switch.den | turn_off"
+            )
+
+    def test_voice_rules_count_comma_phrases_toward_limit(self):
+        limit = self.module["MAX_VOICE_COMMAND_RULES"]
+        lines = [f"câu {index} | switch.den | turn_on" for index in range(limit - 1)]
+        lines.append("câu cuối, câu vượt | switch.den | turn_on")
+        with self.assertRaises(self.module["VoiceCommandRulesError"]):
+            self.module["parse_voice_command_rules"]("\n".join(lines))
+
+    def test_voice_rules_rewrite_renamed_entity_without_touching_layout(self):
+        text = (
+            "# giữ nguyên ghi chú\n"
+            "bật đèn | light.old | turn_on\r\n"
+            "bật quạt, mở cửa | switch.old | turn_on\n"
+        )
+        updated = self.module["replace_voice_command_rule_entity_id"](
+            text, "light.old", "light.new"
+        )
+        self.assertEqual(
+            updated,
+            "# giữ nguyên ghi chú\n"
+            "bật đèn | light.new | turn_on\r\n"
+            "bật quạt, mở cửa | switch.old | turn_on\n",
+        )
+        self.assertEqual(
+            self.module["replace_voice_command_rule_entity_id"](
+                text, "light.missing", "light.new"
+            ),
+            text,
+        )
+        self.assertEqual(
+            self.module["replace_voice_command_rule_entity_id"](
+                text, "light.old", "invalid entity"
+            ),
+            text,
+        )
+
+    def test_entity_registry_rename_updates_voice_rule_options(self):
+        options = {
+            "voice_command_rules": (
+                "bật đèn | light.old | turn_on\nbật quạt | switch.old | turn_on"
+            )
+        }
+        self.entry.options = options
+        updates = []
+        self.hass.config_entries = SimpleNamespace(
+            async_update_entry=lambda entry, **kwargs: updates.append(kwargs)
+        )
+        self.coordinator.async_handle_entity_registry_updated(
+            SimpleNamespace(
+                data={
+                    "action": "update",
+                    "old_entity_id": "light.old",
+                    "new_entity_id": "light.new",
+                }
+            )
+        )
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(
+            updates[0]["options"]["voice_command_rules"],
+            "bật đèn | light.new | turn_on\nbật quạt | switch.old | turn_on",
+        )
+        self.coordinator.async_handle_entity_registry_updated(
+            SimpleNamespace(
+                data={
+                    "action": "update",
+                    "old_entity_id": "light.missing",
+                    "new_entity_id": "light.other",
+                }
+            )
+        )
+        self.assertEqual(len(updates), 1)
+
     def test_voice_state_formats_climate_values(self):
         state = SimpleNamespace(
             entity_id="climate.phong_khach",

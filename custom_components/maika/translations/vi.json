@@ -83,6 +83,12 @@
     "maika_content_store_invalid_selection": {
       "message": "Mục trong thư viện giải trí không hợp lệ. Duyệt lại thư viện MAIKA rồi chọn lại."
     },
+    "maika_favorites_unavailable": {
+      "message": "Chưa có playlist bài hát yêu thích MAIKA. Đăng nhập bằng tài khoản MAIKA đã có bài yêu thích."
+    },
+    "maika_favorites_failed": {
+      "message": "Không tải được bài hát yêu thích từ MAIKA. Kiểm tra kết nối rồi thử lại."
+    },
     "nhaccuatui_failed": {
       "message": "Không tải được bài hát NhạcCủaTui. Kiểm tra kết nối rồi thử lại."
     },
@@ -112,6 +118,30 @@
     },
     "cloud_cast_seek_unavailable": {
       "message": "MAIKA chỉ tua được bài đang cast từ Home Assistant. Hãy phát nhạc qua cloud cast rồi kéo thanh thời gian."
+    },
+    "maika_service_entry_not_found": {
+      "message": "Tài khoản MAIKA đã chọn chưa được tải. Kiểm tra lại entry của integration rồi thử lại."
+    },
+    "maika_service_device_required": {
+      "message": "Chọn một loa MAIKA bằng device target, serial_number hoặc entry_id."
+    },
+    "maika_service_device_unknown": {
+      "message": "Không tìm thấy loa MAIKA đã chọn trong integration."
+    },
+    "maika_service_device_multiple": {
+      "message": "Dịch vụ khớp với nhiều loa MAIKA. Dùng device target hoặc truyền entry_id và serial_number."
+    },
+    "maika_service_reminder_failed": {
+      "message": "Cloud MAIKA không nhận yêu cầu nhắc hẹn. Kiểm tra kết nối rồi thử lại."
+    },
+    "maika_service_reminder_not_found": {
+      "message": "Nhắc hẹn không tồn tại trên loa MAIKA đã chọn."
+    },
+    "maika_service_invalid_mute_days": {
+      "message": "mute_days phải chứa ngày hợp lệ theo định dạng YYYY-MM-DD."
+    },
+    "maika_service_invalid_reminder": {
+      "message": "Dữ liệu nhắc hẹn không hợp lệ ({reason})."
     }
   },
   "entity": {

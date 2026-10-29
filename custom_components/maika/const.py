@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 DOMAIN = "maika"
-INTEGRATION_VERSION = "1.26.0"
+INTEGRATION_VERSION = "1.27.0"
 
 APP_VERSION = "3.2.3"
 APP_DEVICE_TYPE = "android"
 APP_LANGUAGE = "vi-VN"
 APP_TIMEZONE = "Asia/Ho_Chi_Minh"
 APP_ORGANIZATION_CODE = "MAIKA"
+APP_EXECUTOR = "vn_south"
 
 USERS_BASE_URL = "https://users.iviet.com"
 CHATBOT_BASE_URL = "https://chatbot.iviet.com"

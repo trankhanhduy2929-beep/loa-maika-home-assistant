@@ -649,6 +649,43 @@ def _parse_service_data(domain: str, action: str, raw_value: str) -> Mapping[str
     return MappingProxyType(validated)
 
 
+def replace_voice_command_rule_entity_id(
+    value: str, old_entity_id: str, new_entity_id: str
+) -> str:
+    """Rewrite the entity column when Home Assistant renames an entity ID."""
+    if not isinstance(value, str):
+        return value
+    old_entity_id = str(old_entity_id).strip().casefold()
+    new_entity_id = str(new_entity_id).strip().casefold()
+    if old_entity_id == new_entity_id:
+        return value
+    if not _ENTITY_ID_PATTERN.fullmatch(old_entity_id):
+        return value
+    if not _ENTITY_ID_PATTERN.fullmatch(new_entity_id):
+        return value
+
+    changed = False
+    lines: list[str] = []
+    for raw_line in value.splitlines(keepends=True):
+        body = raw_line.rstrip("\r\n")
+        ending = raw_line[len(body) :]
+        stripped = body.strip()
+        if not stripped or stripped.startswith("#"):
+            lines.append(raw_line)
+            continue
+        parts = body.split("|", 3)
+        if len(parts) < 3 or parts[1].strip().casefold() != old_entity_id:
+            lines.append(raw_line)
+            continue
+        column = parts[1]
+        leading = column[: len(column) - len(column.lstrip())]
+        trailing = column[len(column.rstrip()) :]
+        parts[1] = f"{leading}{new_entity_id}{trailing}"
+        lines.append("|".join(parts) + ending)
+        changed = True
+    return "".join(lines) if changed else value
+
+
 def parse_voice_command_rules(value: str) -> tuple[VoiceCommandRule, ...]:
     """Parse safe rules using three or four columns.
 
@@ -686,13 +723,22 @@ def parse_voice_command_rules(value: str) -> tuple[VoiceCommandRule, ...]:
                 "expected 'phrase | entity_id | action [| JSON service data]'",
             )
 
-        phrase, entity_id, action = parts[:3]
-        normalized_phrase = normalize_voice_phrase(phrase)
-        if not normalized_phrase:
-            raise VoiceCommandRulesError(line_number, "phrase cannot be empty")
-        if len(normalized_phrase) > MAX_PHRASE_LENGTH:
+        phrase_text, entity_id, action = parts[:3]
+        phrases = [part.strip() for part in phrase_text.split(",")]
+        normalized_phrases: list[tuple[str, str]] = []
+        for phrase in phrases:
+            normalized_phrase = normalize_voice_phrase(phrase)
+            if not normalized_phrase:
+                raise VoiceCommandRulesError(line_number, "phrase cannot be empty")
+            if len(normalized_phrase) > MAX_PHRASE_LENGTH:
+                raise VoiceCommandRulesError(
+                    line_number,
+                    f"phrase must be at most {MAX_PHRASE_LENGTH} characters",
+                )
+            normalized_phrases.append((" ".join(phrase.split()), normalized_phrase))
+        if len(rules) + len(normalized_phrases) > MAX_VOICE_COMMAND_RULES:
             raise VoiceCommandRulesError(
-                line_number, f"phrase must be at most {MAX_PHRASE_LENGTH} characters"
+                line_number, f"at most {MAX_VOICE_COMMAND_RULES} rules are allowed"
             )
 
         entity_id = entity_id.casefold()
@@ -723,21 +769,22 @@ def parse_voice_command_rules(value: str) -> tuple[VoiceCommandRule, ...]:
         except ValueError as err:
             raise VoiceCommandRulesError(line_number, str(err)) from err
 
-        if normalized_phrase in seen_phrases:
-            raise VoiceCommandRulesError(
-                line_number,
-                "normalized phrase duplicates an earlier rule",
-            )
+        for phrase, normalized_phrase in normalized_phrases:
+            if normalized_phrase in seen_phrases:
+                raise VoiceCommandRulesError(
+                    line_number,
+                    "normalized phrase duplicates an earlier rule",
+                )
 
-        seen_phrases.add(normalized_phrase)
-        rules.append(
-            VoiceCommandRule(
-                phrase=" ".join(phrase.split()),
-                normalized_phrase=normalized_phrase,
-                entity_id=entity_id,
-                action=action,
-                service_data=service_data,
+            seen_phrases.add(normalized_phrase)
+            rules.append(
+                VoiceCommandRule(
+                    phrase=phrase,
+                    normalized_phrase=normalized_phrase,
+                    entity_id=entity_id,
+                    action=action,
+                    service_data=service_data,
+                )
             )
-        )
 
     return tuple(rules)

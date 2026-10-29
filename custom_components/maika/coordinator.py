@@ -49,6 +49,7 @@ from .voice_rules import (
     VoiceCommandRulesError,
     normalize_voice_phrase,
     parse_voice_command_rules,
+    replace_voice_command_rule_entity_id,
 )
 from .voice_state import format_voice_state
 from .voice_success_audio import (
@@ -138,6 +139,35 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             ),
             config_entry=entry,
+        )
+
+    @callback
+    def async_handle_entity_registry_updated(self, event: Any) -> None:
+        """Keep voice-command rules pointing at renamed Home Assistant entities."""
+        data = getattr(event, "data", None) or {}
+        if data.get("action") != "update":
+            return
+        old_entity_id = data.get("old_entity_id")
+        new_entity_id = data.get("new_entity_id")
+        if not isinstance(old_entity_id, str) or not isinstance(new_entity_id, str):
+            return
+        current = str(
+            self.entry.options.get(
+                CONF_VOICE_COMMAND_RULES, DEFAULT_VOICE_COMMAND_RULES
+            )
+        )
+        updated = replace_voice_command_rule_entity_id(
+            current, old_entity_id, new_entity_id
+        )
+        if updated == current:
+            return
+        options = dict(self.entry.options)
+        options[CONF_VOICE_COMMAND_RULES] = updated
+        self.hass.config_entries.async_update_entry(self.entry, options=options)
+        _LOGGER.info(
+            "Updated MAIKA voice command rules after entity rename: %s -> %s",
+            old_entity_id,
+            new_entity_id,
         )
 
     async def _async_setup(self) -> None:

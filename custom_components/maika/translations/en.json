@@ -83,6 +83,12 @@
     "maika_content_store_invalid_selection": {
       "message": "This entertainment library item is invalid. Browse the MAIKA library and select an item again."
     },
+    "maika_favorites_unavailable": {
+      "message": "No MAIKA favorites playlist is available. Sign in with a MAIKA account that has favorites."
+    },
+    "maika_favorites_failed": {
+      "message": "Unable to load favorite songs from MAIKA. Check the connection and try again."
+    },
     "nhaccuatui_failed": {
       "message": "Unable to load this NhacCuaTui song. Check the connection and try again."
     },
@@ -112,6 +118,30 @@
     },
     "cloud_cast_seek_unavailable": {
       "message": "MAIKA can only seek the track it is currently casting from Home Assistant. Start a cloud cast, then drag the position slider."
+    },
+    "maika_service_entry_not_found": {
+      "message": "The selected MAIKA account is not loaded. Check the integration entry and try again."
+    },
+    "maika_service_device_required": {
+      "message": "Select one MAIKA speaker with a device target, serial_number, or entry_id."
+    },
+    "maika_service_device_unknown": {
+      "message": "The selected MAIKA speaker is not loaded in this integration."
+    },
+    "maika_service_device_multiple": {
+      "message": "The service matches more than one MAIKA speaker. Use a device target or pass entry_id and serial_number."
+    },
+    "maika_service_reminder_failed": {
+      "message": "MAIKA cloud did not accept the reminder request. Check the connection and try again."
+    },
+    "maika_service_reminder_not_found": {
+      "message": "The reminder does not exist on the selected MAIKA speaker."
+    },
+    "maika_service_invalid_mute_days": {
+      "message": "mute_days must contain valid dates in YYYY-MM-DD format."
+    },
+    "maika_service_invalid_reminder": {
+      "message": "The reminder input is invalid ({reason})."
     }
   },
   "entity": {

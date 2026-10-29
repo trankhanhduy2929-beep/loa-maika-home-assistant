@@ -63,6 +63,8 @@ REQUIRED_FILES = (
     "custom_components/maika/content_store.py",
     "custom_components/maika/brand/icon.png",
     "custom_components/maika/manifest.json",
+    "custom_components/maika/services.py",
+    "custom_components/maika/services.yaml",
     "custom_components/maika/strings.json",
     "custom_components/maika/translations/en.json",
     "custom_components/maika/translations/vi.json",
@@ -261,6 +263,14 @@ def _validate_voice_success_audio(errors: list[str]) -> None:
             errors.append(f"Voice success audio resolver is missing {marker}")
 
     panel = (ROOT / f"custom_components/{DOMAIN}/panel.py").read_text(encoding="utf-8")
+    for marker in (
+        "MaikaPanelRemindersView",
+        "/api/maika/panel/reminders",
+        "async_list_reminders",
+        "build_reminder_payload",
+    ):
+        if marker not in panel:
+            errors.append(f"Panel is missing reminder integration {marker}")
     editor = (
         ROOT / f"custom_components/{DOMAIN}/frontend/maika-voice-editor.js"
     ).read_text(encoding="utf-8")
@@ -1087,6 +1097,12 @@ def validate(
                 str(ROOT / "scripts/test_media_relay.py")
             )
             errors.extend(media_relay_tests["validate_media_relay"]())
+            reminder_tests = runpy.run_path(str(ROOT / "scripts/test_reminders.py"))
+            errors.extend(reminder_tests["validate_reminders"]())
+            api_tests = runpy.run_path(str(ROOT / "scripts/test_api_endpoints.py"))
+            errors.extend(api_tests["validate_api_endpoints"]())
+            service_tests = runpy.run_path(str(ROOT / "scripts/test_services.py"))
+            errors.extend(service_tests["validate_services"]())
             _validate_panel_configuration(errors)
 
     if hacs_path.is_file():

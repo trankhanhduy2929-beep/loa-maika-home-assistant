@@ -31,6 +31,9 @@
     window.searchItems = [
       {media_class: "music", media_content_type: "maika_nct_track", media_content_id: "Track0009", title: "Tìm thấy — Sơn Tùng", can_play: true, can_expand: false},
     ];
+    window.reminders = [
+      {id: 1, event: "Uống thuốc", start_at: "2030-01-02T08:00:00+07:00", start_date: "2030-01-02", start_time: "08:00:00", frequency: "daily", completed: 0, status: 1, reminder_type: 1, alarm_type: 1, custom_tts: "Uống thuốc", devices: ["SERIAL-0-0"]},
+    ];
     window.states = {};
     const browseSong = (suffix) => `maika:${suffix.repeat(64)}:${encodeURIComponent(`bài-${suffix}`)}`;
     window.browseItems = [
@@ -42,6 +45,10 @@
         {media_class: "directory", media_content_type: "maika_cs_channels", media_content_id: "maika_cs_channels", title: "Kênh", can_play: false, can_expand: true},
         {media_class: "directory", media_content_type: "maika_cs_categories", media_content_id: "maika_cs_categories", title: "Thể loại", can_play: false, can_expand: true},
         {media_class: "directory", media_content_type: "maika_nct_root", media_content_id: "maika_nct_root", title: "NhạcCủaTui", can_play: false, can_expand: true},
+        {media_class: "directory", media_content_type: "maika_favorite", media_content_id: "maika_favorite", title: "Bài hát yêu thích", can_play: false, can_expand: true},
+      ]},
+      maika_favorite: {title: "Bài hát yêu thích", children: [
+        {media_class: "music", media_content_type: "maika_favorite_track", media_content_id: "https://cdn.example.test/yeu-thich.mp3", title: "Yêu thích — Ca sĩ", can_play: true, can_expand: false},
       ]},
       maika_nct_root: {title: "NhạcCủaTui", children: [
         {media_class: "directory", media_content_type: "maika_nct_feed", media_content_id: "maika_nct_feed", title: "Bài hát mới", can_play: false, can_expand: true},
@@ -138,6 +145,25 @@
         await new Promise((resolve) => setTimeout(resolve, 40));
         if (failApi) throw new Error("Thử mất kết nối");
         if (method === "GET" && path === "maika/panel/audio") return {url_path: "/maika_media", files: [{path: "mp3/maika.mp3", name: "maika.mp3", root: "mp3"}, {path: "www/thanh-cong.mp3", name: "thanh-cong.mp3", root: "www"}]};
+        if (method === "GET" && path.startsWith("maika/panel/reminders")) return {reminders: window.reminders.map((item) => ({...item}))};
+        if (method === "POST" && path === "maika/panel/reminders") {
+          if (data.action === "create") {
+            window.reminders.push({id: window.reminders.length + 1, event: data.event, start_at: data.start_at, frequency: data.frequency, alert_prior: data.alert_prior * 60, alert_prior_minutes: data.alert_prior, completed: 0, status: 1, reminder_type: 1, alarm_type: 1, custom_tts: data.custom_tts || data.event, devices: [data.serial_number]});
+          } else if (data.action === "update") {
+            const item = window.reminders.find((entry) => entry.id === data.reminder_id);
+            if (item) Object.assign(item, {event: data.event, start_at: data.start_at, frequency: data.frequency, alert_prior: data.alert_prior * 60, alert_prior_minutes: data.alert_prior, custom_tts: data.custom_tts || data.event});
+          } else if (data.action === "toggle") {
+            const item = window.reminders.find((entry) => entry.id === data.reminder_id);
+            if (item) item.status = data.enabled ? 1 : 2;
+          } else if (data.action === "mute") {
+            const ids = data.reminder_ids || [];
+            window.reminders = window.reminders.map((item) => ids.includes(item.id) ? {...item, mute_days: [...(item.mute_days || []), ...data.mute_days]} : item);
+          } else if (data.action === "delete") {
+            const ids = data.reminder_ids || [data.reminder_id];
+            window.reminders = window.reminders.filter((item) => !ids.includes(item.id));
+          }
+          return {ok: true, reminders: window.reminders.map((item) => ({...item}))};
+        }
         if (method === "GET") return structuredClone(snapshot);
         if (path === "maika/panel/chat") {
           const entry = snapshot.entries.find((item) => item.entry_id === data.entry_id);

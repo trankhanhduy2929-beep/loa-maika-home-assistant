@@ -82,6 +82,10 @@ function normalizedPhrase(value) {
     .replaceAll("ß", "ss").replace(/[\p{P}\p{S}]/gu, " ").trim().replace(/\s+/gu, " ");
 }
 
+function phraseList(value) {
+  return String(value || "").split(",").map((phrase) => phrase.trim()).filter(Boolean);
+}
+
 function parseLines(text) {
   return String(text || "").split(/\r?\n/u).map((raw) => {
     const trimmed = raw.trim();
@@ -246,7 +250,7 @@ class MaikaVoiceEditor extends HTMLElement {
             <p id="action-note" class="note" hidden></p>
             <div id="parameters" class="stack"></div>
             <label for="phrase">Khi tôi nói<input id="phrase" required maxlength="200" placeholder="Ví dụ: bật đèn phòng khách" autocomplete="off"></label>
-            <p class="note">Một câu cho một thao tác. Có thể tạo nhiều cách nói cho cùng thiết bị; không cần viết mã.</p>
+            <p class="note">Cùng một thao tác có thể dùng nhiều câu, cách nhau bằng dấu phẩy. Ví dụ: bật điện, bật quạt.</p>
             <div id="preview" class="preview" aria-live="polite">Câu lệnh của bạn sẽ hiện ở đây.</div>
             <div class="buttons"><button id="save-command" class="primary" type="submit">Lưu câu lệnh</button><button id="test-command" type="button">Chạy thử thao tác</button><button id="cancel-edit" type="button" hidden>Hủy sửa</button></div>
           </form>
@@ -596,7 +600,7 @@ class MaikaVoiceEditor extends HTMLElement {
     let count = 0;
     this._lines.forEach((line, index) => {
       if (!line.rule && !line.invalid) return;
-      count += 1;
+      count += line.rule ? phraseList(line.rule.phrase).length : 1;
       const rule = line.rule;
       if (query && !normalizedPhrase(`${rule?.phrase || line.raw} ${rule ? this._name(rule.entity) : ""} ${rule?.entity || ""}`).includes(query)) return;
       const card = element("article", {class: `command${line.invalid ? " invalid" : ""}`});
@@ -633,8 +637,12 @@ class MaikaVoiceEditor extends HTMLElement {
     try {
       const rule = this._collect();
       if (!this._hass.states[rule.entity]) throw new Error("Thiết bị không còn trong Home Assistant. Hãy chọn lại.");
-      if (this._lines.some((line, index) => index !== this._editing && line.rule && normalizedPhrase(line.rule.phrase) === normalizedPhrase(rule.phrase))) throw new Error("Câu nói này đã được dùng. Hãy sửa câu cũ hoặc chọn cách nói khác.");
-      if (this._editing < 0 && this._lines.filter((line) => line.rule || line.invalid).length >= this._limits.rules) throw new Error(`Tối đa ${this._limits.rules} câu lệnh.`);
+      const phrases = phraseList(rule.phrase);
+      if (!phrases.length) throw new Error("Nhập ít nhất một câu nói.");
+      const used = new Set(this._lines.flatMap((line, index) => index === this._editing || !line.rule ? [] : phraseList(line.rule.phrase).map(normalizedPhrase)));
+      if (phrases.some((phrase) => used.has(normalizedPhrase(phrase)))) throw new Error("Câu nói này đã được dùng. Hãy sửa câu cũ hoặc chọn cách nói khác.");
+      const otherRules = this._lines.reduce((count, line, index) => index === this._editing ? count : count + (line.rule ? phraseList(line.rule.phrase).length : line.invalid ? 1 : 0), 0);
+      if (otherRules + phrases.length > this._limits.rules) throw new Error(`Tối đa ${this._limits.rules} câu lệnh.`);
       const raw = `${rule.phrase} | ${rule.entity} | ${rule.action}${Object.keys(rule.data).length ? ` | ${JSON.stringify(rule.data)}` : ""}`;
       const line = {raw, rule};
       if (this._editing >= 0) this._lines[this._editing] = line;

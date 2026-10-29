@@ -30,9 +30,22 @@ const waitRender = async () => {
   await page.waitForTimeout(100);
   await page.waitForFunction(() => document.querySelector("maika-panel")._renderFrame === null);
 };
-const load = async () => { await page.goto(base); await page.locator('[data-sec="settings"]').waitFor(); await page.waitForTimeout(500); };
+const load = async () => {
+  await page.goto(base);
+  await page.locator('[data-sec="settings"]').waitFor();
+  await page.evaluate(() => document.querySelector("maika-panel")?.scrollTo({top: 0, behavior: "instant"}));
+  await page.waitForTimeout(500);
+};
+const openSectionFold = async (section, targetPage = page) => {
+  const fold = targetPage.locator(`[data-card="${section}"] .section-fold`).first();
+  if (!await fold.count()) return;
+  await fold.waitFor();
+  if (await fold.getAttribute("open") === null) await fold.locator(":scope > summary").click();
+};
 const openSetup = async (key, targetPage = page) => {
-  const accordion = targetPage.locator(`[data-sec="settings"] .panel-accordion--${key}`);
+  await openSectionFold("settings", targetPage);
+  const section = targetPage.locator('[data-sec="settings"]');
+  const accordion = section.locator(`.panel-accordion--${key}`);
   await accordion.waitFor();
   if (await accordion.getAttribute("open") === null) await accordion.locator("summary").click();
 };
@@ -41,6 +54,7 @@ const metrics = [];
 async function verifyVoiceEditor() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
+  await openSectionFold("voice");
   const editor = page.locator("maika-voice-editor");
   const input = (id) => editor.locator(`#${id}`);
   const rules = () => page.evaluate(() => snapshot.entries[0].options.voice_command_rules);
@@ -64,6 +78,14 @@ async function verifyVoiceEditor() {
   const save = async (phrase) => { await input("phrase").fill(phrase); await input("save-command").click(); await waitSaved(); };
   const initial = await rules();
   assert.equal(await input("summary").innerText(), "2 câu lệnh");
+  await choose("light.phong_khach", "turn_on");
+  await save("bật đèn phòng khách, mở đèn phòng khách");
+  assert.equal(await input("summary").innerText(), "4 câu lệnh");
+  assert.match(await rules(), /bật đèn phòng khách, mở đèn phòng khách \| light\.phong_khach \| turn_on/);
+  await input("phrase").fill("mở đèn phòng khách");
+  await input("save-command").click();
+  assert.match(await input("message").innerText(), /đã được dùng/);
+  assert.doesNotMatch(await rules(), /\nmở đèn phòng khách \|/);
   await input("target-search").fill("den phong");
   assert.match(await input("target").innerText(), /Đèn phòng khách/);
   assert.doesNotMatch(await input("target").innerText(), /Điều hòa/);
@@ -310,6 +332,7 @@ async function verifyGlassAndMotion() {
   assert.equal(await page.locator('[data-action="effects"]').count(), 0, "Motion stays automatic, there is no animation toggle button");
   await openSetup("license");
   await page.locator('[name="license_key"]').fill("MAIKA-MOTION-DRAFT");
+  await openSectionFold("voice");
   await page.locator("maika-voice-editor").locator("#phrase").fill("bản nháp không mất khi đổi giao diện");
   await page.locator('[data-action="theme"]').selectOption("light");
   assert.equal(await page.locator('[name="license_key"]').inputValue(), "MAIKA-MOTION-DRAFT");
@@ -324,7 +347,9 @@ async function verifyGlassAndMotion() {
   await page.waitForFunction(() => !panel.hasAttribute("data-reduced-motion"));
   assert.equal(await animation(wave), "sound-wave");
   await page.waitForFunction(() => !panel.shadowRoot.querySelector("maika-voice-editor").hasAttribute("data-reduced-motion"));
+  await page.setViewportSize({width: 1440, height: 900});
   await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await page.evaluate(() => { panel.scrollTop = panel.scrollHeight; });
   await page.waitForFunction(() => panel.shadowRoot.querySelector(".hero").hasAttribute("data-motion-paused"));
   assert.equal(await wave.evaluate((element) => getComputedStyle(element).animationPlayState), "paused");
   await page.locator('[data-action="jump"][data-section="overview"]').click();
@@ -350,10 +375,29 @@ async function verifyGlassAndMotion() {
   console.log("PASS solid readable fallback for reduced transparency/high contrast; no settings or device actions from visual effects");
 }
 
+async function verifySectionFolds() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  assert.equal(await page.locator('[data-sec="overview"] .section-fold').count(), 0);
+  for (const section of ["media", "chat", "voice", "device", "settings"]) {
+    const fold = page.locator(`[data-card="${section}"] .section-fold`).first();
+    assert.equal(await fold.count(), 1, `${section} is folded`);
+    assert.equal(await fold.getAttribute("open"), null, `${section} starts closed`);
+    assert.equal(await fold.locator(":scope > summary").getAttribute("aria-expanded"), null);
+  }
+  await page.locator('[data-card="media"] .section-fold > summary').click();
+  assert.equal(await page.locator('[data-card="media"] .section-fold').getAttribute("open"), "");
+  assert(await page.locator('[data-card="media"] .media-now').isVisible(), "Media content expands on demand");
+  await page.locator('[data-action="jump"][data-section="voice"]').click();
+  await page.waitForFunction(() => panel.shadowRoot.querySelector('[data-card="voice"] .section-fold').open);
+  assert.equal(await page.evaluate(() => panel.shadowRoot.querySelector('[data-card="voice"] .section-fold').open), true);
+  console.log("PASS overview stays open, other sections fold, and navigation expands the selected section");
+}
+
 async function verifyDeviceAccordion() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
-  assert.deepEqual(await page.locator(".nav .pill").allTextContents(), ["Tổng quan", "Trò chuyện", "Giọng nói", "Thiết bị", "Thiết lập"]);
+  assert.deepEqual(await page.locator(".nav .pill").allTextContents(), ["Tổng quan", "Trò chuyện", "Giọng nói", "Nhắc hẹn", "Thiết bị", "Thiết lập"]);
   for (const section of ["status", "identity", "info", "firmware", "warranty"]) {
     assert.equal(await page.locator(`[data-action="jump"][data-section="${section}"]`).count(), 0);
   }
@@ -438,6 +482,8 @@ async function verifySetupAccordion() {
 async function verifyDesktopScrolling() {
   await page.setViewportSize({width: 1440, height: 900});
   await load();
+  for (const section of ["media", "chat", "voice", "device", "settings"]) await openSectionFold(section);
+  await page.waitForTimeout(200);
   const geometry = await page.evaluate(() => ({height: panel.clientHeight, content: panel.scrollHeight, viewport: innerHeight}));
   assert(geometry.height <= geometry.viewport, "The panel stays within the viewport when HA wrappers have auto height");
   assert(geometry.content > geometry.height, "The panel owns the vertical scroll area instead of expanding to its content");
@@ -499,6 +545,7 @@ async function verifyDesktopScrolling() {
     snapshot.entries[0].options.voice_command_rules += Array.from({length: 40}, (_, index) => `bật đèn thử ${index} | light.phong_khach | turn_on`).join("\n");
     await panel._load();
   });
+  await openSectionFold("voice");
   const commands = page.locator("maika-voice-editor").locator("#commands");
   await commands.scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);
@@ -546,6 +593,7 @@ async function verifySpeakerGestures() {
     await openSetup("config", touchPage);
     await touchPage.locator('[name="license_key"]').fill("MAIKA-UNSAVED-KEY");
     await touchPage.locator('[name="scan_interval"]').fill("91");
+    await openSectionFold("voice", touchPage);
     await touchPage.locator("maika-voice-editor").locator("#phrase").fill("bản nháp giọng nói");
     await overview();
     await touchPage.evaluate(() => { document.querySelector("maika-panel").scrollTop = 0; });
@@ -709,6 +757,7 @@ async function verifyCommandHistory() {
 async function verifyPlaylistPicker() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
+  await openSectionFold("media");
   const context = () => page.evaluate(() => ({
     media: panel._entity("media_player"),
     serial: panel._activeSerial(),
@@ -780,6 +829,7 @@ async function verifyPlaylistPicker() {
 async function verifyChat() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
+  await openSectionFold("chat");
   const card = () => page.locator('[data-card="chat"]');
   const rows = () => card().locator(".chat-row");
   assert.equal(await card().count(), 1);
@@ -814,9 +864,102 @@ async function verifyChat() {
   console.log("PASS chat submit posts to the panel chat API and clears the input");
 }
 
+async function verifyReminders() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  await page.locator('[data-action="jump"][data-section="reminders"]').click();
+  const card = page.locator('[data-sec="reminders"]');
+  const input = (name) => card.locator(`[data-field="${name}"]`);
+  await card.locator(".reminder-item").first().waitFor();
+  assert.equal(await page.locator(".nav .pill").filter({hasText: "Nhắc hẹn"}).getAttribute("aria-current"), "location");
+  assert.match(await page.evaluate(() => document.querySelector("maika-panel")._lastSignature), /"status":"ready"/);
+  assert.equal(await card.locator(".reminder-item").count(), 1);
+  assert.match(await input("reminder_start").inputValue(), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  const listed = await page.evaluate(() => window.calls.find((call) => call.method === "GET" && call.path.startsWith("maika/panel/reminders")));
+  const activeSerial = await page.evaluate(() => document.querySelector("maika-panel")._activeSerial());
+  assert.ok(listed.path.includes(`serial_number=${activeSerial}`));
+  console.log("PASS reminders load lazily for the selected speaker with a default future time");
+
+  await page.evaluate(() => { window.calls.length = 0; });
+  await input("reminder_event").fill("Họp nhóm");
+  await input("reminder_start").fill("2030-01-03T09:30");
+  await input("reminder_frequency").selectOption("weekly");
+  await input("reminder_alert").selectOption("15");
+  await input("reminder_tts").fill("Sắp đến giờ họp nhóm");
+  await card.locator('form[data-form="reminders"] button[type="submit"]').click();
+  await card.locator(".reminder-item").filter({hasText: "Họp nhóm"}).waitFor();
+  const created = await page.evaluate(() => window.calls.find((call) => call.method === "POST" && call.path === "maika/panel/reminders"));
+  assert.equal(created.data.action, "create");
+  assert.equal(created.data.event, "Họp nhóm");
+  assert.equal(created.data.frequency, "weekly");
+  assert.equal(created.data.alert_prior, 15);
+  assert.equal(created.data.custom_tts, "Sắp đến giờ họp nhóm");
+  assert.equal(new Date(created.data.start_at).toISOString(), new Date("2030-01-03T09:30").toISOString());
+  assert.equal(await card.locator(".reminder-item").count(), 2);
+  assert.equal(await input("reminder_event").inputValue(), "");
+  await page.locator(".msg").filter({hasText: "Đã tạo nhắc hẹn"}).waitFor();
+  console.log("PASS creating a reminder posts the validated payload and updates the list");
+
+  const row = card.locator(".reminder-item").filter({hasText: "Họp nhóm"});
+  await page.evaluate(() => { window.calls.length = 0; });
+  await row.locator('[data-action="reminders-edit"]').click();
+  assert.equal(await input("reminder_event").inputValue(), "Họp nhóm");
+  assert.equal(await input("reminder_frequency").inputValue(), "weekly");
+  assert.equal(await input("reminder_alert").inputValue(), "15");
+  assert.match(await card.locator(".reminder-editbar").innerText(), /Đang sửa: Họp nhóm/);
+  await input("reminder_event").fill("Họp nhóm tuần");
+  await input("reminder_alert").selectOption("30");
+  await card.locator('form[data-form="reminders"] button[type="submit"]').click();
+  await card.locator(".reminder-item").filter({hasText: "Họp nhóm tuần"}).waitFor();
+  const updated = await page.evaluate(() => window.calls.find((call) => call.method === "POST" && call.path === "maika/panel/reminders"));
+  assert.equal(updated.data.action, "update");
+  assert.equal(updated.data.reminder_id, 2);
+  assert.equal(updated.data.alert_prior, 30);
+  assert.equal(await card.locator(".reminder-editbar").count(), 0);
+  assert.equal(await input("reminder_event").inputValue(), "");
+  await page.locator(".msg").filter({hasText: "Đã cập nhật nhắc hẹn"}).waitFor();
+  console.log("PASS editing a reminder pre-fills the form and sends a partial update");
+
+  await page.evaluate(() => { window.calls.length = 0; });
+  await card.locator(".reminder-item").filter({hasText: "Họp nhóm tuần"}).locator('[data-action="reminders-toggle"]').click();
+  await page.waitForFunction(() => [...document.querySelector("maika-panel").shadowRoot.querySelectorAll(".reminder-item")].some((item) => item.textContent.includes("Họp nhóm tuần") && item.textContent.includes("Đã tắt")));
+  const toggled = await page.evaluate(() => window.calls.find((call) => call.method === "POST" && call.path === "maika/panel/reminders"));
+  assert.equal(toggled.data.action, "toggle");
+  assert.equal(toggled.data.reminder_id, 2);
+  assert.equal(toggled.data.enabled, false);
+  console.log("PASS toggling a reminder sends the requested enabled state");
+
+  await page.evaluate(() => { window.calls.length = 0; });
+  let checks = card.locator('.reminder-check input[type="checkbox"]');
+  await checks.nth(1).check();
+  await input("reminder_mute_date").fill("2030-01-04");
+  await card.locator('[data-action="reminders-mute"]').click();
+  await page.locator(".msg").filter({hasText: "Đã tạm tắt 1 nhắc hẹn"}).waitFor();
+  const muted = await page.evaluate(() => window.calls.find((call) => call.method === "POST" && call.path === "maika/panel/reminders"));
+  assert.equal(muted.data.action, "mute");
+  assert.deepEqual(muted.data.reminder_ids, [2]);
+  assert.deepEqual(muted.data.mute_days, ["2030-01-04"]);
+  await card.locator('[data-action="reminders-select-clear"]').click();
+  console.log("PASS muting selected reminders sends the chosen date");
+
+  await page.evaluate(() => { window.calls.length = 0; });
+  checks = card.locator('.reminder-check input[type="checkbox"]');
+  await checks.nth(0).check();
+  await checks.nth(1).check();
+  assert.match(await card.locator(".reminder-editbar").filter({hasText: "đã chọn"}).innerText(), /2 nhắc hẹn đã chọn/);
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.locator('[data-action="reminders-delete-selected"]').click();
+  await page.waitForFunction(() => document.querySelector("maika-panel").shadowRoot.querySelectorAll(".reminder-item").length === 0);
+  const deleted = await page.evaluate(() => window.calls.find((call) => call.method === "POST" && call.path === "maika/panel/reminders"));
+  assert.equal(deleted.data.action, "delete");
+  assert.deepEqual(deleted.data.reminder_ids, [1, 2]);
+  console.log("PASS multi-select deletes the scoped reminder IDs and clears the list");
+}
+
 async function verifyContentStore() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
+  await openSectionFold("media");
   const media = await page.evaluate(() => panel._entity("media_player"));
   const opener = page.locator('[data-action="library"]');
   const dialog = page.locator("dialog.library");
@@ -825,7 +968,7 @@ async function verifyContentStore() {
   await page.evaluate(() => { window.browseCalls.length = 0; });
   await opener.click();
   await dialog.locator(".pl-item").first().waitFor();
-  assert.equal(await dialog.locator(".pl-item").count(), 3);
+  assert.equal(await dialog.locator(".pl-item").count(), 4);
   assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_root");
   console.log("PASS content store opens at the MAIKA library root");
 
@@ -858,10 +1001,22 @@ async function verifyContentStore() {
   assert.deepEqual(played[0].data, {entity_id: media, media_content_type: "maika_cs_track", media_content_id: "https://cdn.example.test/be.mp3"});
   assert(await page.evaluate(() => panel.shadowRoot.activeElement === panel.shadowRoot.querySelector('[data-action="library"]')), "Focus returns to the library button");
   console.log("PASS content store track dispatches one media_player.play_media with the maika_cs_track id");
+
+  await opener.click();
+  await dialog.getByRole("button", {name: "Bài hát yêu thích"}).click();
+  await dialog.getByRole("button", {name: "Yêu thích — Ca sĩ"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_favorite");
+  await page.evaluate(() => { window.calls.length = 0; });
+  await dialog.getByRole("button", {name: "Yêu thích — Ca sĩ"}).click();
+  await page.waitForFunction(() => !document.querySelector("maika-panel").shadowRoot.querySelector("dialog.library")?.open);
+  const favorite = await page.evaluate((entity) => calls.find((call) => call.service === "play_media" && call.data.entity_id === entity), media);
+  assert.deepEqual(favorite.data, {entity_id: media, media_content_type: "maika_favorite_track", media_content_id: "https://cdn.example.test/yeu-thich.mp3"});
+  console.log("PASS favorite track is playable instead of being treated as a folder");
 }
 
 async function verifyNhacCuaTui() {
   await load();
+  await openSectionFold("media");
   const media = await page.evaluate(() => panel._entity("media_player"));
   const dialog = page.locator("dialog.library");
   await page.locator('[data-action="library"]').click();
@@ -879,6 +1034,7 @@ async function verifyNhacCuaTui() {
 
 async function verifyNhacCuaTuiSearch() {
   await load();
+  await openSectionFold("media");
   const media = await page.evaluate(() => panel._entity("media_player"));
   const dialog = page.locator("dialog.library");
   await page.locator('[data-action="library"]').click();
@@ -903,6 +1059,7 @@ async function verifyNhacCuaTuiSearch() {
 
 try {
   await verifyGlassAndMotion();
+  await verifySectionFolds();
   await verifyDeviceAccordion();
   await verifySetupAccordion();
   await verifyDesktopScrolling();
@@ -912,6 +1069,7 @@ try {
   await verifyCommandHistory();
   await verifyPlaylistPicker();
   await verifyChat();
+  await verifyReminders();
   await verifyContentStore();
   await verifyNhacCuaTui();
   await verifyNhacCuaTuiSearch();
@@ -967,6 +1125,7 @@ try {
   console.log("PASS automatic HA theme, manual override, persistence after reload");
 
   await page.locator('[data-action="theme"]').selectOption("light");
+  await openSectionFold("media");
   await page.locator(".cast-drawer summary").click();
   const cast = page.locator('[name="cast_url"]');
   await cast.fill("https://example.test/nhac.mp3");

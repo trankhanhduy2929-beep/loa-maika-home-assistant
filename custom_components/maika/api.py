@@ -8,7 +8,7 @@ import codecs
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Any
 from uuid import uuid4
@@ -17,6 +17,7 @@ import aiohttp
 
 from .const import (
     APP_DEVICE_TYPE,
+    APP_EXECUTOR,
     APP_LANGUAGE,
     APP_ORGANIZATION_CODE,
     APP_TIMEZONE,
@@ -155,6 +156,7 @@ class MaikaApiClient:
 
         self._access_token: str | None = None
         self._user_id: int | None = None
+        self._favorite_playlist_id: int | None = None
         self._token_valid_until = 0.0
         self._auth_lock = asyncio.Lock()
 
@@ -174,6 +176,11 @@ class MaikaApiClient:
     def user_id(self) -> int | None:
         """Return the authenticated MAIKA user ID."""
         return self._user_id
+
+    @property
+    def favorite_playlist_id(self) -> int | None:
+        """Return the account's favorite playlist ID when available."""
+        return self._favorite_playlist_id
 
     @property
     def listener_connected(self) -> bool:
@@ -240,12 +247,170 @@ class MaikaApiClient:
                 "MAIKA login did not return a valid user ID"
             ) from err
 
+        favorite_value = data.get("favorite_playlist_id")
+        self._favorite_playlist_id = (
+            int(favorite_value)
+            if isinstance(favorite_value, (int, str))
+            and str(favorite_value).strip().isdigit()
+            and int(favorite_value) > 0
+            else None
+        )
+
         try:
             expires_in = int(data.get("expire_time", 86400))
         except (TypeError, ValueError):
             expires_in = 86400
         self._token_valid_until = time.monotonic() + max(1, expires_in - 60)
         return data
+
+    async def _async_list_playlist_songs_page(
+        self,
+        playlist_id: int | str,
+        *,
+        page: int,
+        limit: int,
+        order_by: str,
+    ) -> tuple[list[dict[str, Any]], int]:
+        response = await self._async_request_json(
+            "GET",
+            f"{USERS_BASE_URL}/v1/playlists/{playlist_id}/songs",
+            params={"page": page, "limit": limit, "order_by": order_by},
+        )
+        data = response.get("data")
+        songs = data.get("songs") if isinstance(data, dict) else None
+        meta = response.get("meta_data")
+        if not isinstance(meta, dict) and isinstance(data, dict):
+            meta = data.get("meta_data")
+        total_pages = 1
+        if isinstance(meta, dict):
+            raw_total = meta.get("total_page")
+            if isinstance(raw_total, (int, str)) and str(raw_total).strip().isdigit():
+                total_pages = int(raw_total)
+        return (
+            [song for song in songs if isinstance(song, dict)]
+            if isinstance(songs, list)
+            else [],
+            max(1, total_pages),
+        )
+
+    async def async_list_playlist_songs(
+        self,
+        playlist_id: int | str,
+        *,
+        page: int = 1,
+        limit: int = 100,
+        order_by: str = "latest",
+    ) -> list[dict[str, Any]]:
+        """Return one page of songs from a MAIKA playlist."""
+        songs, _ = await self._async_list_playlist_songs_page(
+            playlist_id, page=page, limit=limit, order_by=order_by
+        )
+        return songs
+
+    async def async_list_all_playlist_songs(
+        self,
+        playlist_id: int | str,
+        *,
+        limit: int = 100,
+        order_by: str = "latest",
+        max_pages: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Return every MAIKA playlist page, capped to avoid unbounded requests."""
+        songs, total_pages = await self._async_list_playlist_songs_page(
+            playlist_id, page=1, limit=limit, order_by=order_by
+        )
+        for page in range(2, min(total_pages, max(1, max_pages)) + 1):
+            page_songs, _ = await self._async_list_playlist_songs_page(
+                playlist_id, page=page, limit=limit, order_by=order_by
+            )
+            songs.extend(page_songs)
+        return songs
+
+    async def async_list_reminders(self) -> list[dict[str, Any]]:
+        """Return reminder groups from the MAIKA cloud."""
+        response = await self._async_request_json(
+            "GET",
+            f"{USERS_BASE_URL}/v1/reminder",
+            params={"page": 0, "limit": 1000},
+        )
+        data = response.get("data")
+        if not isinstance(data, list):
+            return []
+        return [group for group in data if isinstance(group, dict)]
+
+    async def async_create_reminder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a reminder through the MAIKA cloud."""
+        return await self._async_request_json(
+            "POST", f"{USERS_BASE_URL}/v1/reminder", json_body=payload
+        )
+
+    async def async_update_reminder(
+        self,
+        reminder_id: int | str,
+        payload: dict[str, Any],
+        *,
+        not_sync: bool = False,
+    ) -> dict[str, Any]:
+        """Update one reminder through the MAIKA cloud."""
+        return await self._async_request_json(
+            "PUT",
+            f"{USERS_BASE_URL}/v1/reminder/{int(reminder_id)}",
+            params={"not_sync": str(not_sync).lower()},
+            json_body=payload,
+        )
+
+    async def async_delete_reminder(
+        self, reminder_id: int | str, *, executor: str = APP_EXECUTOR
+    ) -> dict[str, Any]:
+        """Delete one reminder through the MAIKA cloud."""
+        return await self._async_request_json(
+            "DELETE",
+            f"{USERS_BASE_URL}/v1/reminder/{int(reminder_id)}",
+            json_body={
+                "executor": executor,
+                "all": False,
+                "reminder_ids": [int(reminder_id)],
+            },
+        )
+
+    async def async_delete_reminders(
+        self,
+        reminder_ids: Sequence[int | str],
+        *,
+        delete_all: bool = False,
+        executor: str = APP_EXECUTOR,
+    ) -> dict[str, Any]:
+        """Delete one or more reminders through the MAIKA cloud."""
+        ids = [int(reminder_id) for reminder_id in reminder_ids]
+        if not ids and not delete_all:
+            raise ValueError("At least one reminder ID is required")
+        return await self._async_request_json(
+            "DELETE",
+            f"{USERS_BASE_URL}/v1/reminder",
+            json_body={
+                "executor": executor,
+                "all": bool(delete_all),
+                "reminder_ids": None if delete_all else ids,
+            },
+        )
+
+    async def async_mute_reminders(
+        self,
+        reminder_ids: Sequence[int | str],
+        mute_days: Sequence[str],
+        *,
+        executor: str = APP_EXECUTOR,
+    ) -> dict[str, Any]:
+        """Mute reminders for the provided dates through the MAIKA cloud."""
+        return await self._async_request_json(
+            "POST",
+            f"{USERS_BASE_URL}/v1/reminder/mute",
+            json_body={
+                "executor": executor,
+                "mute_days": list(mute_days),
+                "reminder_ids": [int(reminder_id) for reminder_id in reminder_ids],
+            },
+        )
 
     async def async_list_devices(self) -> list[dict[str, Any]]:
         """Return all MAIKA speakers registered to the account."""
@@ -1002,6 +1167,7 @@ class MaikaApiClient:
 
     def _clear_authentication(self) -> None:
         self._access_token = None
+        self._favorite_playlist_id = None
         self._token_valid_until = 0.0
 
     def _rest_headers(self, *, include_authorization: bool) -> dict[str, str]:

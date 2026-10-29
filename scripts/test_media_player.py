@@ -218,6 +218,8 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             async_playback_command=AsyncMock(),
             async_cast_media=AsyncMock(),
             async_set_volume=AsyncMock(),
+            favorite_playlist_id=None,
+            async_list_all_playlist_songs=AsyncMock(return_value=[]),
         )
         self.coordinator = SimpleNamespace(
             entry=SimpleNamespace(options={"enable_experimental_cloud_cast": True}),
@@ -1234,6 +1236,8 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             "maika_queue_jump_failed",
             "maika_content_store_failed",
             "maika_content_store_invalid_selection",
+            "maika_favorites_unavailable",
+            "maika_favorites_failed",
         ):
             with self.subTest(key=key):
                 self.assertEqual(strings["exceptions"][key], english["exceptions"][key])
@@ -1346,6 +1350,61 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(
             error.exception.translation_key, "maika_content_store_invalid_selection"
+        )
+
+    async def test_favorites_require_playlist_and_surface_failures(self):
+        with self.assertRaises(BrowseError) as error:
+            await self.player.async_browse_media("maika_favorite", "maika_favorite")
+        self.assertEqual(error.exception.translation_key, "maika_favorites_unavailable")
+        self.client.favorite_playlist_id = 42
+        self.client.async_list_all_playlist_songs.side_effect = ApiError("boom")
+        with self.assertRaises(BrowseError) as error:
+            await self.player.async_browse_media("maika_favorite", "maika_favorite")
+        self.assertEqual(error.exception.translation_key, "maika_favorites_failed")
+
+    async def test_favorites_are_first_content_store_directory_and_playable(self):
+        self.client.favorite_playlist_id = 42
+        self.client.async_list_all_playlist_songs.return_value = [
+            {
+                "songKey": "Track0001",
+                "song": "Bài yêu thích",
+                "artist": "Ca sĩ",
+                "url": "https://cdn/favorite.mp3",
+                "imageURL": "https://cdn/favorite.jpg",
+            },
+            {
+                "songKey": "Track0002",
+                "song": "Thiếu stream",
+                "url": "not-a-url",
+            },
+        ]
+        content_root = await self.player.async_browse_media(
+            "maika_cs_root", "maika_cs_root"
+        )
+        favorite = content_root.children[0]
+        self.assertEqual(favorite.media_content_type, "maika_favorite")
+        self.assertEqual(favorite.media_content_id, "maika_favorite")
+        self.assertEqual(favorite.title, "Bài hát yêu thích")
+
+        favorites = await self.player.async_browse_media(
+            "maika_favorite", "maika_favorite"
+        )
+        self.client.async_list_all_playlist_songs.assert_awaited_once_with(42)
+        self.assertEqual(len(favorites.children), 1)
+        track = favorites.children[0]
+        self.assertEqual(track.media_content_type, "maika_favorite_track")
+        self.assertEqual(track.media_content_id, "https://cdn/favorite.mp3")
+        self.assertEqual(track.title, "Bài yêu thích — Ca sĩ")
+        self.assertEqual(track.thumbnail, "https://cdn/favorite.jpg")
+        self.assertTrue(track.can_play)
+
+        await self.player.async_play_media(
+            "maika_favorite_track", track.media_content_id
+        )
+        self.client.async_cast_media.assert_awaited_once()
+        self.assertEqual(
+            self.client.async_cast_media.call_args.args[:2],
+            ("speaker-one", "https://cdn/favorite.mp3"),
         )
 
     async def test_nhaccuatui_browse_and_play(self):

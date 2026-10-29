@@ -16,7 +16,12 @@ Ví dụ: chọn **Đèn phòng khách → Bật → Độ sáng 70%**, nhập *
 mươi** rồi lưu. Không phải viết entity ID, action hoặc JSON.
 
 - **Sửa / Thêm cách nói / Xóa** ngay trên từng câu lệnh. Câu bị trùng sau khi
-  bỏ dấu/hoa thường/dấu câu sẽ được cảnh báo trước khi lưu.
+  bỏ dấu/hoa thường/dấu câu sẽ được cảnh báo trước khi lưu. Có thể nhập nhiều
+  cách nói cho cùng một thao tác, cách nhau bằng dấu phẩy, ví dụ
+  `bật đèn phòng khách, mở đèn phòng khách`; mỗi cách nói vẫn tính riêng vào
+  giới hạn 200 câu.
+- Khi đổi **Entity ID** của thiết bị trong Home Assistant, các rule đang dùng
+  entity đó tự cập nhật sang ID mới; comment và định dạng dòng được giữ nguyên.
 - **Chạy thử** yêu cầu xác nhận vì sẽ điều khiển thật. Nút này dùng service
   Home Assistant, không kiểm tra nhận diện giọng nói hoặc âm phản hồi.
 - Automation: **Kích hoạt automation** chạy ngay; **Bật automation** chỉ bật
@@ -151,6 +156,11 @@ câu lệnh | entity_id | action | {"tham_so": gia_tri}
 
 Cú pháp ba cột của các bản cũ vẫn hoạt động. Cột JSON thứ tư chỉ cần khi action
 có tham số như độ sáng, nhiệt độ, phần trăm quạt, vị trí rèm hoặc âm lượng.
+
+Cột câu lệnh có thể chứa nhiều câu cách nhau bằng dấu phẩy cho cùng một
+entity/action/thông số. Ví dụ `bật điện, bật quạt | switch.den | turn_on` tạo
+hai rule riêng. Mỗi câu vẫn tính vào giới hạn 200 rule và không được trùng sau
+chuẩn hóa.
 
 Ví dụ phổ biến:
 

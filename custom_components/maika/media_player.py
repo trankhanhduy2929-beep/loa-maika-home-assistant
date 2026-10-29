@@ -103,6 +103,8 @@ _MEDIA_NCT_FEED = "maika_nct_feed"
 _MEDIA_NCT_CHARTS = "maika_nct_charts"
 _MEDIA_NCT_CHART_PREFIX = "maika_nct_chart:"
 _MEDIA_NCT_TRACK = "maika_nct_track"
+_MEDIA_FAVORITE = "maika_favorite"
+_MEDIA_FAVORITE_TRACK = "maika_favorite_track"
 _CS_ROOT_TITLE = "Thư viện giải trí MAIKA"
 _CS_CHANNELS_TITLE = "Kênh"
 _CS_CATEGORIES_TITLE = "Thể loại"
@@ -111,6 +113,7 @@ _NCT_ROOT_TITLE = "NhạcCủaTui"
 _NCT_FEED_TITLE = "Bài hát mới"
 _NCT_CHARTS_TITLE = "Top thịnh hành"
 _NCT_CHART_TITLE = "NhạcCủaTui"
+_FAVORITE_TITLE = "Bài hát yêu thích"
 _QUEUE_TITLE = "Danh sách trên loa MAIKA"
 _MAX_SONG_KEY_BYTES = 512
 _MAX_QUEUE_ITEM_ID_LENGTH = 71 + _MAX_SONG_KEY_BYTES * 3
@@ -371,6 +374,8 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             and media_content_id == _MEDIA_PLAYLIST
         ):
             return await self._async_browse_playlist()
+        if media_content_id == _MEDIA_FAVORITE:
+            return await self._async_browse_favorites()
         if media_content_id and media_content_id.startswith(
             ("maika_cs_", "maika_nct_")
         ):
@@ -400,6 +405,27 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         )
 
     def _content_store_root(self) -> BrowseMedia:
+        children = []
+        if getattr(self.coordinator.client, "favorite_playlist_id", None):
+            children.append(
+                BrowseMedia(
+                    media_class=MediaClass.DIRECTORY,
+                    media_content_type=_MEDIA_FAVORITE,
+                    media_content_id=_MEDIA_FAVORITE,
+                    title=_FAVORITE_TITLE,
+                    can_play=False,
+                    can_expand=True,
+                    children_media_class=MediaClass.TRACK,
+                )
+            )
+        children.extend(
+            [
+                self._cs_directory(_MEDIA_CS_CHANNELS, _CS_CHANNELS_TITLE),
+                self._cs_directory(_MEDIA_CS_CATEGORIES, _CS_CATEGORIES_TITLE),
+                self._cs_directory(_MEDIA_CS_HIGHLIGHTS, _CS_HIGHLIGHTS_TITLE),
+                self._cs_directory(_MEDIA_NCT_ROOT, _NCT_ROOT_TITLE),
+            ]
+        )
         return BrowseMedia(
             media_class=MediaClass.DIRECTORY,
             media_content_type=_MEDIA_CS_ROOT,
@@ -408,12 +434,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             can_play=False,
             can_expand=True,
             children_media_class=MediaClass.DIRECTORY,
-            children=[
-                self._cs_directory(_MEDIA_CS_CHANNELS, _CS_CHANNELS_TITLE),
-                self._cs_directory(_MEDIA_CS_CATEGORIES, _CS_CATEGORIES_TITLE),
-                self._cs_directory(_MEDIA_CS_HIGHLIGHTS, _CS_HIGHLIGHTS_TITLE),
-                self._cs_directory(_MEDIA_NCT_ROOT, _NCT_ROOT_TITLE),
-            ],
+            children=children,
         )
 
     @staticmethod
@@ -710,6 +731,58 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             else None,
         )
 
+    async def _async_browse_favorites(self) -> BrowseMedia:
+        playlist_id = getattr(self.coordinator.client, "favorite_playlist_id", None)
+        if not playlist_id:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_favorites_unavailable",
+            )
+        try:
+            songs = await self.coordinator.client.async_list_all_playlist_songs(
+                playlist_id
+            )
+        except MaikaApiError as err:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_favorites_failed",
+            ) from err
+        children = []
+        for song in songs:
+            url = self._first_string(song.get("url"))
+            if not url or not is_valid_http_media_url(url):
+                continue
+            title = (
+                self._first_string(song.get("song"))
+                or self._first_string(song.get("songKey"))
+                or "Bài hát yêu thích"
+            )
+            artist = self._first_string(song.get("artist"))
+            thumbnail = self._first_string(song.get("imageURL"))
+            children.append(
+                BrowseMedia(
+                    media_class=MediaClass.MUSIC,
+                    media_content_type=_MEDIA_FAVORITE_TRACK,
+                    media_content_id=url,
+                    title=f"{title} — {artist}" if artist else title,
+                    can_play=True,
+                    can_expand=False,
+                    thumbnail=thumbnail
+                    if thumbnail and is_valid_http_media_url(thumbnail)
+                    else None,
+                )
+            )
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=_MEDIA_FAVORITE,
+            media_content_id=_MEDIA_FAVORITE,
+            title=_FAVORITE_TITLE,
+            can_play=False,
+            can_expand=True,
+            children_media_class=MediaClass.MUSIC,
+            children=children,
+        )
+
     async def _async_browse_sources(self, media_content_id: str | None) -> BrowseMedia:
         return await media_source.async_browse_media(
             self.hass,
@@ -923,6 +996,9 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             return
         if media_type == _MEDIA_NCT_TRACK:
             await self._async_cast_nct(media_id, kwargs.get("extra"))
+            return
+        if media_type == _MEDIA_FAVORITE_TRACK:
+            await self.async_play_media("audio/mpeg", media_id, **kwargs)
             return
         if nct_key := parse_nct_song_key(media_id):
             await self._async_cast_nct(nct_key, kwargs.get("extra"))

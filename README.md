@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.26.0**.
+Bản hiện tại: **v1.27.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -38,6 +38,8 @@ integration, không xóa thiết bị và không cần nhập lại license key.
   câu trả lời mặc định của loa, hoặc chỉ phát sau khi HASS thành công.
 - Chọn bài trong danh sách bài trên loa ngay trong panel, kể cả khi tắt cast cloud.
 - Duyệt **Thư viện giải trí MAIKA** (kênh/radio, thể loại, nội dung nổi bật) trong trình duyệt media của Home Assistant hoặc ngay trong panel.
+- Duyệt và phát **Bài hát yêu thích** của tài khoản MAIKA qua cast cloud, ngay trong Thư viện giải trí; danh sách tải đủ các trang playlist.
+- Xem, tạo và xóa **nhắc hẹn** phát trên loa (một lần hoặc lặp lại, báo trước, lời đọc TTS tùy chọn) trong mục **Nhắc hẹn** của panel hoặc bằng service Home Assistant.
 - Duyệt, tìm kiếm và phát **NhạcCủaTui** ngay trên mục MAIKA và trong thư viện giải trí: bài hát mới, top thịnh hành, tìm theo tên bài/ca sĩ; phát link bài NhạcCủaTui bằng `media_player.play_media`.
 - Gõ câu lệnh **trò chuyện với loa** từ panel; integration gửi event `Recognize` tới đúng loa và hiện phản hồi của loa.
 - **Lịch sử câu lệnh được lưu lại** qua các lần khởi động lại Home Assistant.
@@ -73,6 +75,8 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.27.0` thêm **Nhắc hẹn** trên loa (panel và service automation), **Bài hát yêu thích** có tải đủ trang playlist, và giao diện panel gọn hơn trên điện thoại.
 
 Bản `1.26.0` thêm thao tác **Đọc trạng thái và trả lời** cho câu lệnh giọng nói.
 Chọn cảm biến hoặc điều hòa, chọn giọng TTS rồi đặt câu như “nhiệt độ phòng
@@ -218,13 +222,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.26.0
+## File phát hành v1.27.0
 
-- `maika.zip` và `maika-v1.26.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.26.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.26.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.27.0-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.27.0` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.27.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.26.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.27.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
@@ -333,6 +337,45 @@ data:
 URL sau khi Home Assistant resolve, kể cả query token tạm nếu có, được gửi tới cloud MAIKA và loa phải truy cập được URL đó. Từ `1.15.0`, nếu URL do Home Assistant tạo dùng tên mDNS như `homeassistant.local`, tên nội bộ `supervisor`/`hassio` hay địa chỉ loopback mà loa không phân giải được, tích hợp tự đổi phần scheme/host/port sang địa chỉ LAN của Home Assistant, giữ nguyên đường dẫn và chữ ký `authSig`. Nếu mạng có cấu hình đặc biệt, điền **Địa chỉ Home Assistant cho loa tải nhạc** trong Cấu hình để chỉ định thủ công.
 
 Bản `1.15.0` chấp nhận MP3/MPEG, MP4/AAC và thêm các định dạng audio thường gặp như FLAC, WAV, OGG, Opus, WebM (firmware tự nhận dạng URL); MIME `audio/mp4` từ TTS vẫn được hỗ trợ. Cờ `announce=true` được xử lý theo kiểu thay thế nội dung đang phát và không tự khôi phục nội dung cũ. Bài đang cast từ Home Assistant có thể tua bằng `media_player.media_seek` (hoặc thanh thời gian trong panel). Cloud cast không hỗ trợ queue `add/next`, stop thật, video hay URL có username/password. Xem [Cloud cast](docs/CLOUD_CAST.md).
+
+## Dịch vụ nhắc hẹn
+
+Các service `maika.create_reminder`, `maika.update_reminder`,
+`maika.set_reminder_enabled`, `maika.delete_reminders` và
+`maika.mute_reminders` thao tác trên đúng loa MAIKA đã chọn. Trong Developer
+Tools → Actions có thể chọn **MAIKA device**; khi gọi bằng YAML, truyền
+`target.device_id` hoặc `entry_id` + `serial_number`.
+
+```yaml
+action: maika.create_reminder
+target:
+  device_id: 0123456789abcdef0123456789abcdef
+data:
+  event: "Uống thuốc"
+  start_at: "2026-11-01T07:30:00+07:00"
+  frequency: daily
+  alert_prior: 10
+  custom_tts: "Đã đến giờ uống thuốc"
+```
+
+`start_at` dùng giờ địa phương của Home Assistant; `alert_prior` tính bằng phút
+(0–1440). `frequency` nhận `once`, `daily`, `weekly`, `monthly` hoặc `yearly`.
+Service từ chối nhắc hẹn trong quá khứ, giới hạn độ dài nội dung và luôn kiểm
+tra reminder ID thuộc đúng loa trước khi sửa, xóa hoặc tắt nhắc.
+
+```yaml
+action: maika.set_reminder_enabled
+target:
+  device_id: 0123456789abcdef0123456789abcdef
+data:
+  reminder_id: 42
+  enabled: false
+```
+
+`maika.delete_reminders` nhận `reminder_ids` (một hoặc nhiều ID).
+`maika.mute_reminders` nhận thêm `mute_days` theo định dạng `YYYY-MM-DD`.
+`maika.update_reminder` chỉ gửi các trường được truyền, nên có thể đổi giờ, tần
+suất, nội dung, lời đọc hoặc trạng thái mà không cần gửi lại toàn bộ nhắc hẹn.
 
 ## Tài liệu
 

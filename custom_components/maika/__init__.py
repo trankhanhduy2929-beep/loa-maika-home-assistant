@@ -5,8 +5,9 @@ from __future__ import annotations
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import ConfigType, HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import MaikaApiClient
@@ -23,6 +24,7 @@ from .license_manager import MaikaLicenseManager, MaikaLicenseUnavailableError
 from .panel import async_register_panel, async_remove_panel
 from .phone import normalize_login_identifier
 from .runtime import MaikaRuntimeData
+from .services import async_setup_services
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
@@ -37,6 +39,12 @@ PLATFORMS = [
 type MaikaConfigEntry = ConfigEntry[MaikaRuntimeData]
 
 _LICENSE_NOTIFICATION_ID = "maika_license_activation"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register integration-wide services."""
+    await async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> bool:
@@ -83,6 +91,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MaikaConfigEntry) -> boo
         raise
 
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED,
+            coordinator.async_handle_entity_registry_updated,
+        )
+    )
     license_manager.async_start(
         entry,
         lambda err: _async_handle_invalid_license(hass, entry, err),

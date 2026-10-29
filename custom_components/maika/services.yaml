@@ -1,0 +1,214 @@
+create_reminder:
+  name: Create reminder
+  description: Create a reminder that the selected MAIKA speaker reads aloud.
+  target:
+    device:
+      integration: maika
+  fields:
+    entry_id:
+      name: Account
+      description: MAIKA account, required only when a serial number is ambiguous.
+      selector:
+        config_entry:
+          integration: maika
+    serial_number:
+      name: Speaker serial number
+      description: Optional when the service targets a MAIKA device.
+      selector:
+        text:
+    event:
+      name: Reminder text
+      required: true
+      selector:
+        text:
+    start_at:
+      name: Start time
+      required: true
+      selector:
+        datetime:
+    frequency:
+      name: Repeat
+      default: once
+      selector:
+        select:
+          options:
+            - label: Once
+              value: once
+            - label: Daily
+              value: daily
+            - label: Weekly
+              value: weekly
+            - label: Monthly
+              value: monthly
+            - label: Yearly
+              value: yearly
+    alert_prior:
+      name: Alert before
+      description: Minutes before the start time.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: minutes
+          mode: box
+    custom_tts:
+      name: Spoken text
+      description: Optional text the speaker reads instead of the reminder text.
+      selector:
+        text:
+
+update_reminder:
+  name: Update reminder
+  description: Change some fields of an existing reminder on a MAIKA speaker.
+  target:
+    device:
+      integration: maika
+  fields:
+    entry_id:
+      name: Account
+      selector:
+        config_entry:
+          integration: maika
+    serial_number:
+      name: Speaker serial number
+      selector:
+        text:
+    reminder_id:
+      name: Reminder ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    event:
+      name: Reminder text
+      selector:
+        text:
+    start_at:
+      name: Start time
+      selector:
+        datetime:
+    frequency:
+      name: Repeat
+      selector:
+        select:
+          options:
+            - label: Once
+              value: once
+            - label: Daily
+              value: daily
+            - label: Weekly
+              value: weekly
+            - label: Monthly
+              value: monthly
+            - label: Yearly
+              value: yearly
+    alert_prior:
+      name: Alert before
+      description: Minutes before the start time.
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: minutes
+          mode: box
+    custom_tts:
+      name: Spoken text
+      selector:
+        text:
+    status:
+      name: Status
+      selector:
+        select:
+          options:
+            - label: Enabled
+              value: 1
+            - label: Disabled
+              value: 2
+
+set_reminder_enabled:
+  name: Enable or disable reminder
+  description: Turn one MAIKA reminder on or off without deleting it.
+  target:
+    device:
+      integration: maika
+  fields:
+    entry_id:
+      name: Account
+      selector:
+        config_entry:
+          integration: maika
+    serial_number:
+      name: Speaker serial number
+      selector:
+        text:
+    reminder_id:
+      name: Reminder ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+delete_reminders:
+  name: Delete reminders
+  description: Delete one or more reminders from a MAIKA speaker.
+  target:
+    device:
+      integration: maika
+  fields:
+    entry_id:
+      name: Account
+      selector:
+        config_entry:
+          integration: maika
+    serial_number:
+      name: Speaker serial number
+      selector:
+        text:
+    reminder_ids:
+      name: Reminder IDs
+      required: true
+      selector:
+        number:
+          min: 1
+          multiple: true
+          mode: box
+
+mute_reminders:
+  name: Mute reminders
+  description: Mute selected MAIKA reminders for one or more calendar dates.
+  target:
+    device:
+      integration: maika
+  fields:
+    entry_id:
+      name: Account
+      selector:
+        config_entry:
+          integration: maika
+    serial_number:
+      name: Speaker serial number
+      selector:
+        text:
+    reminder_ids:
+      name: Reminder IDs
+      required: true
+      selector:
+        number:
+          min: 1
+          multiple: true
+          mode: box
+    mute_days:
+      name: Muted dates
+      description: Dates in YYYY-MM-DD format.
+      required: true
+      selector:
+        text:
+          multiple: true

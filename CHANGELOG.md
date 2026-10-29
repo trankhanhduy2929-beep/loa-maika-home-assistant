@@ -2,6 +2,52 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.27.0] - 2026-10-29
+
+### Added
+
+- **Bài hát yêu thích MAIKA**: mục mới trong **Thư viện giải trí** đọc playlist
+  yêu thích của tài khoản MAIKA đang đăng nhập và phát trực tiếp qua cast cloud.
+  Mục này chỉ xuất hiện khi tài khoản trả về `favorite_playlist_id`. Danh sách
+  tải đủ các trang theo `meta_data.total_page` thay vì chỉ 100 bài đầu.
+- **Nhắc hẹn trên loa**: mục **Nhắc hẹn** trong panel cho phép xem, tạo và xóa
+  lịch nhắc qua cloud MAIKA. Hỗ trợ một lần/hằng ngày/hằng tuần/hằng tháng/hằng
+  năm, báo trước 0–60 phút và lời đọc TTS tùy chọn; danh sách tải theo loa đang
+  chọn khi mở mục và tự cập nhật sau khi tạo/xóa.
+- Thêm endpoint panel `GET/POST /api/maika/panel/reminders` và helper kiểm tra
+  thời gian, nội dung, tần suất trước khi gửi lên MAIKA.
+- **Service nhắc hẹn cho automation**: `maika.create_reminder`,
+  `maika.update_reminder`, `maika.set_reminder_enabled`,
+  `maika.delete_reminders` và `maika.mute_reminders`. Service nhận device
+  target hoặc `entry_id` + `serial_number`, xác minh reminder thuộc đúng loa
+  trước khi sửa/xóa và trả lỗi rõ ràng khi chọn thiếu hoặc trùng loa.
+
+### Changed
+
+- **Panel gọn hơn trên điện thoại**: chỉ mục **Tổng quan** mở sẵn; Trò chuyện,
+  Giọng nói, Thiết bị, Thiết lập và phần media được gom thành mục có nút mở/đóng.
+  Chọn mục trên thanh điều hướng sẽ tự mở đúng phần; trạng thái mở được giữ khi
+  dữ liệu loa cập nhật.
+- **Gom nhiều cách nói vào một rule**: nhập các câu cách nhau bằng dấu phẩy cho
+  cùng một thiết bị/thao tác. Bộ đếm và giới hạn 200 tính theo từng câu; kiểm
+  tra trùng vẫn áp dụng sau khi bỏ dấu và chuẩn hóa chữ.
+- **Tự cập nhật rule khi đổi Entity ID**: Home Assistant rename entity sẽ cập
+  nhật cột entity trong các rule liên quan, giữ nguyên comment, thông số và bố
+  cục dòng.
+
+### Tests
+
+- Thêm unit test tách câu theo dấu phẩy, giới hạn, trùng lặp và rewrite Entity ID
+  (kể cả CRLF/comment); panel browser kiểm tra accordion, bộ đếm câu và luồng
+  lưu câu lệnh.
+- Thêm unit test payload/parse/lọc nhắc hẹn, wire format endpoint playlist và
+  reminder, browse/phát bài yêu thích; panel browser kiểm tra tải nhắc hẹn, tạo,
+  xóa và phát bài yêu thích.
+- Thêm unit test service nhắc hẹn: chọn loa qua device/entry/serial, chặn loa
+  mơ hồ, scope reminder ID theo loa, cập nhật một phần, bật/tắt, xóa, mute và
+  từ chối ngày mute sai định dạng.
+- Unit test, panel browser, ruff và validate repository pass.
+
 ## [1.26.0] - 2026-10-26
 
 ### Added

@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from .api import MaikaApiError
 from .audio_library import (
     AUDIO_LIBRARY_PANEL_PATH,
     AUDIO_LIBRARY_URL_PATH,
@@ -57,6 +58,14 @@ from .license_config import DEFAULT_LICENSE_SERVER_URL, LICENSE_PORTAL_URL
 from .license_store import MaikaLicenseStore, MaikaStoredLicense
 from .media_relay import MaikaMediaRelayView
 from .media_url import is_valid_http_media_url
+from .reminders import (
+    REMINDER_STATUS_DISABLED,
+    REMINDER_STATUS_ENABLED,
+    ReminderValidationError,
+    build_reminder_payload,
+    build_reminder_update_payload,
+    flatten_reminders,
+)
 from .voice_rules import (
     MAX_PHRASE_LENGTH,
     MAX_VOICE_COMMAND_RULES,
@@ -143,6 +152,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         MaikaPanelOptionsView(hass),
         MaikaPanelActionView(hass),
         MaikaPanelChatView(hass),
+        MaikaPanelRemindersView(hass),
         MaikaPanelAudioLibraryView(hass),
         MaikaMediaRelayView(hass),
     ):
@@ -594,6 +604,221 @@ class MaikaPanelChatView(MaikaPanelMixin, HomeAssistantView):
         if not result.get("ok"):
             return self.json({"ok": False, "error": result.get("error")}, status=400)
         return self.json(result)
+
+
+class MaikaPanelRemindersView(MaikaPanelMixin, HomeAssistantView):
+    """List, create and delete MAIKA reminders from the panel."""
+
+    url = "/api/maika/panel/reminders"
+    name = "api:maika:panel:reminders"
+
+    async def get(self, request: web.Request) -> web.Response:
+        entry = _entry_by_id(self.hass, request.query.get("entry_id"))
+        if entry is None:
+            return self.json_message("entry_not_found", 404)
+        serial_number = str(request.query.get("serial_number") or "").strip()
+        if serial_number and not _entry_serial(entry, serial_number):
+            return self.json_message("unknown_speaker", 400)
+        client = _entry_client(entry)
+        if client is None:
+            return self.json_message("coordinator_unavailable", 503)
+        try:
+            groups = await client.async_list_reminders()
+        except MaikaApiError:
+            return self.json_message("reminders_unavailable", 502)
+        reminders = _filter_reminders(flatten_reminders(groups), serial_number)
+        return self.json({"reminders": reminders})
+
+    async def post(self, request: web.Request) -> web.Response:
+        body = await _read_json(request)
+        entry, error = self.entry_or_error(body)
+        if error is not None:
+            return error
+        client = _entry_client(entry)
+        if client is None:
+            return self.json_message("coordinator_unavailable", 503)
+
+        action = str(body.get("action") or "")
+        serial_number = str(body.get("serial_number") or "").strip()
+        if serial_number and not _entry_serial(entry, serial_number):
+            return self.json_message("unknown_speaker", 400)
+
+        if action == "create":
+            if not _entry_serial(entry, serial_number):
+                return self.json_message("unknown_speaker", 400)
+            try:
+                payload = build_reminder_payload(
+                    event=str(body.get("event") or ""),
+                    start_at=str(body.get("start_at") or ""),
+                    serial_number=serial_number,
+                    frequency=str(body.get("frequency") or "once"),
+                    alert_prior=body.get("alert_prior", 0),
+                    custom_tts=str(body.get("custom_tts") or ""),
+                )
+            except ReminderValidationError as err:
+                return self.json_message(err.code, 400)
+            try:
+                await client.async_create_reminder(payload)
+            except MaikaApiError:
+                return self.json_message("reminders_unavailable", 502)
+            return await self._json_after_change(client, serial_number)
+
+        if action in ("update", "toggle"):
+            try:
+                reminder_id = _parse_reminder_id(body.get("reminder_id"))
+                if action == "toggle":
+                    enabled = body.get("enabled")
+                    if not isinstance(enabled, bool):
+                        return self.json_message("invalid_reminder_status", 400)
+                    payload = build_reminder_update_payload(
+                        status=(
+                            REMINDER_STATUS_ENABLED
+                            if enabled
+                            else REMINDER_STATUS_DISABLED
+                        )
+                    )
+                else:
+                    fields = {
+                        name: body[name]
+                        for name in (
+                            "event",
+                            "start_at",
+                            "frequency",
+                            "alert_prior",
+                            "custom_tts",
+                            "status",
+                        )
+                        if name in body
+                    }
+                    payload = build_reminder_update_payload(**fields)
+            except ReminderValidationError as err:
+                return self.json_message(err.code, 400)
+            try:
+                await client.async_update_reminder(reminder_id, payload)
+            except MaikaApiError:
+                return self.json_message("reminders_unavailable", 502)
+            return await self._json_after_change(client, serial_number)
+
+        if action == "delete":
+            try:
+                reminder_ids = _parse_reminder_ids(
+                    body.get("reminder_ids")
+                    if "reminder_ids" in body
+                    else [body.get("reminder_id")]
+                )
+            except ReminderValidationError as err:
+                return self.json_message(err.code, 400)
+            try:
+                reminder_ids = await _scoped_reminder_ids(
+                    client, serial_number, reminder_ids
+                )
+            except MaikaApiError:
+                return self.json_message("reminders_unavailable", 502)
+            if not reminder_ids:
+                return self.json_message("invalid_reminder_id", 400)
+            try:
+                await client.async_delete_reminders(reminder_ids)
+            except MaikaApiError:
+                return self.json_message("reminders_unavailable", 502)
+            return await self._json_after_change(client, serial_number)
+
+        if action == "mute":
+            try:
+                reminder_ids = _parse_reminder_ids(body.get("reminder_ids"))
+                mute_days = body.get("mute_days")
+                if (
+                    not isinstance(mute_days, list)
+                    or not mute_days
+                    or not all(
+                        isinstance(day, str) and day.strip() for day in mute_days
+                    )
+                ):
+                    return self.json_message("invalid_mute_days", 400)
+            except ReminderValidationError as err:
+                return self.json_message(err.code, 400)
+            try:
+                reminder_ids = await _scoped_reminder_ids(
+                    client, serial_number, reminder_ids
+                )
+            except MaikaApiError:
+                return self.json_message("reminders_unavailable", 502)
+            if not reminder_ids:
+                return self.json_message("invalid_reminder_id", 400)
+            try:
+                await client.async_mute_reminders(reminder_ids, mute_days)
+            except MaikaApiError:
+                return self.json_message("reminders_unavailable", 502)
+            return await self._json_after_change(client, serial_number)
+
+        return self.json_message("invalid_action", 400)
+
+    async def _json_after_change(
+        self, client: Any, serial_number: str = ""
+    ) -> web.Response:
+        try:
+            groups = await client.async_list_reminders()
+        except MaikaApiError:
+            return self.json({"ok": True, "reminders": None})
+        reminders = _filter_reminders(flatten_reminders(groups), serial_number)
+        return self.json({"ok": True, "reminders": reminders})
+
+
+def _filter_reminders(
+    reminders: list[dict[str, Any]], serial_number: str
+) -> list[dict[str, Any]]:
+    if not serial_number:
+        return reminders
+    return [
+        reminder
+        for reminder in reminders
+        if serial_number in (reminder.get("devices") or [])
+    ]
+
+
+def _parse_reminder_id(value: Any) -> int:
+    if isinstance(value, bool):
+        raise ReminderValidationError("invalid_reminder_id")
+    try:
+        reminder_id = int(value)
+    except (TypeError, ValueError) as err:
+        raise ReminderValidationError("invalid_reminder_id") from err
+    if reminder_id <= 0:
+        raise ReminderValidationError("invalid_reminder_id")
+    return reminder_id
+
+
+def _parse_reminder_ids(value: Any) -> list[int]:
+    if not isinstance(value, list) or not value:
+        raise ReminderValidationError("invalid_reminder_id")
+    return list(dict.fromkeys(_parse_reminder_id(item) for item in value))
+
+
+async def _scoped_reminder_ids(
+    client: Any, serial_number: str, reminder_ids: list[int]
+) -> list[int]:
+    if not serial_number:
+        return reminder_ids
+    groups = await client.async_list_reminders()
+    allowed = {
+        reminder["id"]
+        for reminder in _filter_reminders(flatten_reminders(groups), serial_number)
+    }
+    return [reminder_id for reminder_id in reminder_ids if reminder_id in allowed]
+
+
+def _entry_client(entry: ConfigEntry) -> Any:
+    runtime = getattr(entry, "runtime_data", None)
+    return getattr(runtime, "client", None)
+
+
+def _entry_serial(entry: ConfigEntry, serial_number: str) -> bool:
+    runtime = getattr(entry, "runtime_data", None)
+    coordinator = getattr(runtime, "coordinator", None)
+    data = getattr(coordinator, "data", None)
+    devices = data.get("devices") if isinstance(data, dict) else None
+    if not serial_number or not isinstance(devices, dict):
+        return False
+    return serial_number in devices
 
 
 class MaikaPanelAudioLibraryView(MaikaPanelMixin, HomeAssistantView):

@@ -77,7 +77,13 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
   Content Store (`maika_cs_*`): kênh → media → tập/bài, thể loại và nội dung
   nổi bật. Chọn một bài phát qua `media_player.play_media` kiểu `maika_cs_track`;
-  nút quay lại trên breadcrumb trở về mục cha.
+  nút quay lại trên breadcrumb trở về mục cha. Khi tài khoản MAIKA có
+  `favorite_playlist_id`, mục **Bài hát yêu thích** xuất hiện trong thư viện và
+  phát qua `maika_favorite_track`.
+- Mục **Nhắc hẹn** tải danh sách từ cloud MAIKA khi mở lần đầu, cho phép tạo
+  nhắc một lần/hằng ngày/hằng tuần/hằng tháng/hằng năm, chọn báo trước
+  0–60 phút và lời đọc TTS. Nút **Xóa** có xác nhận; danh sách tự cập nhật sau
+  mỗi thao tác. Lỗi hiển thị cạnh danh sách kèm nút **Thử lại**.
 - Ô **Tìm bài hát trên NhạcCủaTui** trong hộp thoại thư viện gọi
   `media_player/search_media`; kết quả là track `maika_nct_track`, chọn bài sẽ
   cast qua cloud MAIKA. Enter hoặc nút **Tìm** đều chạy tìm kiếm; lỗi có nút
@@ -96,8 +102,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - Chọn **Tự động / Sáng / Tối** trên thanh công cụ. **Tự động** theo chế độ
   sáng/tối của Home Assistant; lựa chọn được nhớ riêng trong trình duyệt.
   Nếu trình duyệt chặn lưu trữ, vẫn đổi được cho phiên đang mở.
-- Chạm **Tổng quan / Trò chuyện / Giọng nói / Thiết bị / Thiết lập** để tới
-  đúng mục. Vuốt ngang thanh mục trên điện thoại.
+- Chạm **Tổng quan / Trò chuyện / Giọng nói / Nhắc hẹn / Thiết bị / Thiết lập**
+  để tới đúng mục. Vuốt ngang thanh mục trên điện thoại.
 - Nút menu ở góc trên mở sidebar HA khi màn hình hẹp. Thanh công cụ bám trên
   đầu khi cuộn; trên màn hình thấp (điện thoại ngang) thanh này cuộn cùng nội dung.
 - Animation nhẹ cho thẻ, trạng thái phát nhạc và nút; tự tắt theo cài đặt
@@ -136,6 +142,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
    - **Công cụ**: làm mới trạng thái và khởi động lại loa (có xác nhận).
 5. **Giọng nói**, nằm ngay sau điều khiển MAIKA: trình tạo câu lệnh ba bước,
    danh sách tìm kiếm/sửa/thêm cách nói/xóa/chạy thử, cài đặt âm phản hồi.
+6. **Nhắc hẹn**: form tạo lịch nhắc và danh sách nhắc hẹn của loa đang chọn;
+   tải khi mở mục và cập nhật ngay sau khi tạo hoặc xóa.
 
 Nếu có nhiều config entry, các chip chọn **tài khoản** xuất hiện ở đầu panel.
 Nếu một tài khoản có nhiều loa, thêm hàng chip chọn **loa** ngay bên dưới: chạm

@@ -309,6 +309,17 @@ Từ `1.22.0`, integration thêm nguồn **NhạcCủaTui** vào Thư viện gi�
 
 Đã kiểm tra API trực tiếp: feed trả bài, `playlist/charts` trả 12 chart, chart trả tối đa 50 bài, detail trả stream 320; search `sơn tùng` trả `total: 42763`, `loadmore: true`, có stream 128/320/lossless. Chưa kiểm thử cast/phát trên loa thật.
 
+## Bài hát yêu thích và nhắc hẹn
+
+Hai nhóm API này dùng chung host tài khoản `https://users.iviet.com` và token đăng nhập MAIKA hiện có.
+
+- **Playlist yêu thích**: response login `data.favorite_playlist_id` (Integer, có thể null). Nếu có, integration gọi `GET /v1/playlists/{id}/songs?page=1&limit=100&order_by=latest`; response `data.songs`, `meta_data.total_page`, mỗi bài có `songKey`, `song`/`name`, `artist`, `url`, `imageURL`. Integration đọc tiếp các trang còn lại (tối đa 50 trang) để lấy toàn bộ danh sách; chỉ bài có `url` HTTP(S) hợp lệ mới được đưa vào trình duyệt media.
+- **Danh sách nhắc hẹn**: `GET /v1/reminder?page=0&limit=1000` trả `data` là mảng nhóm; mỗi nhóm có `date` và `listReminders` (camelCase). Mỗi reminder có `id`, `event`/`reminder`, `start_date`, `start_time`, `timezone`, `frequency`, `completed`, `status`, `reminder_type`, `alarm_type`, `custom_tts`, `devices`. Interface còn nhận `user_id`, `completed`, `from_date`, `to_date`, `status`, `reminder_type` để lọc. `POST /v1/reminder/sync` chỉ trả `SuccessResponse` (đồng bộ cloud), không trả danh sách.
+- **Tạo nhắc hẹn**: `POST /v1/reminder` với body snake_case: `alert_prior` (giây), `event`, `executor`, `frequency`, `num_alert`, `period_time`, `reminder_type`, `start_date` (`yyyy-MM-dd`), `start_time` (`HH:mm:ss`), `timezone`, `repeat_per_alert`, `devices` (mảng serial), `alarm_type`, `custom_tts`. Integration dùng executor `vn_south`, kiểu TTS (`alarm_type=1`), một lần báo (`num_alert=1`) và bỏ field rỗng thay vì gửi null.
+- **Xóa nhắc hẹn**: `DELETE /v1/reminder/{id}` với body `{"executor": "vn_south", "all": false, "reminder_ids": [id]}`.
+- Tần suất hỗ trợ: `once`, `daily`, `weekly`, `monthly`, `yearly`. Panel giới hạn báo trước 0–1440 phút, nội dung 200 ký tự, lời đọc 500 ký tự và từ chối thời gian trong quá khứ quá 60 giây.
+- Đã xác minh tĩnh từ APK 3.2.3 (`CreateReminderRequest`, `DeleteReminderRequest`, `AllReminderResponse`, `DataAllReminder`, `Reminders`, use case `GetAllReminder`, `Data.favorite_playlist_id`). Chưa kiểm thử tạo/xóa trên tài khoản thật hoặc phát nhắc trên loa vật lý.
+
 ## Smart-home linking
 
 APK mới và APK lịch sử 2.5.0 lấy danh sách partner/OAuth hoàn toàn từ backend `smarthome.iviet.com`; không có cấu hình Home Assistant cố định trong app.
@@ -359,6 +370,9 @@ Danh sách 27 entity an toàn/hữu ích nằm trong `docs/ENTITIES.md`.
 | NhạcCủaTui search API live | Pass, `sơn tùng` trả 42.763 bài |
 | `media_player/search_media` + panel search | Pass, mock HA 2026.2.3 và browser |
 | NhạcCủaTui cast trên loa vật lý | Chưa xác minh |
+| Favorite/reminder endpoint + payload | Pass, mock API và browser |
+| Playlist yêu thích trên tài khoản thật | Chưa xác minh |
+| Tạo/xóa nhắc hẹn trên tài khoản thật | Chưa xác minh |
 | Voice command vật lý → Assist | Chưa xác minh |
 | Assist response → loa MAIKA | Không triển khai |
 
