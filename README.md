@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.27.0**.
+Bản hiện tại: **v1.27.2**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -75,6 +75,10 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.27.2` sửa import `ConfigType` để integration tải được trên Home Assistant dùng Python 3.14 mới. Không đổi entity hay dữ liệu đã lưu.
+
+Bản `1.27.1` sửa khai báo service nhắc hẹn để hợp lệ với hassfest: chọn loa bằng trường `device_id` trong `data` thay vì `target`, vẫn hỗ trợ `entry_id` + `serial_number`.
 
 Bản `1.27.0` thêm **Nhắc hẹn** trên loa (panel và service automation), **Bài hát yêu thích** có tải đủ trang playlist, và giao diện panel gọn hơn trên điện thoại.
 
@@ -222,13 +226,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.27.0
+## File phát hành v1.27.2
 
-- `maika.zip` và `maika-v1.27.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.27.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.27.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.27.2-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.27.2` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.27.2-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.27.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.27.2-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 
@@ -343,14 +347,13 @@ Bản `1.15.0` chấp nhận MP3/MPEG, MP4/AAC và thêm các định dạng aud
 Các service `maika.create_reminder`, `maika.update_reminder`,
 `maika.set_reminder_enabled`, `maika.delete_reminders` và
 `maika.mute_reminders` thao tác trên đúng loa MAIKA đã chọn. Trong Developer
-Tools → Actions có thể chọn **MAIKA device**; khi gọi bằng YAML, truyền
-`target.device_id` hoặc `entry_id` + `serial_number`.
+Tools → Actions, chọn loa ở trường **Thiết bị**; khi gọi bằng YAML, truyền
+`device_id` trong `data` hoặc dùng `entry_id` + `serial_number`.
 
 ```yaml
 action: maika.create_reminder
-target:
-  device_id: 0123456789abcdef0123456789abcdef
 data:
+  device_id: 0123456789abcdef0123456789abcdef
   event: "Uống thuốc"
   start_at: "2026-11-01T07:30:00+07:00"
   frequency: daily

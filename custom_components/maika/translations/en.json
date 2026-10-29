@@ -55,6 +55,166 @@
       "unique_id_mismatch": "The credentials belong to a different MAIKA account."
     }
   },
+  "services": {
+    "create_reminder": {
+      "name": "Create reminder",
+      "description": "Create a reminder that the selected MAIKA speaker reads aloud.",
+      "fields": {
+        "device_id": {
+          "name": "Speaker",
+          "description": "MAIKA speaker that owns the reminder."
+        },
+        "entry_id": {
+          "name": "Account",
+          "description": "MAIKA account, required only when the speaker is ambiguous."
+        },
+        "serial_number": {
+          "name": "Speaker serial number",
+          "description": "Optional when a MAIKA device is selected."
+        },
+        "event": {
+          "name": "Reminder text",
+          "description": "Text shown for the reminder."
+        },
+        "start_at": {
+          "name": "Start time",
+          "description": "Date and time in the MAIKA app timezone."
+        },
+        "frequency": {
+          "name": "Repeat",
+          "description": "How often the reminder repeats."
+        },
+        "alert_prior": {
+          "name": "Alert before",
+          "description": "Minutes before the start time."
+        },
+        "custom_tts": {
+          "name": "Spoken text",
+          "description": "Optional text the speaker reads instead of the reminder text."
+        }
+      }
+    },
+    "update_reminder": {
+      "name": "Update reminder",
+      "description": "Change some fields of an existing reminder on a MAIKA speaker.",
+      "fields": {
+        "device_id": {
+          "name": "Speaker",
+          "description": "MAIKA speaker that owns the reminder."
+        },
+        "entry_id": {
+          "name": "Account",
+          "description": "MAIKA account, required only when the speaker is ambiguous."
+        },
+        "serial_number": {
+          "name": "Speaker serial number",
+          "description": "Optional when a MAIKA device is selected."
+        },
+        "reminder_id": {
+          "name": "Reminder ID",
+          "description": "ID of the reminder on the selected speaker."
+        },
+        "event": {
+          "name": "Reminder text",
+          "description": "Text shown for the reminder."
+        },
+        "start_at": {
+          "name": "Start time",
+          "description": "Date and time in the MAIKA app timezone."
+        },
+        "frequency": {
+          "name": "Repeat",
+          "description": "How often the reminder repeats."
+        },
+        "alert_prior": {
+          "name": "Alert before",
+          "description": "Minutes before the start time."
+        },
+        "custom_tts": {
+          "name": "Spoken text",
+          "description": "Optional text the speaker reads instead of the reminder text."
+        },
+        "status": {
+          "name": "Status",
+          "description": "Enabled or disabled state."
+        }
+      }
+    },
+    "set_reminder_enabled": {
+      "name": "Enable or disable reminder",
+      "description": "Turn one MAIKA reminder on or off without deleting it.",
+      "fields": {
+        "device_id": {
+          "name": "Speaker",
+          "description": "MAIKA speaker that owns the reminder."
+        },
+        "entry_id": {
+          "name": "Account",
+          "description": "MAIKA account, required only when the speaker is ambiguous."
+        },
+        "serial_number": {
+          "name": "Speaker serial number",
+          "description": "Optional when a MAIKA device is selected."
+        },
+        "reminder_id": {
+          "name": "Reminder ID",
+          "description": "ID of the reminder on the selected speaker."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Turn the reminder on or off."
+        }
+      }
+    },
+    "delete_reminders": {
+      "name": "Delete reminders",
+      "description": "Delete one or more reminders from a MAIKA speaker.",
+      "fields": {
+        "device_id": {
+          "name": "Speaker",
+          "description": "MAIKA speaker that owns the reminder."
+        },
+        "entry_id": {
+          "name": "Account",
+          "description": "MAIKA account, required only when the speaker is ambiguous."
+        },
+        "serial_number": {
+          "name": "Speaker serial number",
+          "description": "Optional when a MAIKA device is selected."
+        },
+        "reminder_ids": {
+          "name": "Reminder IDs",
+          "description": "IDs of reminders on the selected speaker."
+        }
+      }
+    },
+    "mute_reminders": {
+      "name": "Mute reminders",
+      "description": "Mute selected MAIKA reminders for one or more calendar dates.",
+      "fields": {
+        "device_id": {
+          "name": "Speaker",
+          "description": "MAIKA speaker that owns the reminder."
+        },
+        "entry_id": {
+          "name": "Account",
+          "description": "MAIKA account, required only when the speaker is ambiguous."
+        },
+        "serial_number": {
+          "name": "Speaker serial number",
+          "description": "Optional when a MAIKA device is selected."
+        },
+        "reminder_ids": {
+          "name": "Reminder IDs",
+          "description": "IDs of reminders on the selected speaker."
+        },
+        "mute_days": {
+          "name": "Muted dates",
+          "description": "Dates in YYYY-MM-DD format."
+        }
+      }
+    }
+  },
   "exceptions": {
     "license_unavailable": {
       "message": "MAIKA is not activated ({license_error}). Device code: {activation_code}. Open MAIKA → License to enter or replace your key. Choose a plan or view your key at {portal_url}."
@@ -123,13 +283,13 @@
       "message": "The selected MAIKA account is not loaded. Check the integration entry and try again."
     },
     "maika_service_device_required": {
-      "message": "Select one MAIKA speaker with a device target, serial_number, or entry_id."
+      "message": "Select one MAIKA speaker with device_id, serial_number, or entry_id."
     },
     "maika_service_device_unknown": {
       "message": "The selected MAIKA speaker is not loaded in this integration."
     },
     "maika_service_device_multiple": {
-      "message": "The service matches more than one MAIKA speaker. Use a device target or pass entry_id and serial_number."
+      "message": "The service matches more than one MAIKA speaker. Use device_id or pass entry_id and serial_number."
     },
     "maika_service_reminder_failed": {
       "message": "MAIKA cloud did not accept the reminder request. Check the connection and try again."
@@ -146,21 +306,41 @@
   },
   "entity": {
     "binary_sensor": {
-      "online": {"name": "Online"},
-      "wifi_connected": {"name": "Wi-Fi connected"},
-      "available_to_call": {"name": "Available for calls"},
-      "favorite": {"name": "Favorite"},
-      "device_active": {"name": "Device active"},
-      "warranty_active": {"name": "Warranty active"}
+      "online": {
+        "name": "Online"
+      },
+      "wifi_connected": {
+        "name": "Wi-Fi connected"
+      },
+      "available_to_call": {
+        "name": "Available for calls"
+      },
+      "favorite": {
+        "name": "Favorite"
+      },
+      "device_active": {
+        "name": "Device active"
+      },
+      "warranty_active": {
+        "name": "Warranty active"
+      }
     },
     "button": {
-      "restart": {"name": "Restart"},
-      "refresh_status": {"name": "Refresh status"}
+      "restart": {
+        "name": "Restart"
+      },
+      "refresh_status": {
+        "name": "Refresh status"
+      }
     },
     "select": {
       "wakeword_sensitivity": {
         "name": "Wake-word sensitivity",
-        "state": {"low": "Low", "medium": "Medium", "high": "High"}
+        "state": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
       },
       "wakeword_response": {
         "name": "Wake-word response",
@@ -179,17 +359,39 @@
       }
     },
     "sensor": {
-      "volume": {"name": "Volume"},
-      "firmware_version": {"name": "Firmware version"},
-      "firmware_update_status": {"name": "Firmware update status"},
-      "model": {"name": "Model"},
-      "serial_number": {"name": "Serial number"},
-      "wifi_ssid": {"name": "Wi-Fi SSID"},
-      "activated_at": {"name": "Activated at"},
-      "warranty_expire_date": {"name": "Warranty expires"},
-      "room": {"name": "Room"},
-      "default_language": {"name": "Default language"},
-      "last_voice_command": {"name": "Latest voice command"},
+      "volume": {
+        "name": "Volume"
+      },
+      "firmware_version": {
+        "name": "Firmware version"
+      },
+      "firmware_update_status": {
+        "name": "Firmware update status"
+      },
+      "model": {
+        "name": "Model"
+      },
+      "serial_number": {
+        "name": "Serial number"
+      },
+      "wifi_ssid": {
+        "name": "Wi-Fi SSID"
+      },
+      "activated_at": {
+        "name": "Activated at"
+      },
+      "warranty_expire_date": {
+        "name": "Warranty expires"
+      },
+      "room": {
+        "name": "Room"
+      },
+      "default_language": {
+        "name": "Default language"
+      },
+      "last_voice_command": {
+        "name": "Latest voice command"
+      },
       "playback_status": {
         "name": "Playback status",
         "state": {
@@ -200,11 +402,21 @@
         }
       }
     },
-    "switch": {"microphone_mute": {"name": "Microphone mute"}},
+    "switch": {
+      "microphone_mute": {
+        "name": "Microphone mute"
+      }
+    },
     "text": {
-      "speaker_name": {"name": "Speaker name"},
-      "calling_name": {"name": "Calling name"},
-      "address": {"name": "Address"}
+      "speaker_name": {
+        "name": "Speaker name"
+      },
+      "calling_name": {
+        "name": "Calling name"
+      },
+      "address": {
+        "name": "Address"
+      }
     }
   }
 }

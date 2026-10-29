@@ -55,6 +55,166 @@
       "unique_id_mismatch": "Thông tin đăng nhập thuộc một tài khoản MAIKA khác."
     }
   },
+  "services": {
+    "create_reminder": {
+      "name": "Tạo nhắc hẹn",
+      "description": "Tạo nhắc hẹn để loa MAIKA đã chọn đọc thành tiếng.",
+      "fields": {
+        "device_id": {
+          "name": "Loa",
+          "description": "Loa MAIKA sở hữu nhắc hẹn."
+        },
+        "entry_id": {
+          "name": "Tài khoản",
+          "description": "Tài khoản MAIKA, chỉ cần khi có nhiều loa trùng tên."
+        },
+        "serial_number": {
+          "name": "Serial loa",
+          "description": "Không bắt buộc khi đã chọn thiết bị MAIKA."
+        },
+        "event": {
+          "name": "Nội dung nhắc",
+          "description": "Nội dung hiển thị cho nhắc hẹn."
+        },
+        "start_at": {
+          "name": "Thời gian bắt đầu",
+          "description": "Ngày giờ theo múi giờ ứng dụng MAIKA."
+        },
+        "frequency": {
+          "name": "Lặp lại",
+          "description": "Tần suất lặp của nhắc hẹn."
+        },
+        "alert_prior": {
+          "name": "Báo trước",
+          "description": "Số phút báo trước thời gian bắt đầu."
+        },
+        "custom_tts": {
+          "name": "Lời đọc",
+          "description": "Lời đọc tùy chọn thay cho nội dung nhắc."
+        }
+      }
+    },
+    "update_reminder": {
+      "name": "Cập nhật nhắc hẹn",
+      "description": "Đổi một số trường của nhắc hẹn có sẵn trên loa MAIKA.",
+      "fields": {
+        "device_id": {
+          "name": "Loa",
+          "description": "Loa MAIKA sở hữu nhắc hẹn."
+        },
+        "entry_id": {
+          "name": "Tài khoản",
+          "description": "Tài khoản MAIKA, chỉ cần khi có nhiều loa trùng tên."
+        },
+        "serial_number": {
+          "name": "Serial loa",
+          "description": "Không bắt buộc khi đã chọn thiết bị MAIKA."
+        },
+        "reminder_id": {
+          "name": "ID nhắc hẹn",
+          "description": "ID nhắc hẹn trên loa đã chọn."
+        },
+        "event": {
+          "name": "Nội dung nhắc",
+          "description": "Nội dung hiển thị cho nhắc hẹn."
+        },
+        "start_at": {
+          "name": "Thời gian bắt đầu",
+          "description": "Ngày giờ theo múi giờ ứng dụng MAIKA."
+        },
+        "frequency": {
+          "name": "Lặp lại",
+          "description": "Tần suất lặp của nhắc hẹn."
+        },
+        "alert_prior": {
+          "name": "Báo trước",
+          "description": "Số phút báo trước thời gian bắt đầu."
+        },
+        "custom_tts": {
+          "name": "Lời đọc",
+          "description": "Lời đọc tùy chọn thay cho nội dung nhắc."
+        },
+        "status": {
+          "name": "Trạng thái",
+          "description": "Trạng thái bật hoặc tắt."
+        }
+      }
+    },
+    "set_reminder_enabled": {
+      "name": "Bật hoặc tắt nhắc hẹn",
+      "description": "Bật hoặc tắt một nhắc hẹn MAIKA mà không xóa.",
+      "fields": {
+        "device_id": {
+          "name": "Loa",
+          "description": "Loa MAIKA sở hữu nhắc hẹn."
+        },
+        "entry_id": {
+          "name": "Tài khoản",
+          "description": "Tài khoản MAIKA, chỉ cần khi có nhiều loa trùng tên."
+        },
+        "serial_number": {
+          "name": "Serial loa",
+          "description": "Không bắt buộc khi đã chọn thiết bị MAIKA."
+        },
+        "reminder_id": {
+          "name": "ID nhắc hẹn",
+          "description": "ID nhắc hẹn trên loa đã chọn."
+        },
+        "enabled": {
+          "name": "Bật",
+          "description": "Bật hoặc tắt nhắc hẹn."
+        }
+      }
+    },
+    "delete_reminders": {
+      "name": "Xóa nhắc hẹn",
+      "description": "Xóa một hoặc nhiều nhắc hẹn khỏi loa MAIKA.",
+      "fields": {
+        "device_id": {
+          "name": "Loa",
+          "description": "Loa MAIKA sở hữu nhắc hẹn."
+        },
+        "entry_id": {
+          "name": "Tài khoản",
+          "description": "Tài khoản MAIKA, chỉ cần khi có nhiều loa trùng tên."
+        },
+        "serial_number": {
+          "name": "Serial loa",
+          "description": "Không bắt buộc khi đã chọn thiết bị MAIKA."
+        },
+        "reminder_ids": {
+          "name": "Các ID nhắc hẹn",
+          "description": "ID các nhắc hẹn trên loa đã chọn."
+        }
+      }
+    },
+    "mute_reminders": {
+      "name": "Tạm tắt nhắc hẹn",
+      "description": "Tạm tắt các nhắc hẹn MAIKA trong một hoặc nhiều ngày.",
+      "fields": {
+        "device_id": {
+          "name": "Loa",
+          "description": "Loa MAIKA sở hữu nhắc hẹn."
+        },
+        "entry_id": {
+          "name": "Tài khoản",
+          "description": "Tài khoản MAIKA, chỉ cần khi có nhiều loa trùng tên."
+        },
+        "serial_number": {
+          "name": "Serial loa",
+          "description": "Không bắt buộc khi đã chọn thiết bị MAIKA."
+        },
+        "reminder_ids": {
+          "name": "Các ID nhắc hẹn",
+          "description": "ID các nhắc hẹn trên loa đã chọn."
+        },
+        "mute_days": {
+          "name": "Ngày tạm tắt",
+          "description": "Các ngày theo định dạng YYYY-MM-DD."
+        }
+      }
+    }
+  },
   "exceptions": {
     "license_unavailable": {
       "message": "MAIKA chưa kích hoạt ({license_error}). Mã máy: {activation_code}. Mở MAIKA → Bản quyền để nhập hoặc thay key. Chọn gói hoặc xem key tại {portal_url}."
@@ -123,13 +283,13 @@
       "message": "Tài khoản MAIKA đã chọn chưa được tải. Kiểm tra lại entry của integration rồi thử lại."
     },
     "maika_service_device_required": {
-      "message": "Chọn một loa MAIKA bằng device target, serial_number hoặc entry_id."
+      "message": "Chọn một loa MAIKA bằng device_id, serial_number hoặc entry_id."
     },
     "maika_service_device_unknown": {
       "message": "Không tìm thấy loa MAIKA đã chọn trong integration."
     },
     "maika_service_device_multiple": {
-      "message": "Dịch vụ khớp với nhiều loa MAIKA. Dùng device target hoặc truyền entry_id và serial_number."
+      "message": "Dịch vụ khớp với nhiều loa MAIKA. Dùng device_id hoặc truyền entry_id và serial_number."
     },
     "maika_service_reminder_failed": {
       "message": "Cloud MAIKA không nhận yêu cầu nhắc hẹn. Kiểm tra kết nối rồi thử lại."
@@ -146,21 +306,41 @@
   },
   "entity": {
     "binary_sensor": {
-      "online": {"name": "Trực tuyến"},
-      "wifi_connected": {"name": "Đã kết nối Wi-Fi"},
-      "available_to_call": {"name": "Sẵn sàng nhận cuộc gọi"},
-      "favorite": {"name": "Yêu thích"},
-      "device_active": {"name": "Thiết bị đang hoạt động"},
-      "warranty_active": {"name": "Còn bảo hành"}
+      "online": {
+        "name": "Trực tuyến"
+      },
+      "wifi_connected": {
+        "name": "Đã kết nối Wi-Fi"
+      },
+      "available_to_call": {
+        "name": "Sẵn sàng nhận cuộc gọi"
+      },
+      "favorite": {
+        "name": "Yêu thích"
+      },
+      "device_active": {
+        "name": "Thiết bị đang hoạt động"
+      },
+      "warranty_active": {
+        "name": "Còn bảo hành"
+      }
     },
     "button": {
-      "restart": {"name": "Khởi động lại"},
-      "refresh_status": {"name": "Cập nhật trạng thái"}
+      "restart": {
+        "name": "Khởi động lại"
+      },
+      "refresh_status": {
+        "name": "Cập nhật trạng thái"
+      }
     },
     "select": {
       "wakeword_sensitivity": {
         "name": "Độ nhạy từ đánh thức",
-        "state": {"low": "Thấp", "medium": "Trung bình", "high": "Cao"}
+        "state": {
+          "low": "Thấp",
+          "medium": "Trung bình",
+          "high": "Cao"
+        }
       },
       "wakeword_response": {
         "name": "Phản hồi từ đánh thức",
@@ -179,17 +359,39 @@
       }
     },
     "sensor": {
-      "volume": {"name": "Âm lượng"},
-      "firmware_version": {"name": "Phiên bản firmware"},
-      "firmware_update_status": {"name": "Trạng thái cập nhật firmware"},
-      "model": {"name": "Mẫu loa"},
-      "serial_number": {"name": "Số sê-ri"},
-      "wifi_ssid": {"name": "Tên Wi-Fi"},
-      "activated_at": {"name": "Ngày kích hoạt"},
-      "warranty_expire_date": {"name": "Ngày hết bảo hành"},
-      "room": {"name": "Phòng"},
-      "default_language": {"name": "Ngôn ngữ mặc định"},
-      "last_voice_command": {"name": "Câu lệnh giọng nói mới nhất"},
+      "volume": {
+        "name": "Âm lượng"
+      },
+      "firmware_version": {
+        "name": "Phiên bản firmware"
+      },
+      "firmware_update_status": {
+        "name": "Trạng thái cập nhật firmware"
+      },
+      "model": {
+        "name": "Mẫu loa"
+      },
+      "serial_number": {
+        "name": "Số sê-ri"
+      },
+      "wifi_ssid": {
+        "name": "Tên Wi-Fi"
+      },
+      "activated_at": {
+        "name": "Ngày kích hoạt"
+      },
+      "warranty_expire_date": {
+        "name": "Ngày hết bảo hành"
+      },
+      "room": {
+        "name": "Phòng"
+      },
+      "default_language": {
+        "name": "Ngôn ngữ mặc định"
+      },
+      "last_voice_command": {
+        "name": "Câu lệnh giọng nói mới nhất"
+      },
       "playback_status": {
         "name": "Trạng thái phát",
         "state": {
@@ -200,11 +402,21 @@
         }
       }
     },
-    "switch": {"microphone_mute": {"name": "Tắt micro"}},
+    "switch": {
+      "microphone_mute": {
+        "name": "Tắt micro"
+      }
+    },
     "text": {
-      "speaker_name": {"name": "Tên loa"},
-      "calling_name": {"name": "Tên gọi"},
-      "address": {"name": "Địa chỉ"}
+      "speaker_name": {
+        "name": "Tên loa"
+      },
+      "calling_name": {
+        "name": "Tên gọi"
+      },
+      "address": {
+        "name": "Địa chỉ"
+      }
     }
   }
 }

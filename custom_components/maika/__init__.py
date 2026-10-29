@@ -5,10 +5,12 @@ from __future__ import annotations
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import ConfigType, HomeAssistant
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import MaikaApiClient
 from .const import (
@@ -37,6 +39,8 @@ PLATFORMS = [
 ]
 
 type MaikaConfigEntry = ConfigEntry[MaikaRuntimeData]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LICENSE_NOTIFICATION_ID = "maika_license_activation"
 

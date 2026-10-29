@@ -2,6 +2,38 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.27.2] - 2026-10-29
+
+### Fixed
+
+- Sửa import `ConfigType` từ `homeassistant.helpers.typing` thay vì
+  `homeassistant.core` để integration tải được trên Home Assistant mới dùng
+  Python 3.14. Không đổi entity, service hay dữ liệu đã lưu.
+
+### Tests
+
+- Import integration và chạy hassfest 2026.10.4 với Home Assistant 2026.10.4.
+- Unit test, ruff và validate repository pass.
+
+## [1.27.1] - 2026-10-29
+
+### Fixed
+
+- Thêm `CONFIG_SCHEMA` cho integration chỉ dùng config entry để đáp ứng kiểm
+  tra hassfest.
+- Bỏ bộ lọc thiết bị khỏi `target` của service nhắc hẹn vì Home Assistant không
+  hỗ trợ; thêm trường chọn thiết bị `device_id` trong `data` cho cả năm service.
+  YAML dùng `data.device_id` thay cho `target.device_id`, hoặc vẫn truyền
+  `entry_id` + `serial_number`.
+- Chuyển tên, mô tả action và field sang `strings.json` cùng bản dịch
+  `translations/en.json`, `translations/vi.json`; sửa selector trạng thái và
+  danh sách reminder ID cho đúng schema của Home Assistant.
+
+### Tests
+
+- Kiểm tra toàn bộ selector trong `services.yaml` bằng Home Assistant 2026.2.3.
+- Unit test nhắc hẹn, ruff, validate repository và hassfest 2026.2.3 pass.
+
 ## [1.27.0] - 2026-10-29
 
 ### Added
