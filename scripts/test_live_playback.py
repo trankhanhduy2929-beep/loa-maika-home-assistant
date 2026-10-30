@@ -466,7 +466,17 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_new_track_replaces_attributes_and_drops_old_timing(self):
         merge = self.api["merge_current_playback"]
-        for identity in ("key", "songKey", "url", "id", "mediaId", "media_id"):
+        for identity in (
+            "key",
+            "songKey",
+            "url",
+            "id",
+            "mediaId",
+            "media_id",
+            "title",
+            "song",
+            "name",
+        ):
             with self.subTest(identity=identity):
                 old = playback()
                 old["payload"]["durationInMillis"] = 180000

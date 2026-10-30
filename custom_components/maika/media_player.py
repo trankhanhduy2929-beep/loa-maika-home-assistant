@@ -95,6 +95,7 @@ _MEDIA_CS_CHANNELS = "maika_cs_channels"
 _MEDIA_CS_CATEGORIES = "maika_cs_categories"
 _MEDIA_CS_HIGHLIGHTS = "maika_cs_highlights"
 _MEDIA_CS_CHANNEL_PREFIX = "maika_cs_channel:"
+_MEDIA_CS_CHANNEL_CATEGORY_PREFIX = "maika_cs_channel_category:"
 _MEDIA_CS_CATEGORY_PREFIX = "maika_cs_category:"
 _MEDIA_CS_MEDIA_PREFIX = "maika_cs_media:"
 _MEDIA_CS_TRACK = "maika_cs_track"
@@ -474,9 +475,16 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             if media_content_id.startswith(_MEDIA_NCT_CHART_PREFIX):
                 chart_key = media_content_id[len(_MEDIA_NCT_CHART_PREFIX) :]
                 return await self._async_browse_nct_chart(chart_key)
+            if media_content_id.startswith(_MEDIA_CS_CHANNEL_CATEGORY_PREFIX):
+                channel_id, category_id = self._cs_pair(
+                    media_content_id, _MEDIA_CS_CHANNEL_CATEGORY_PREFIX
+                )
+                return await self._async_browse_cs_channel_category(
+                    channel_id, category_id
+                )
             if media_content_id.startswith(_MEDIA_CS_CHANNEL_PREFIX):
                 channel_id = self._cs_int(media_content_id, _MEDIA_CS_CHANNEL_PREFIX)
-                return await self._async_browse_cs_channel_medias(
+                return await self._async_browse_cs_channel_categories(
                     channel_id, _CS_CHANNELS_TITLE
                 )
             if media_content_id.startswith(_MEDIA_CS_CATEGORY_PREFIX):
@@ -504,6 +512,21 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 translation_key="maika_content_store_invalid_selection",
             )
         return int(raw)
+
+    @staticmethod
+    def _cs_pair(media_id: str, prefix: str) -> tuple[int, int]:
+        raw = media_id[len(prefix) :]
+        channel, separator, category = raw.partition(":")
+        if (
+            not separator
+            or not channel.lstrip("-").isdigit()
+            or not category.lstrip("-").isdigit()
+        ):
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_content_store_invalid_selection",
+            )
+        return int(channel), int(category)
 
     @staticmethod
     def _cs_cover(cover: str | None) -> str | None:
@@ -578,10 +601,26 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             children=[self._cs_media_node(media) for media in medias],
         )
 
-    async def _async_browse_cs_channel_medias(
+    async def _async_browse_cs_channel_categories(
         self, channel_id: int, title: str
     ) -> BrowseMedia:
-        medias = await self._content_store.async_channel_medias(channel_id)
+        categories = await self._content_store.async_channel_categories(channel_id)
+        children = [
+            BrowseMedia(
+                media_class=MediaClass.GENRE,
+                media_content_type=(
+                    f"{_MEDIA_CS_CHANNEL_CATEGORY_PREFIX}{channel_id}:{category['id']}"
+                ),
+                media_content_id=(
+                    f"{_MEDIA_CS_CHANNEL_CATEGORY_PREFIX}{channel_id}:{category['id']}"
+                ),
+                title=category["title"],
+                can_play=False,
+                can_expand=True,
+                thumbnail=self._cs_cover(category.get("cover")),
+            )
+            for category in categories
+        ]
         return BrowseMedia(
             media_class=MediaClass.DIRECTORY,
             media_content_type=f"{_MEDIA_CS_CHANNEL_PREFIX}{channel_id}",
@@ -589,8 +628,35 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             title=title,
             can_play=False,
             can_expand=True,
+            children_media_class=MediaClass.GENRE,
+            children=children,
+        )
+
+    async def _async_browse_cs_channel_category(
+        self, channel_id: int, category_id: int
+    ) -> BrowseMedia:
+        categories = await self._content_store.async_channel_categories(channel_id)
+        category = next(
+            (item for item in categories if item["id"] == category_id), None
+        )
+        if category is None:
+            raise BrowseError(
+                translation_domain=DOMAIN,
+                translation_key="maika_content_store_invalid_selection",
+            )
+        return BrowseMedia(
+            media_class=MediaClass.DIRECTORY,
+            media_content_type=(
+                f"{_MEDIA_CS_CHANNEL_CATEGORY_PREFIX}{channel_id}:{category_id}"
+            ),
+            media_content_id=(
+                f"{_MEDIA_CS_CHANNEL_CATEGORY_PREFIX}{channel_id}:{category_id}"
+            ),
+            title=category["title"],
+            can_play=False,
+            can_expand=True,
             children_media_class=MediaClass.ALBUM,
-            children=[self._cs_media_node(media) for media in medias],
+            children=[self._cs_media_node(media) for media in category["medias"]],
         )
 
     def _cs_media_node(self, media: dict[str, Any]) -> BrowseMedia:
@@ -909,11 +975,17 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
 
     async def async_media_next_track(self) -> None:
         """Skip to the next item."""
+        song = self._adjacent_native_song(1)
         await self._async_playback_command("NextCommandIssued", None)
+        if song is not None:
+            self._apply_optimistic_track(song)
 
     async def async_media_previous_track(self) -> None:
         """Return to the previous item."""
+        song = self._adjacent_native_song(-1)
         await self._async_playback_command("PreviousCommandIssued", None)
+        if song is not None:
+            self._apply_optimistic_track(song)
 
     async def async_media_seek(self, position: float) -> None:
         """Restart the current cloud cast at a new offset to seek."""
@@ -1069,12 +1141,24 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             "title": title,
             "url": media_url,
         }
+        self._apply_optimistic_cast(
+            media_url, title, normalized_media_type, stream_format, cast_attributes
+        )
+
+    def _apply_optimistic_cast(
+        self,
+        media_url: str,
+        title: str,
+        media_type: str,
+        stream_format: str,
+        attributes: dict[str, Any],
+    ) -> None:
         self._last_cast_media = {
             "url": media_url,
             "title": title,
-            "media_type": normalized_media_type,
+            "media_type": media_type,
             "stream_format": stream_format,
-            "attributes": cast_attributes,
+            "attributes": attributes,
         }
         self._position_updated_at = datetime.now(dt_util.UTC)
         self.coordinator.async_update_device_data(
@@ -1084,7 +1168,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                     "status": "start",
                     "payload": {
                         "offsetInMilliseconds": 0,
-                        "playbackAttributes": cast_attributes,
+                        "playbackAttributes": attributes,
                     },
                 }
             },
@@ -1115,7 +1199,13 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 translation_domain=DOMAIN,
                 translation_key="cloud_cast_failed",
             ) from err
-        self._schedule_live_refresh()
+        attributes = {
+            "mediaType": "audio",
+            "media_type": "audio",
+            "title": title,
+            "url": media_url,
+        }
+        self._apply_optimistic_cast(media_url, title, "audio", "AUDIO_MPEG", attributes)
 
     async def _async_cast_nct(self, key: str, extra: Any) -> None:
         if not self._cloud_cast_enabled:
@@ -1216,7 +1306,77 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
                 translation_domain=DOMAIN,
                 translation_key="maika_queue_jump_failed",
             ) from err
+        selected = next((song for song in songs if song.get("songKey") == key), {})
+        self._apply_optimistic_track(selected)
         self._schedule_live_refresh()
+
+    def _adjacent_native_song(self, step: int) -> dict[str, Any] | None:
+        _, songs = self._native_playlist()
+        attributes = self._playback_attributes
+        key = next(
+            (
+                value
+                for field in ("key", "songKey", "id")
+                if (value := self._valid_song_key(attributes.get(field))) is not None
+            ),
+            None,
+        )
+        if key is None:
+            return None
+        index = next(
+            (
+                position
+                for position, song in enumerate(songs)
+                if song.get("songKey") == key
+            ),
+            None,
+        )
+        if index is None:
+            return None
+        target = index + step
+        if target < 0 or target >= len(songs):
+            return None
+        return songs[target]
+
+    def _apply_optimistic_track(self, song: dict[str, Any]) -> None:
+        key = self._valid_song_key(song.get("songKey"))
+        if key is None:
+            return
+        attributes = dict(self._playback_attributes)
+        for field in (
+            "url",
+            "mediaId",
+            "media_id",
+            "mediaType",
+            "media_type",
+            "title",
+        ):
+            attributes.pop(field, None)
+        attributes.update({"key": key, "songKey": key})
+        self._last_cast_media = None
+        for source, target in (
+            ("song", "song"),
+            ("name", "song"),
+            ("artist", "artist"),
+            ("imageURL", "imageURL"),
+            ("image_url", "imageURL"),
+        ):
+            value = self._first_string(song.get(source))
+            if value is not None:
+                attributes[target] = value
+        self.coordinator.async_update_device_data(
+            self.serial_number,
+            {
+                "current_playback": {
+                    "status": "playing",
+                    "payload": {
+                        "offsetInMilliseconds": 0,
+                        "playbackAttributes": attributes,
+                    },
+                }
+            },
+        )
+        self._position_updated_at = datetime.now(dt_util.UTC)
 
     async def _async_playback_command(
         self, command: str, optimistic_status: str | None

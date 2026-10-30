@@ -786,6 +786,31 @@ async function verifyMiniPlayer() {
   await page.evaluate(() => { window.calls.length = 0; });
   await mini.locator('[data-action="playpause"]').click();
   await page.waitForFunction((entity) => window.calls.some((call) => call.domain === "media_player" && call.service === "media_play_pause" && call.data.entity_id === entity), media);
+  await page.setViewportSize({width: 390, height: 844});
+  await page.evaluate((entity) => {
+    const attrs = states[entity].attributes;
+    attrs.media_title = "Một bài hát có tên rất dài để kiểm tra bố cục mini-player";
+    attrs.media_artist = "Ca sĩ với nghệ danh cũng rất dài";
+    tick();
+  }, media);
+  await waitRender();
+  const mobileLayout = await mini.evaluate((node) => {
+    const title = node.querySelector(".mini-title");
+    const copy = node.querySelector(".mini-copy").getBoundingClientRect();
+    const actions = node.querySelector(".mini-actions").getBoundingClientRect();
+    const style = getComputedStyle(title);
+    return {
+      title: title.textContent,
+      titleHeight: title.getBoundingClientRect().height,
+      lineHeight: parseFloat(style.lineHeight),
+      clipped: title.scrollWidth > title.clientWidth + 1,
+      actionsBelowCopy: actions.top >= copy.bottom - 1,
+    };
+  });
+  assert.equal(mobileLayout.title, "Một bài hát có tên rất dài để kiểm tra bố cục mini-player");
+  assert.equal(mobileLayout.clipped, false, "Mobile mini-player wraps the full song title without clipping");
+  assert(mobileLayout.titleHeight > mobileLayout.lineHeight * 1.5, "Long song title uses multiple lines");
+  assert.equal(mobileLayout.actionsBelowCopy, true, "Mobile mini-player moves controls below the full title and artist");
   await page.evaluate((entity) => { states[entity].state = "off"; tick(); }, media);
   await waitRender();
   assert.equal(await page.locator("section.mini-player").count(), 0);
@@ -1004,6 +1029,20 @@ async function verifyReminders() {
   assert.equal(deleted.data.action, "delete");
   assert.deepEqual(deleted.data.reminder_ids, [1, 2]);
   console.log("PASS multi-select deletes the scoped reminder IDs and clears the list");
+
+  await page.evaluate(() => {
+    const current = document.querySelector("maika-panel");
+    current._applyReminders({reminders: [
+      {id: 3, event: "Đã uống thuốc", start_at: "2029-12-31T08:00:00+07:00", frequency: "once", completed: 1, status: 1, custom_tts: "", devices: ["SERIAL-0-0"]},
+    ]});
+    current._lastSignature = "";
+    current._maybeUpdate();
+  });
+  await card.locator(".reminder-group-title").filter({hasText: "Lịch sử"}).waitFor();
+  assert.match(await card.locator(".reminder-item").innerText(), /Đã uống thuốc/);
+  assert.match(await card.locator(".reminder-item").innerText(), /Đã xong/);
+  assert.equal(await card.locator('[data-action="reminders-edit"]').count(), 1);
+  console.log("PASS completed reminders appear in a separate editable history section");
 }
 
 async function verifyContentStore() {
@@ -1027,8 +1066,12 @@ async function verifyContentStore() {
   assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channels");
   assert.equal(await dialog.locator(".pl-item").count(), 1);
   await dialog.getByRole("button", {name: "Kênh thiếu nhi"}).click();
-  await dialog.getByRole("button", {name: "Album bé"}).waitFor();
+  await dialog.getByRole("button", {name: "Thiếu nhi"}).waitFor();
   assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel:7");
+  assert.equal(await dialog.locator(".pl-item").count(), 1);
+  await dialog.getByRole("button", {name: "Thiếu nhi"}).click();
+  await dialog.getByRole("button", {name: "Album bé"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel_category:7:1");
   await dialog.getByRole("button", {name: "Album bé"}).click();
   await dialog.getByRole("button", {name: "Bài thiếu nhi"}).waitFor();
   assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_media:42");
@@ -1037,11 +1080,15 @@ async function verifyContentStore() {
 
   await dialog.locator('[data-action="library-up"]').click();
   await dialog.getByRole("button", {name: "Album bé"}).waitFor();
-  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel:7");
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel_category:7:1");
   assert.equal(await dialog.locator(".pl-item__t").first().innerText(), "Album bé");
-  console.log("PASS content store breadcrumb returns to the parent folder");
+  await dialog.locator('[data-action="library-up"]').click();
+  await dialog.getByRole("button", {name: "Thiếu nhi"}).waitFor();
+  assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_cs_channel:7");
+  console.log("PASS content store breadcrumb returns through category and channel folders");
 
   await page.evaluate(() => { window.calls.length = 0; });
+  await dialog.getByRole("button", {name: "Thiếu nhi"}).click();
   await dialog.getByRole("button", {name: "Album bé"}).click();
   await dialog.getByRole("button", {name: "Bài thiếu nhi"}).waitFor();
   await dialog.getByRole("button", {name: "Bài thiếu nhi"}).click();

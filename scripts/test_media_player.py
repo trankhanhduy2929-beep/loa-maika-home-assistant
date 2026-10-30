@@ -100,6 +100,7 @@ class ContentStoreStub:
         self.async_channels = AsyncMock(return_value=[])
         self.async_categories = AsyncMock(return_value=[])
         self.async_highlights = AsyncMock(return_value=[])
+        self.async_channel_categories = AsyncMock(return_value=[])
         self.async_channel_medias = AsyncMock(return_value=[])
         self.async_episodes = AsyncMock(return_value=[])
 
@@ -769,6 +770,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.coordinator.async_refresh_live.reset_mock()
         before = deepcopy(self.coordinator.data)
         timestamp = self.player.media_position_updated_at
+        self.advance(5)
         await self.player.async_play_media(
             "maika_song",
             child.media_content_id,
@@ -784,10 +786,12 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.coordinator.async_schedule_playback_refresh.assert_called_once_with(
             "speaker-one"
         )
-        self.assertEqual(self.coordinator.data, before)
-        self.assertEqual(self.player.media_title, "Song")
-        self.assertEqual(self.player.state, State.PAUSED)
-        self.assertEqual(self.player.media_position_updated_at, timestamp)
+        self.assertNotEqual(self.coordinator.data, before)
+        self.assertEqual(self.player.media_title, "Cùng tên")
+        self.assertEqual(self.player.media_artist, "Ca sĩ A")
+        self.assertEqual(self.player.state, State.PLAYING)
+        self.assertEqual(self.player.media_position, 0)
+        self.assertNotEqual(self.player.media_position_updated_at, timestamp)
         self.client.async_cast_media.assert_not_awaited()
         self.assertFalse(self.tasks)
         current = deepcopy(self.player._current_playback)
@@ -1254,13 +1258,20 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.content_store().async_channels.return_value = [
             {"id": 7, "name": "VOV Giao thông", "cover": None}
         ]
-        self.content_store().async_channel_medias.return_value = [
+        self.content_store().async_channel_categories.return_value = [
             {
-                "id": 100,
-                "title": "Bản tin sáng",
-                "cover": None,
-                "audio": "https://cdn/100.mp3",
-                "is_list": False,
+                "id": 1,
+                "title": "Tin tức",
+                "cover": "https://cdn/category.png",
+                "medias": [
+                    {
+                        "id": 100,
+                        "title": "Bản tin sáng",
+                        "cover": None,
+                        "audio": "https://cdn/100.mp3",
+                        "is_list": False,
+                    }
+                ],
             }
         ]
         root = await self.player.async_browse_media("maika_cs_root", "maika_cs_root")
@@ -1277,9 +1288,17 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             "maika_cs_channels", "maika_cs_channels"
         )
         self.assertEqual(channels.children[0].media_content_id, "maika_cs_channel:7")
-        medias = await self.player.async_browse_media(
+        categories = await self.player.async_browse_media(
             "maika_cs_channel:7", "maika_cs_channel:7"
         )
+        category = categories.children[0]
+        self.assertEqual(category.media_content_id, "maika_cs_channel_category:7:1")
+        self.assertEqual(category.title, "Tin tức")
+        self.assertEqual(category.thumbnail, "https://cdn/category.png")
+        medias = await self.player.async_browse_media(
+            category.media_content_id, category.media_content_id
+        )
+        self.content_store().async_channel_categories.assert_awaited_with(7)
         track = medias.children[0]
         self.assertEqual(track.media_content_type, "maika_cs_track")
         self.assertEqual(track.media_content_id, "https://cdn/100.mp3")
@@ -1291,19 +1310,80 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[1], "https://cdn/100.mp3")
         self.assertEqual(kwargs["stream_format"], "AUDIO_MPEG")
 
+    async def test_content_store_play_updates_playback_before_live_event(self):
+        self.content_store().async_channel_categories.return_value = []
+        await self.player.async_play_media(
+            "maika_cs_track",
+            "https://cdn/new.mp3",
+            extra={"title": "Bài mới"},
+        )
+        current = self.player._current_playback
+        self.assertEqual(current["status"], "start")
+        self.assertEqual(current["payload"]["offsetInMilliseconds"], 0)
+        self.assertEqual(current["payload"]["playbackAttributes"]["title"], "Bài mới")
+        self.assertEqual(
+            current["payload"]["playbackAttributes"]["url"], "https://cdn/new.mp3"
+        )
+        self.assertEqual(self.player.media_title, "Bài mới")
+        self.assertEqual(self.player.media_position, 0)
+        self.assertEqual(self.player._last_cast_media["url"], "https://cdn/new.mp3")
+        self.coordinator.async_schedule_playback_refresh.assert_called_once_with(
+            "speaker-one"
+        )
+
+    async def test_next_and_previous_update_known_native_queue_track(self):
+        self.native_playlist(
+            [
+                {"songKey": "key-one", "song": "Bài một", "artist": "Ca sĩ A"},
+                {"songKey": "key-two", "song": "Bài hai", "artist": "Ca sĩ B"},
+            ]
+        )
+        self.player.device["current_playback"]["payload"]["playbackAttributes"] = {
+            "key": "key-one",
+            "title": "Bài một",
+        }
+        await self.player.async_media_next_track()
+        self.client.async_playback_command.assert_awaited_once_with(
+            "speaker-one", "NextCommandIssued"
+        )
+        self.assertEqual(self.player.media_title, "Bài hai")
+        self.assertEqual(self.player.media_artist, "Ca sĩ B")
+        self.assertEqual(self.player.media_position, 0)
+        self.assertEqual(self.player.state, State.PLAYING)
+
+        self.client.async_playback_command.reset_mock()
+        await self.player.async_media_previous_track()
+        self.client.async_playback_command.assert_awaited_once_with(
+            "speaker-one", "PreviousCommandIssued"
+        )
+        self.assertEqual(self.player.media_title, "Bài một")
+        self.assertEqual(self.player.media_artist, "Ca sĩ A")
+        self.assertEqual(self.player.media_position, 0)
+
     async def test_content_store_media_without_audio_expands_to_episodes(self):
         self.content_store().async_channels.return_value = []
-        self.content_store().async_channel_medias.return_value = [
+        self.content_store().async_channel_categories.return_value = [
             {
-                "id": 200,
-                "title": "Series",
+                "id": 4,
+                "title": "Phim",
                 "cover": None,
-                "audio": None,
-                "is_list": True,
+                "medias": [
+                    {
+                        "id": 200,
+                        "title": "Series",
+                        "cover": None,
+                        "audio": None,
+                        "is_list": True,
+                    }
+                ],
             }
         ]
-        medias = await self.player.async_browse_media(
+        categories = await self.player.async_browse_media(
             "maika_cs_channel:9", "maika_cs_channel:9"
+        )
+        category = categories.children[0]
+        medias = await self.player.async_browse_media(
+            category.media_content_id, category.media_content_id
         )
         album = medias.children[0]
         self.assertEqual(album.media_content_id, "maika_cs_media:200")

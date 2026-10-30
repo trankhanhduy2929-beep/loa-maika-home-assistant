@@ -841,7 +841,7 @@ class MaikaPanel extends HTMLElement {
       .mini-player {
         position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px));
         z-index: 8; width: min(560px, calc(100% - 32px)); padding: 10px 12px;
-        display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 8px 12px;
+        display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; grid-template-areas: "art copy copy" "progress progress actions"; align-items: center; gap: 8px 12px;
         border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 20px;
         background: var(--surface); background-image: linear-gradient(145deg, var(--surface-2), transparent 68%);
         box-shadow: 0 18px 44px rgba(0, 0, 0, .24), inset 0 1px 0 var(--glass-sheen);
@@ -850,19 +850,18 @@ class MaikaPanel extends HTMLElement {
       @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
         .mini-player { background: linear-gradient(145deg, var(--glass-sheen), transparent 45%), var(--glass-surface); backdrop-filter: blur(18px) saturate(130%); -webkit-backdrop-filter: blur(18px) saturate(130%); }
       }
-      .mini-art { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; position: relative; flex: none; color: var(--accent); background: var(--surface-3); }
+      .mini-art { grid-area: art; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; position: relative; flex: none; color: var(--accent); background: var(--surface-3); }
       .mini-art svg { width: 22px; height: 22px; fill: currentColor; }
       .mini-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-      .mini-body { min-width: 0; display: grid; gap: 5px; }
-      .mini-copy { min-width: 0; display: grid; gap: 1px; }
-      .mini-title { font-size: .88rem; font-weight: 680; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .mini-artist { font-size: .74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .mini-progress { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .mini-copy { grid-area: copy; min-width: 0; display: grid; gap: 2px; }
+      .mini-title { font-size: .9rem; line-height: 1.28; font-weight: 680; overflow-wrap: anywhere; }
+      .mini-artist { font-size: .76rem; line-height: 1.3; color: var(--muted); overflow-wrap: anywhere; }
+      .mini-progress { grid-area: progress; display: flex; align-items: center; gap: 8px; min-width: 0; }
       .mini-progress input[type="range"] { height: 24px; flex: 1 1 auto; }
       .mini-progress input[type="range"]::-webkit-slider-thumb { width: 18px; height: 18px; }
       .mini-progress input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; }
       .mini-time { flex: none; color: var(--muted); font-size: .72rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-      .mini-actions { display: flex; align-items: center; gap: 4px; }
+      .mini-actions { grid-area: actions; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
       .mini-btn { width: 36px; height: 36px; border-radius: 11px; border: 1px solid var(--line); background: var(--surface-2); color: var(--accent); display: grid; place-items: center; cursor: pointer; transition: transform .15s var(--ease), background .15s var(--ease); }
       .mini-btn:hover { transform: translateY(-1px); background: var(--surface-3); }
       .mini-btn:active { transform: scale(.94); }
@@ -870,10 +869,14 @@ class MaikaPanel extends HTMLElement {
       .mini-btn svg { width: 17px; height: 17px; fill: currentColor; }
       .mini-btn--main { background: linear-gradient(145deg, var(--brand-start), var(--brand-end)); color: var(--brand-ink); border: none; }
       @container (max-width: 560px) {
-        .stage[data-mini-player] { padding-bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
-        .mini-player { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom, 0px)); width: auto; grid-template-columns: 40px minmax(0, 1fr) auto; padding: 9px 10px; gap: 7px 10px; }
+        .stage[data-mini-player] { padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+        .mini-player { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom, 0px)); width: auto; grid-template-columns: 40px minmax(0, 1fr); grid-template-areas: "art copy" "progress actions"; padding: 9px 10px; gap: 7px 10px; }
         .mini-art { width: 40px; height: 40px; }
-        .mini-actions { display: grid; grid-template-columns: repeat(2, 36px); }
+      }
+      @container (max-width: 440px) {
+        .stage[data-mini-player] { padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
+        .mini-player { grid-template-areas: "art copy" "progress progress" "actions actions"; }
+        .mini-actions { justify-content: flex-start; }
       }
       @media (pointer: coarse) {
         .mini-btn { width: 44px; height: 44px; }
@@ -1147,6 +1150,7 @@ class MaikaPanel extends HTMLElement {
       .reminder-form .field { gap: 7px; }
       .reminder-form input, .reminder-form select { min-height: 46px; }
       .reminder-list { display: grid; gap: 8px; margin-top: 14px; }
+      .reminder-group-title { margin: 18px 0 0; color: var(--muted); font-size: .76rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
       .reminder-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
       .reminder-item:has(.reminder-check input:checked) { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); }
       .reminder-check { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-height: 44px; cursor: pointer; }
@@ -1575,15 +1579,13 @@ class MaikaPanel extends HTMLElement {
     }, [svgIcon(ICONS[icon])]);
     return h("section", {class: "mini-player", "aria-label": `Đang phát trên ${this._speakerName()}`}, [
       art,
-      h("div", {class: "mini-body"}, [
-        h("div", {class: "mini-copy"}, [
-          h("span", {class: "mini-title", text: title, title}),
-          h("span", {class: "mini-artist", text: artist}),
-        ]),
-        h("div", {class: "mini-progress"}, [
-          range,
-          time,
-        ]),
+      h("div", {class: "mini-copy"}, [
+        h("span", {class: "mini-title", text: title}),
+        h("span", {class: "mini-artist", text: artist}),
+      ]),
+      h("div", {class: "mini-progress"}, [
+        range,
+        time,
       ]),
       h("div", {class: "mini-actions"}, [
         button("prev", "prev", "Bài trước"),
@@ -1931,7 +1933,7 @@ class MaikaPanel extends HTMLElement {
     } else if (!items.length) {
       list = h("p", {class: "hint reminder-empty", text: "Chưa có nhắc hẹn cho loa này."});
     } else {
-      list = h("div", {class: "reminder-list", role: "list", "aria-live": "polite"}, items.map((item) => {
+      const renderItem = (item) => {
         const [label, tone] = this._reminderStatus(item);
         const disabled = Number(item.status) === REMINDER_STATUS_DISABLED;
         return h("article", {class: "reminder-item", role: "listitem"}, [
@@ -1950,7 +1952,20 @@ class MaikaPanel extends HTMLElement {
             h("button", {class: "btn btn--danger", type: "button", dataset: {action: "reminders-delete", id: String(item.id)}, disabled: busy, "aria-label": `Xóa nhắc hẹn ${item.event || ""}`}, [svgIcon(ICONS.alert), "Xóa"]),
           ]),
         ]);
-      }));
+      };
+      const history = items.filter((item) => {
+        if (item.completed) return true;
+        if (item.frequency !== "once") return false;
+        const start = Date.parse(item.start_at || "");
+        return Number.isFinite(start) && start < Date.now();
+      });
+      const historyIds = new Set(history.map((item) => item.id));
+      const upcoming = items.filter((item) => !historyIds.has(item.id));
+      list = h("div", {role: "list", "aria-live": "polite"}, [
+        upcoming.length ? h("div", {class: "reminder-list"}, upcoming.map(renderItem)) : null,
+        history.length ? h("h3", {class: "reminder-group-title", text: "Lịch sử"}) : null,
+        history.length ? h("div", {class: "reminder-list"}, history.map(renderItem)) : null,
+      ]);
     }
 
     return this._card("span4", [

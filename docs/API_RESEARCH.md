@@ -264,6 +264,8 @@ Rà soát bổ sung ngày 2026-08-16 xác nhận APK không chứa playback comm
 
 Từ `1.18.0`, integration dùng `JumpCommandIssued` cho **queue native** trên loa: `BROWSE_MEDIA` trả playlist `latest_playlist.songs` (mỗi bài có `songKey`, `song`, `artist`) dưới dạng `media_content_type` `maika_playlist`/`maika_song`; chọn bài gửi đúng một `JumpCommandIssued` với `songKey` sau khi đọc lại playlist và xác minh bài còn trong queue của đúng loa. ID queue là `maika:<sha256 revision>:<songKey urlencode>`; integration không dựng playlist giả từ lịch sử, URL cast hay suy luận câu nói. Queue này hoạt động kể cả khi tắt cloud cast. Bản `1.2.0` chấp nhận MIME MP4/AAC nhưng vẫn dùng fallback `AUDIO_MPEG` đã xác minh để firmware tự nhận dạng nội dung URL. Từ `1.17.0`, lệnh `STOP` của media player gửi `PauseCommandIssued`, báo `paused` và giữ vị trí để phát tiếp; không giả reset bài hoặc gửi directive `Stop` chưa được kiểm chứng.
 
+Từ `1.29.1`, khi metadata bài đổi qua `songKey`/`key`/`url`/`id` hoặc tên bài (`title`/`song`/`name`), integration bỏ `offsetInMilliseconds` và thời lượng của bài trước thay vì merge tiếp. Chọn bài trong queue native và previous/next cũng cập nhật optimistic tên bài, ca sĩ, vị trí `0:00` và xóa URL cast cũ; event live vẫn là nguồn xác nhận cuối cùng.
+
 Schema đã được xác minh tĩnh từ APK nhưng chưa được xác nhận bằng phát âm thanh trên loa vật lý trong bản bàn giao này. Do đó feature mặc định tắt và được ghi rõ là thử nghiệm.
 
 ## Content Store (thư viện giải trí)
@@ -273,7 +275,7 @@ APK 3.2.3 có **Content Store** riêng cho nhạc, podcast, radio, kênh và n�
 Integration `1.19.0` chỉ triển khai các read operation cần để duyệt (trong `custom_components/maika/content_store.py`) và gửi qua `MaikaApiClient.async_graphql`:
 
 - `ContentChannels`: `media_channel` → kênh (`id`, `name`, `slug`, `cover`).
-- `ContentChannelMedias`: `media_channel_by_pk(id:)` → `categories` (`rel_channel_category`) → `category` → `medias` (`rel_media_category`) → `media` (`audio`, `cover`, `description`, `duration`, `id`, `title`, `_type { description value }`). Từ `1.21.1`, `medias` nằm dưới `category`; API hiện tại không còn field `medias` trực tiếp trên `rel_channel_category`. Từ `1.20.1` chọn đúng `_type`; thêm lọc `media.is_published`.
+- `ContentChannelMedias`: `media_channel_by_pk(id:)` → `categories` (`rel_channel_category`) → `category` → `medias` (`rel_media_category`) → `media` (`audio`, `cover`, `description`, `duration`, `id`, `title`, `_type { description value }`). Từ `1.21.1`, `medias` nằm dưới `category`; API hiện tại không còn field `medias` trực tiếp trên `rel_channel_category`. Từ `1.20.1` chọn đúng `_type`; thêm lọc `media.is_published`. Từ `1.29.1`, query lọc thêm `media.media_channel_id = $id` và panel hiển thị `category` thành thư mục con `maika_cs_channel_category:<channel>:<category>` thay vì gộp phẳng.
 - `ContentCategories`: `media_type` → các thể loại nổi bật (`value`, `description`, `icon`, `bg_color`).
 - `ContentHighlights`: `highlights(media_type:)` → nội dung nổi bật theo thể loại (`id`, `title`, `type`, `is_list`, `cover`).
 - `ContentEpisodes`: `media_episode_details(id:)` → danh sách tập/bài của một media (`audio`, `duration`, `id`, `title`).

@@ -166,18 +166,60 @@ class ContentStoreTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_channel_medias_flatten_and_dedupe(self):
+    async def test_channel_categories_keep_media_folders_and_order(self):
+        response = {
+            "media_channel_by_pk": {
+                "categories": [
+                    {
+                        "category": {
+                            "id": 2,
+                            "title": "Khác",
+                            "order_no": 2,
+                            "medias": [{"media": {"id": 100, "title": "Bản tin sáng"}}],
+                        }
+                    },
+                    {
+                        "category": {
+                            "id": 1,
+                            "title": "Tin tức",
+                            "order_no": 1,
+                            "cover": "https://cdn/1.png",
+                            "medias": [
+                                {
+                                    "media": {
+                                        "id": 101,
+                                        "title": "Bản tin tối",
+                                        "audio": "https://cdn/101.mp3",
+                                    }
+                                },
+                                {"media": {"id": 101, "title": "Trùng"}},
+                            ],
+                        }
+                    },
+                    {"category": {"id": None, "title": "Broken"}},
+                    {"category": {"id": 3, "title": "Rỗng", "medias": []}},
+                ]
+            }
+        }
+        store = self.store({"media_channel_by_pk": response})
+        categories = await store.async_channel_categories(7)
+        self.assertEqual([item["id"] for item in categories], [1, 2])
+        self.assertEqual(categories[0]["title"], "Tin tức")
+        self.assertEqual(categories[0]["cover"], "https://cdn/1.png")
+        self.assertEqual([media["id"] for media in categories[0]["medias"]], [101])
+        self.assertEqual(categories[1]["medias"][0]["id"], 100)
+        query, variables = self.client.calls[0]
+        normalized = " ".join(query.split())
+        self.assertIn("cover description id order_no title", normalized)
+        self.assertIn("media_channel_id: { _eq: $id }", normalized)
+        self.assertEqual(variables, {"id": 7, "offset": 0, "limit": 50})
+
+    async def test_channel_medias_flatten_categories_and_dedupe(self):
         store = self.store({"media_channel_by_pk": CHANNEL_MEDIAS_RESPONSE})
         medias = await store.async_channel_medias(7)
         self.assertEqual([media["id"] for media in medias], [100, 101])
         self.assertEqual(medias[0]["audio"], "https://cdn/100.mp3")
         self.assertIsNone(medias[1]["audio"])
-        query, variables = self.client.calls[0]
-        self.assertIn(
-            "category { description id title medias(",
-            " ".join(query.split()),
-        )
-        self.assertEqual(variables, {"id": 7, "offset": 0, "limit": 50})
 
     async def test_categories_parse_and_skip_missing_value(self):
         store = self.store({"media_type {": CATEGORIES_RESPONSE})

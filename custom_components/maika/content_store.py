@@ -34,9 +34,14 @@ query ContentChannelMedias($id: Int!, $offset: Int!, $limit: Int!) {
       offset: $offset
     ) {
       category {
-        description id title
+        cover description id order_no title
         medias(
-          where: { media: { is_published: { _eq: true } } }
+          where: {
+            media: {
+              is_published: { _eq: true }
+              media_channel_id: { _eq: $id }
+            }
+          }
           limit: 50
           offset: 0
         ) {
@@ -165,23 +170,57 @@ class MaikaContentStore:
             )
         return channels
 
-    async def async_channel_medias(self, channel_id: int) -> list[dict[str, Any]]:
+    async def async_channel_categories(self, channel_id: int) -> list[dict[str, Any]]:
         data = await self._client.async_graphql(
             _QUERY_CHANNEL_MEDIAS,
             {"id": channel_id, "offset": 0, "limit": _MAX_ITEMS},
         )
         channel = _as_dict(data.get("media_channel_by_pk"))
-        medias: list[dict[str, Any]] = []
-        seen: set[int] = set()
+        categories: list[dict[str, Any]] = []
         for group in _as_list(channel.get("categories")):
             relation = _as_dict(group)
             category = _as_dict(relation.get("category"))
+            category_id = _int(category.get("id"))
+            if category_id is None:
+                continue
             entries = category.get("medias")
             if entries is None:
                 entries = relation.get("medias")
+            medias: list[dict[str, Any]] = []
+            seen: set[int] = set()
             for entry in _as_list(entries):
                 media = normalize_media(_as_dict(entry).get("media"))
                 if media is None or media["id"] in seen:
+                    continue
+                seen.add(media["id"])
+                medias.append(media)
+            if not medias:
+                continue
+            categories.append(
+                {
+                    "id": category_id,
+                    "title": _text(category.get("title")) or f"Thể loại {category_id}",
+                    "description": _text(category.get("description")),
+                    "cover": _text(category.get("cover")),
+                    "order_no": _int(category.get("order_no")),
+                    "medias": medias,
+                }
+            )
+        categories.sort(
+            key=lambda item: (
+                item["order_no"] is None,
+                item["order_no"] or 0,
+                item["id"],
+            )
+        )
+        return categories
+
+    async def async_channel_medias(self, channel_id: int) -> list[dict[str, Any]]:
+        medias: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        for category in await self.async_channel_categories(channel_id):
+            for media in category["medias"]:
+                if media["id"] in seen:
                     continue
                 seen.add(media["id"])
                 medias.append(media)

@@ -79,15 +79,18 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   thích của tài khoản. Nút chỉ bật khi bài đang phát có `maika_song_key`; bài
   cast từ URL bên ngoài không có đủ thông tin để lưu.
 - Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
-  Content Store (`maika_cs_*`): kênh → media → tập/bài, thể loại và nội dung
-  nổi bật. Chọn một bài phát qua `media_player.play_media` kiểu `maika_cs_track`;
-  nút quay lại trên breadcrumb trở về mục cha. Khi tài khoản MAIKA có
-  `favorite_playlist_id`, mục **Bài hát yêu thích** xuất hiện trong thư viện và
-  phát qua `maika_favorite_track`.
+  Content Store (`maika_cs_*`): kênh → thể loại → media → tập/bài, thể loại và
+  nội dung nổi bật. Từ `1.29.1`, mỗi kênh mở thành các thư mục thể loại thay vì
+  gộp toàn bộ media. Chọn một bài phát qua `media_player.play_media` kiểu
+  `maika_cs_track`; nút quay lại trên breadcrumb trở về mục cha. Khi tài khoản
+  MAIKA có `favorite_playlist_id`, mục **Bài hát yêu thích** xuất hiện trong thư
+  viện và phát qua `maika_favorite_track`.
 - Mục **Nhắc hẹn** tải danh sách từ cloud MAIKA khi mở lần đầu, cho phép tạo
   nhắc một lần/hằng ngày/hằng tuần/hằng tháng/hằng năm, chọn báo trước
   0–60 phút và lời đọc TTS. Nút **Xóa** có xác nhận; danh sách tự cập nhật sau
-  mỗi thao tác. Lỗi hiển thị cạnh danh sách kèm nút **Thử lại**.
+  mỗi thao tác. Từ `1.29.1`, nhắc đã xong hoặc đã qua được gom vào khu
+  **Lịch sử** nhưng vẫn sửa hoặc xóa được. Lỗi hiển thị cạnh danh sách kèm nút
+  **Thử lại**.
 - Ô **Tìm bài hát trên NhạcCủaTui** trong hộp thoại thư viện gọi
   `media_player/search_media`; kết quả là track `maika_nct_track`, chọn bài sẽ
   cast qua cloud MAIKA. Enter hoặc nút **Tìm** đều chạy tìm kiếm; lỗi có nút

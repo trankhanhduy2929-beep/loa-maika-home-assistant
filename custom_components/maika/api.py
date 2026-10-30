@@ -102,7 +102,17 @@ def merge_current_playback(current: Any, changes: Any) -> Any:
         previous = current_attributes if isinstance(current_attributes, dict) else {}
         if any(
             key in attributes and attributes[key] != previous.get(key)
-            for key in ("songKey", "key", "url", "id", "mediaId", "media_id")
+            for key in (
+                "songKey",
+                "key",
+                "url",
+                "id",
+                "mediaId",
+                "media_id",
+                "title",
+                "song",
+                "name",
+            )
         ):
             merged["payload"] = deepcopy(payload)
             return merged

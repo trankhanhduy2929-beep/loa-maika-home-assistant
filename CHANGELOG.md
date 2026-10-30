@@ -2,6 +2,32 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.1] - 2026-10-30
+
+### Fixed
+
+- Chọn bài từ **Thư viện giải trí**, **NhạcCủaTui** hoặc **Bài hát yêu thích**
+  cập nhật ngay bài đang phát, vị trí `0:00` và ảnh bìa thay vì giữ bài cũ tới
+  khi loa báo lại. Nhờ đó nút phát/tạm dừng không còn gửi resume vào nội dung
+  cũ và người dùng thấy bài mới tự phát ngay.
+- Đổi bài không còn tái sử dụng thời gian `offsetInMilliseconds` của bài trước.
+  Khi metadata bài đổi, khi chọn bài trong queue native hoặc khi bấm
+  previous/next, panel reset vị trí về `0:00` và bỏ thời lượng cũ.
+- Previous/next cập nhật ngay tên bài, ca sĩ và vị trí của bài liền kề trong
+  queue native trước khi event live về, đồng thời xóa URL cast cũ để seek
+  không phát lại bài trước.
+- **Content Store** hiển thị thể loại của từng kênh thành thư mục con thay vì
+  gộp toàn bộ media; query lọc thêm `media_channel_id` giống app 3.2.3.
+- **Nhắc hẹn** tách các mục đã xong/đã qua vào khu **Lịch sử** nhưng vẫn cho
+  phép sửa và xóa.
+
+### Tests
+
+- Thêm kiểm thử optimistic cast, reset offset, next/previous native, metadata
+  bài đổi và cây kênh → thể loại → media.
+- Browser test kiểm tra breadcrumb kênh/thể loại và khu lịch sử nhắc hẹn.
+- Ruff, repository checks, unit test, browser test và HA compatibility pass.
+
 ## [1.29.0] - 2026-10-30
 
 ### Added
