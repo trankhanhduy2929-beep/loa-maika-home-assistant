@@ -339,6 +339,50 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         client.async_mute_reminders.assert_not_awaited()
 
+    async def test_add_current_song_uses_favorite_playlist(self):
+        client = types.SimpleNamespace(
+            favorite_playlist_id=42,
+            async_add_song_to_playlist=AsyncMock(return_value={}),
+        )
+        entry = make_entry(client=client)
+        entry.runtime_data.coordinator.data["devices"]["SN1"]["current_playback"] = {
+            "payload": {
+                "playbackAttributes": {
+                    "key": "song-key",
+                    "name": "Bài hát",
+                    "artist": "Ca sĩ",
+                    "url": "https://cdn/song.mp3",
+                    "lyric": "https://cdn/lyric.lrc",
+                    "image": {"url": "https://cdn/cover.jpg"},
+                }
+            }
+        }
+        await self.module["_async_add_current_to_favorites"](
+            FakeHass([entry]), types.SimpleNamespace(data={"serial_number": "SN1"})
+        )
+        client.async_add_song_to_playlist.assert_awaited_once_with(
+            42,
+            singer="Ca sĩ",
+            song_id="song-key",
+            song_name="Bài hát",
+            song_url="https://cdn/song.mp3",
+            lyric="https://cdn/lyric.lrc",
+            image_url="https://cdn/cover.jpg",
+        )
+
+    async def test_add_current_song_rejects_missing_track(self):
+        client = types.SimpleNamespace(
+            favorite_playlist_id=42,
+            async_add_song_to_playlist=AsyncMock(return_value={}),
+        )
+        with self.assertRaises(ServiceValidationError) as error:
+            await self.module["_async_add_current_to_favorites"](
+                FakeHass([make_entry(client=client)]),
+                types.SimpleNamespace(data={"serial_number": "SN1"}),
+            )
+        self.assertEqual(error.exception.translation_key, "maika_favorite_no_track")
+        client.async_add_song_to_playlist.assert_not_awaited()
+
     async def test_services_register_once(self):
         registered: list[str] = []
         hass = types.SimpleNamespace(
@@ -359,6 +403,7 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
                 "set_reminder_enabled",
                 "delete_reminders",
                 "mute_reminders",
+                "add_current_to_favorites",
             ],
         )
 

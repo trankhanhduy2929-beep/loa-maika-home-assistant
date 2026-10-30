@@ -213,6 +213,24 @@
           "description": "Dates in YYYY-MM-DD format."
         }
       }
+    },
+    "add_current_to_favorites": {
+      "name": "Add current song to favorites",
+      "description": "Add the song currently playing on the selected MAIKA speaker to the account favorites playlist.",
+      "fields": {
+        "device_id": {
+          "name": "Speaker",
+          "description": "MAIKA speaker whose current song is saved."
+        },
+        "entry_id": {
+          "name": "Account",
+          "description": "MAIKA account, required only when the speaker is ambiguous."
+        },
+        "serial_number": {
+          "name": "Speaker serial number",
+          "description": "Optional when a MAIKA device is selected."
+        }
+      }
     }
   },
   "exceptions": {
@@ -302,6 +320,12 @@
     },
     "maika_service_invalid_reminder": {
       "message": "The reminder input is invalid ({reason})."
+    },
+    "maika_favorite_no_track": {
+      "message": "The current playback has no reusable MAIKA song. Play a song from the MAIKA catalog first."
+    },
+    "maika_favorite_failed": {
+      "message": "MAIKA cloud did not accept the favorite request. Check the connection and try again."
     }
   },
   "entity": {

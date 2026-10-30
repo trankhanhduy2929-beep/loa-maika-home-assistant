@@ -763,7 +763,7 @@ async function verifyPlaylistPicker() {
     serial: panel._activeSerial(),
     items: window.browseItems.map((item) => ({id: item.media_content_id, title: item.title})),
   }));
-  const {media, items} = await context();
+  const {media, serial, items} = await context();
   const [first, second] = items;
   const dialog = page.locator("dialog.playlist");
   const rows = dialog.locator(".pl-item");
@@ -775,6 +775,18 @@ async function verifyPlaylistPicker() {
 
   assert.equal(await page.locator(".media-now .media-title").count(), 1);
   assert.equal(await page.locator(".media-now .media-title").getAttribute("aria-haspopup"), "dialog");
+  const favoriteButton = page.locator('.media-now [data-action="favorite-track"]');
+  assert.equal(await favoriteButton.count(), 1);
+  assert.equal(await favoriteButton.getAttribute("aria-label"), "Thêm bài đang phát vào Bài hát yêu thích");
+  assert.equal(await favoriteButton.isDisabled(), false);
+  await page.evaluate(() => { window.calls.length = 0; });
+  await favoriteButton.click();
+  await page.waitForFunction(() => window.calls.some((call) => call.service === "add_current_to_favorites"));
+  assert.deepEqual(
+    await page.evaluate(() => window.calls.find((call) => call.service === "add_current_to_favorites")),
+    {domain: "maika", service: "add_current_to_favorites", data: {serial_number: serial}},
+  );
+  console.log("PASS current-song heart dispatches one MAIKA favorite service call");
   await open();
   await rows.first().waitFor();
   assert.equal(await rows.count(), 2);

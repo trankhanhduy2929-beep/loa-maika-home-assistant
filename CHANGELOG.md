@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.28.0] - 2026-10-30
+
+### Added
+
+- Nút trái tim cạnh bài đang phát trong panel gọi service
+  `maika.add_current_to_favorites` để thêm bài MAIKA hiện tại vào playlist
+  **Bài hát yêu thích** của tài khoản.
+- Service `maika.add_current_to_favorites` dùng `POST
+  /v1/playlists/{favorite_playlist_id}/songs` với đúng body của app 3.2.3:
+  `singer`, `song_id`, `song_name`, `song_url`, `lyric`, `source`, `status`,
+  `imageURL`; mặc định giống app là `source=nct`, `status=1`. Service nhận
+  `device_id` hoặc `entry_id` + `serial_number`.
+
+### Tests
+
+- API test cho body thêm bài, service test cho ánh xạ playback và trường hợp
+  thiếu bài, browser test cho nút trái tim.
+- Ruff, validate repository, media player test, panel browser test và HA
+  compatibility pass.
+
 ## [1.27.2] - 2026-10-29
 
 ### Fixed

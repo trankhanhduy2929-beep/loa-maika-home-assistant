@@ -44,6 +44,7 @@ SERVICE_UPDATE_REMINDER = "update_reminder"
 SERVICE_SET_REMINDER_ENABLED = "set_reminder_enabled"
 SERVICE_DELETE_REMINDERS = "delete_reminders"
 SERVICE_MUTE_REMINDERS = "mute_reminders"
+SERVICE_ADD_CURRENT_TO_FAVORITES = "add_current_to_favorites"
 
 _TARGET_FIELDS = {
     vol.Optional(ATTR_ENTRY_ID): cv.string,
@@ -111,6 +112,8 @@ MUTE_REMINDERS_SCHEMA = vol.Schema(
     }
 )
 
+ADD_CURRENT_TO_FAVORITES_SCHEMA = vol.Schema({**_TARGET_FIELDS})
+
 
 @dataclass(frozen=True, slots=True)
 class _Speaker:
@@ -155,6 +158,58 @@ def _device_serial(device: dr.DeviceEntry) -> str:
         if domain == DOMAIN and isinstance(identifier, str) and identifier:
             return identifier
     return ""
+
+
+def _first_string(*values: Any) -> str:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value
+        if isinstance(value, int) and not isinstance(value, bool):
+            return str(value)
+    return ""
+
+
+def _playback_attributes(entry: ConfigEntry, serial_number: str) -> dict[str, Any]:
+    coordinator = getattr(entry.runtime_data, "coordinator", None)
+    devices = (getattr(coordinator, "data", None) or {}).get("devices") or {}
+    device = devices.get(serial_number)
+    if not isinstance(device, dict):
+        return {}
+    current = device.get("current_playback")
+    if not isinstance(current, dict):
+        return {}
+    payload = current.get("payload")
+    if not isinstance(payload, dict):
+        return {}
+    attributes = payload.get("playbackAttributes")
+    return attributes if isinstance(attributes, dict) else {}
+
+
+def _favorite_song_payload(attributes: dict[str, Any]) -> dict[str, Any]:
+    image = attributes.get("image")
+    image_url = _first_string(
+        attributes.get("imageURL"),
+        attributes.get("image_url"),
+        image.get("url") if isinstance(image, dict) else None,
+    )
+    song_id = _first_string(
+        attributes.get("key"),
+        attributes.get("songKey"),
+        attributes.get("id"),
+        attributes.get("mediaId"),
+        attributes.get("media_id"),
+    )
+    return {
+        "singer": _first_string(attributes.get("artist"), attributes.get("narrator")),
+        "song_id": song_id,
+        "song_name": _first_string(
+            attributes.get("name"), attributes.get("song"), attributes.get("title")
+        )
+        or song_id,
+        "song_url": _first_string(attributes.get("url")),
+        "lyric": _first_string(attributes.get("lyric")),
+        "image_url": image_url,
+    }
 
 
 def _resolve_speaker(hass: HomeAssistant, data: dict[str, Any]) -> _Speaker:
@@ -399,8 +454,35 @@ async def _async_mute_reminders(hass: HomeAssistant, call: ServiceCall) -> None:
         ) from err
 
 
+async def _async_add_current_to_favorites(
+    hass: HomeAssistant, call: ServiceCall
+) -> None:
+    speaker = _resolve_speaker(hass, call.data)
+    favorite_playlist_id = getattr(speaker.client, "favorite_playlist_id", None)
+    if not favorite_playlist_id:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="maika_favorites_unavailable",
+        )
+    payload = _favorite_song_payload(
+        _playback_attributes(speaker.entry, speaker.serial_number)
+    )
+    if not payload["song_id"] or not payload["song_url"]:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="maika_favorite_no_track",
+        )
+    try:
+        await speaker.client.async_add_song_to_playlist(favorite_playlist_id, **payload)
+    except MaikaApiError as err:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="maika_favorite_failed",
+        ) from err
+
+
 async def async_setup_services(hass: HomeAssistant) -> None:
-    """Register MAIKA reminder services once per Home Assistant instance."""
+    """Register MAIKA services once per Home Assistant instance."""
     services = (
         (
             SERVICE_CREATE_REMINDER,
@@ -426,6 +508,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             SERVICE_MUTE_REMINDERS,
             MUTE_REMINDERS_SCHEMA,
             _async_mute_reminders,
+        ),
+        (
+            SERVICE_ADD_CURRENT_TO_FAVORITES,
+            ADD_CURRENT_TO_FAVORITES_SCHEMA,
+            _async_add_current_to_favorites,
         ),
     )
     for service, schema, handler in services:

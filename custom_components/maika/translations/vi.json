@@ -213,6 +213,24 @@
           "description": "Các ngày theo định dạng YYYY-MM-DD."
         }
       }
+    },
+    "add_current_to_favorites": {
+      "name": "Thêm bài đang phát vào yêu thích",
+      "description": "Thêm bài đang phát trên loa MAIKA đã chọn vào playlist Bài hát yêu thích của tài khoản.",
+      "fields": {
+        "device_id": {
+          "name": "Loa",
+          "description": "Loa MAIKA đang phát bài cần lưu."
+        },
+        "entry_id": {
+          "name": "Tài khoản",
+          "description": "Tài khoản MAIKA, chỉ cần khi có nhiều loa."
+        },
+        "serial_number": {
+          "name": "Số serial loa",
+          "description": "Không bắt buộc khi đã chọn thiết bị MAIKA."
+        }
+      }
     }
   },
   "exceptions": {
@@ -302,6 +320,12 @@
     },
     "maika_service_invalid_reminder": {
       "message": "Dữ liệu nhắc hẹn không hợp lệ ({reason})."
+    },
+    "maika_favorite_no_track": {
+      "message": "Bài đang phát không có thông tin bài hát MAIKA để lưu. Hãy phát bài từ kho nhạc MAIKA trước."
+    },
+    "maika_favorite_failed": {
+      "message": "Cloud MAIKA không nhận yêu cầu lưu bài yêu thích. Kiểm tra kết nối rồi thử lại."
     }
   },
   "entity": {

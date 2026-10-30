@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.27.2**.
+Bản hiện tại: **v1.28.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -39,6 +39,7 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Chọn bài trong danh sách bài trên loa ngay trong panel, kể cả khi tắt cast cloud.
 - Duyệt **Thư viện giải trí MAIKA** (kênh/radio, thể loại, nội dung nổi bật) trong trình duyệt media của Home Assistant hoặc ngay trong panel.
 - Duyệt và phát **Bài hát yêu thích** của tài khoản MAIKA qua cast cloud, ngay trong Thư viện giải trí; danh sách tải đủ các trang playlist.
+- Bấm nút trái tim cạnh bài đang phát trong panel hoặc gọi service `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào playlist yêu thích của tài khoản.
 - Xem, tạo và xóa **nhắc hẹn** phát trên loa (một lần hoặc lặp lại, báo trước, lời đọc TTS tùy chọn) trong mục **Nhắc hẹn** của panel hoặc bằng service Home Assistant.
 - Duyệt, tìm kiếm và phát **NhạcCủaTui** ngay trên mục MAIKA và trong thư viện giải trí: bài hát mới, top thịnh hành, tìm theo tên bài/ca sĩ; phát link bài NhạcCủaTui bằng `media_player.play_media`.
 - Gõ câu lệnh **trò chuyện với loa** từ panel; integration gửi event `Recognize` tới đúng loa và hiện phản hồi của loa.
@@ -75,6 +76,8 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.28.0` thêm nút trái tim cạnh bài đang phát và service `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào **Bài hát yêu thích**.
 
 Bản `1.27.2` sửa import `ConfigType` để integration tải được trên Home Assistant dùng Python 3.14 mới. Không đổi entity hay dữ liệu đã lưu.
 
@@ -226,13 +229,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.27.2
+## File phát hành v1.28.0
 
-- `maika.zip` và `maika-v1.27.2-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.27.2` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.27.2-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.28.0-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.28.0` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.28.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.27.2-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.28.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

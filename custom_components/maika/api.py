@@ -326,6 +326,35 @@ class MaikaApiClient:
             songs.extend(page_songs)
         return songs
 
+    async def async_add_song_to_playlist(
+        self,
+        playlist_id: int | str,
+        *,
+        singer: str,
+        song_id: str,
+        song_name: str,
+        song_url: str,
+        lyric: str = "",
+        source: str = "nct",
+        status: int = 1,
+        image_url: str = "",
+    ) -> dict[str, Any]:
+        """Add one song to a MAIKA playlist using the app request shape."""
+        return await self._async_request_json(
+            "POST",
+            f"{USERS_BASE_URL}/v1/playlists/{playlist_id}/songs",
+            json_body={
+                "singer": singer,
+                "song_id": song_id,
+                "song_name": song_name,
+                "song_url": song_url,
+                "lyric": lyric,
+                "source": source or "nct",
+                "status": status,
+                "imageURL": image_url,
+            },
+        )
+
     async def async_list_reminders(self) -> list[dict[str, Any]]:
         """Return reminder groups from the MAIKA cloud."""
         response = await self._async_request_json(

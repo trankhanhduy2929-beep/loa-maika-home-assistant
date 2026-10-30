@@ -206,6 +206,7 @@ class MaikaPanel extends HTMLElement {
     this._activeSection = "overview";
     this._openSections = new Set();
     this._busy = false;
+    this._favoriting = false;
     this._message = null;
     this._draft = {};
     this._loaded = false;
@@ -830,6 +831,8 @@ class MaikaPanel extends HTMLElement {
       .now-act:disabled { cursor: default; opacity: .5; }
       .now-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .now-act svg { width: 17px; height: 17px; fill: currentColor; }
+      .now-act--fav { color: var(--pink); }
+      .now-act--fav:hover:not(:disabled) { background: rgba(255, 158, 196, .16); }
 
       dialog.playlist, dialog.library { width: min(560px, 92vw); max-width: 100%; margin: auto; padding: 0; border: 0; background: transparent; color: var(--text); }
       dialog.playlist::backdrop, dialog.library::backdrop { background: rgba(12, 6, 2, .58); }
@@ -1526,6 +1529,14 @@ class MaikaPanel extends HTMLElement {
         ]),
         h("div", {class: "s", text: this._activityLabel(activity)}),
       ]),
+      h("button", {
+        class: "now-act now-act--fav",
+        type: "button",
+        dataset: {action: "favorite-track"},
+        "aria-label": "Thêm bài đang phát vào Bài hát yêu thích",
+        title: attrs.maika_song_key ? "Thêm bài đang phát vào Bài hát yêu thích" : "Bài đang phát không có thông tin để lưu vào yêu thích",
+        disabled: !online || !attrs.maika_song_key || this._favoriting,
+      }, [svgIcon(ICONS.heart)]),
       h("button", {
         class: "now-act",
         type: "button",
@@ -3235,6 +3246,11 @@ class MaikaPanel extends HTMLElement {
       return;
     }
 
+    if (action === "favorite-track") {
+      this._addCurrentToFavorites();
+      return;
+    }
+
     if (action === "library-close") {
       this._closeContentStore();
       return;
@@ -3594,6 +3610,28 @@ class MaikaPanel extends HTMLElement {
     const result = await this._post(`${API}/action`, {entry_id: entry.entry_id, action: "reload"});
     this._busy = false;
     this._notify(result.ok ? "ok" : "error", result.ok ? "Đã yêu cầu tải lại integration." : `Tải lại thất bại: ${this._errorText(result.error)}`);
+  }
+
+  async _addCurrentToFavorites() {
+    if (this._favoriting) return;
+    const serial = this._activeSerial();
+    if (!serial) {
+      this._notify("error", "Chưa chọn loa MAIKA.");
+      return;
+    }
+    this._favoriting = true;
+    this._lastSignature = "";
+    this._maybeUpdate();
+    try {
+      await this._hass.callService("maika", "add_current_to_favorites", {serial_number: serial});
+      this._notify("ok", "Đã thêm bài đang phát vào Bài hát yêu thích.");
+    } catch (err) {
+      this._notify("error", `Không thêm được bài yêu thích: ${this._errorText(err)}`);
+    } finally {
+      this._favoriting = false;
+      this._lastSignature = "";
+      this._maybeUpdate();
+    }
   }
 
   _callService(domain, service, data, successText) {

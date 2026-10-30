@@ -170,3 +170,17 @@ mute_reminders:
       selector:
         text:
           multiple: true
+
+add_current_to_favorites:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: maika
+    entry_id:
+      selector:
+        config_entry:
+          integration: maika
+    serial_number:
+      selector:
+        text:

@@ -132,6 +132,31 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
         await self.client.async_list_all_playlist_songs(42, max_pages=2)
         self.assertEqual(self.client._async_request_json.await_count, 2)
 
+    async def test_add_song_to_playlist_posts_app_request_shape(self):
+        await self.client.async_add_song_to_playlist(
+            42,
+            singer="Ca sĩ",
+            song_id="song-key",
+            song_name="Bài hát",
+            song_url="https://cdn/song.mp3",
+            lyric="https://cdn/lyric.lrc",
+            image_url="https://cdn/cover.jpg",
+        )
+        self.client._async_request_json.assert_awaited_once_with(
+            "POST",
+            f"{self.users}/v1/playlists/42/songs",
+            json_body={
+                "singer": "Ca sĩ",
+                "song_id": "song-key",
+                "song_name": "Bài hát",
+                "song_url": "https://cdn/song.mp3",
+                "lyric": "https://cdn/lyric.lrc",
+                "source": "nct",
+                "status": 1,
+                "imageURL": "https://cdn/cover.jpg",
+            },
+        )
+
     async def test_list_reminders_uses_get_and_returns_groups(self):
         self.client._async_request_json.return_value = {
             "data": [{"listReminders": []}, None, "bad"]

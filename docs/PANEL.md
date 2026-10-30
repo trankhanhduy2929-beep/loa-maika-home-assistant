@@ -74,6 +74,10 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   nhãn kết quả. Khi mục **Trò chuyện** đang mở, panel tự làm mới mỗi 4 giây để
   hội thoại và câu lệnh cập nhật gần như thời gian thực mà không mất nội dung
   đang gõ.
+- Nút trái tim trên hàng bài đang phát gọi service
+  `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào playlist yêu
+  thích của tài khoản. Nút chỉ bật khi bài đang phát có `maika_song_key`; bài
+  cast từ URL bên ngoài không có đủ thông tin để lưu.
 - Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
   Content Store (`maika_cs_*`): kênh → media → tập/bài, thể loại và nội dung
   nổi bật. Chọn một bài phát qua `media_player.play_media` kiểu `maika_cs_track`;
