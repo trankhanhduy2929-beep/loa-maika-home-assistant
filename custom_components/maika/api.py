@@ -8,6 +8,7 @@ import codecs
 import json
 import logging
 import time
+import unicodedata
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Any
@@ -147,6 +148,46 @@ class MaikaConnectionError(MaikaApiError):
         return self.status is not None and 500 <= self.status < 600
 
 
+_FAVORITE_PLAYLIST_TITLES = frozenset(
+    {
+        "bai hat yeu thich",
+        "yeu thich",
+        "favorite",
+        "favorites",
+        "favourite",
+        "favourites",
+        "my favorite",
+        "my favorites",
+        "my favourite",
+        "my favourites",
+    }
+)
+
+
+def _normalize_playlist_title(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value)
+    ascii_value = "".join(
+        char for char in decomposed if not unicodedata.combining(char)
+    )
+    return " ".join(ascii_value.casefold().split())
+
+
+def _is_favorite_playlist_title(title: str) -> bool:
+    if title in _FAVORITE_PLAYLIST_TITLES:
+        return True
+    return any(token in title for token in ("yeu thich", "favorite", "favourite"))
+
+
+def _first_text(*values: Any) -> str | None:
+    for value in values:
+        if isinstance(value, bool) or value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
 class MaikaApiClient:
     """Asynchronous MAIKA cloud client."""
 
@@ -166,7 +207,7 @@ class MaikaApiClient:
 
         self._access_token: str | None = None
         self._user_id: int | None = None
-        self._favorite_playlist_id: int | None = None
+        self._favorite_playlist_id: int | str | None = None
         self._token_valid_until = 0.0
         self._auth_lock = asyncio.Lock()
 
@@ -188,7 +229,7 @@ class MaikaApiClient:
         return self._user_id
 
     @property
-    def favorite_playlist_id(self) -> int | None:
+    def favorite_playlist_id(self) -> int | str | None:
         """Return the account's favorite playlist ID when available."""
         return self._favorite_playlist_id
 
@@ -303,6 +344,47 @@ class MaikaApiClient:
             max(1, total_pages),
         )
 
+    async def async_list_playlists(self) -> list[dict[str, Any]]:
+        """Return every MAIKA playlist for the authenticated account."""
+        response = await self._async_request_json(
+            "GET",
+            f"{USERS_BASE_URL}/v1/playlist",
+            params={"page": 1, "limit": 1000, "order_by": "oldest"},
+        )
+        data = response.get("data")
+        if isinstance(data, dict):
+            data = data.get("playlists") or data.get("items") or data.get("data")
+        if not isinstance(data, list):
+            return []
+        return [playlist for playlist in data if isinstance(playlist, dict)]
+
+    async def async_resolve_favorite_playlist_id(
+        self, *, force: bool = False
+    ) -> int | str | None:
+        """Resolve the favorite playlist even when login omits its ID."""
+        if self._favorite_playlist_id and not force:
+            return self._favorite_playlist_id
+        for playlist in await self.async_list_playlists():
+            title = _normalize_playlist_title(
+                _first_text(playlist.get("title"), playlist.get("name"))
+            )
+            if not _is_favorite_playlist_title(title):
+                continue
+            candidate = _first_text(
+                playlist.get("listKey"),
+                playlist.get("list_key"),
+                playlist.get("id"),
+                playlist.get("playlist_id"),
+                playlist.get("key"),
+            )
+            if candidate is None:
+                continue
+            if candidate.lstrip("-").isdigit():
+                candidate = int(candidate)
+            self._favorite_playlist_id = candidate
+            return candidate
+        return None
+
     async def async_list_playlist_songs(
         self,
         playlist_id: int | str,
@@ -345,24 +427,26 @@ class MaikaApiClient:
         song_name: str,
         song_url: str,
         lyric: str = "",
-        source: str = "nct",
-        status: int = 1,
+        source: str | None = None,
+        status: int = 0,
         image_url: str = "",
     ) -> dict[str, Any]:
-        """Add one song to a MAIKA playlist using the app request shape."""
+        """Add one song using the same payload as the MAIKA app."""
+        body = {
+            "singer": singer,
+            "song_id": song_id,
+            "song_name": song_name,
+            "song_url": song_url,
+            "lyric": lyric,
+            "status": status,
+            "imageURL": image_url,
+        }
+        if source:
+            body["source"] = source
         return await self._async_request_json(
             "POST",
             f"{USERS_BASE_URL}/v1/playlists/{playlist_id}/songs",
-            json_body={
-                "singer": singer,
-                "song_id": song_id,
-                "song_name": song_name,
-                "song_url": song_url,
-                "lyric": lyric,
-                "source": source or "nct",
-                "status": status,
-                "imageURL": image_url,
-            },
+            json_body=body,
         )
 
     async def async_list_reminders(self) -> list[dict[str, Any]]:

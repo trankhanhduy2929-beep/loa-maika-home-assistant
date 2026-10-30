@@ -342,6 +342,7 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_add_current_song_uses_favorite_playlist(self):
         client = types.SimpleNamespace(
             favorite_playlist_id=42,
+            async_resolve_favorite_playlist_id=AsyncMock(return_value=42),
             async_add_song_to_playlist=AsyncMock(return_value={}),
         )
         entry = make_entry(client=client)
@@ -373,6 +374,7 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_add_current_song_rejects_missing_track(self):
         client = types.SimpleNamespace(
             favorite_playlist_id=42,
+            async_resolve_favorite_playlist_id=AsyncMock(return_value=42),
             async_add_song_to_playlist=AsyncMock(return_value={}),
         )
         with self.assertRaises(ServiceValidationError) as error:

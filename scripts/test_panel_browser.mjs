@@ -754,67 +754,12 @@ async function verifyCommandHistory() {
   console.log("PASS command history merged into the chat section with live sensor attributes and snapshot fallback");
 }
 
-async function verifyMiniPlayer() {
+async function verifyMiniPlayerRemoved() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
-  const mini = page.locator("section.mini-player");
-  const media = await page.evaluate(() => panel._entity("media_player"));
-  assert.equal(await mini.count(), 1);
-  assert.equal(await mini.locator(".mini-title").innerText(), "Nhạc nhẹ buổi sáng");
-  assert.equal(await mini.locator(".mini-artist").innerText(), "Ca sĩ thử nghiệm");
-  const initialTime = await mini.locator(".mini-time").innerText();
-  assert.match(initialTime, /^0:\d{2} \/ 3:35$/);
-  await page.evaluate(() => {
-    const attrs = states[panel._entity("media_player")].attributes;
-    attrs.media_position = 42;
-    attrs.media_position_updated_at = new Date(Date.now() - 10000).toISOString();
-    panel._syncMiniPlayerClock();
-  });
-  const advancedTime = await mini.locator(".mini-time").innerText();
-  assert.match(advancedTime, /^0:5[0-4] \/ 3:35$/);
-  await page.locator('[data-action="jump"][data-section="settings"]').click();
-  await waitRender();
-  assert.equal(await mini.isVisible(), true);
-  const box = await mini.boundingBox();
-  const viewport = page.viewportSize();
-  assert(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, "Mini player stays inside the viewport");
-  await mini.locator('[data-action="library"]').click();
-  await page.locator("dialog.library").locator(".pl-item").first().waitFor();
-  await page.locator('[data-action="library-close"]').click();
-  await page.waitForFunction(() => !document.querySelector("maika-panel").shadowRoot.querySelector("dialog.library")?.open);
-  assert.equal(await mini.locator('[data-action="library"]').evaluate((node) => node === node.getRootNode().activeElement), true);
-  await page.evaluate(() => { window.calls.length = 0; });
-  await mini.locator('[data-action="playpause"]').click();
-  await page.waitForFunction((entity) => window.calls.some((call) => call.domain === "media_player" && call.service === "media_play_pause" && call.data.entity_id === entity), media);
-  await page.setViewportSize({width: 390, height: 844});
-  await page.evaluate((entity) => {
-    const attrs = states[entity].attributes;
-    attrs.media_title = "Một bài hát có tên rất dài để kiểm tra bố cục mini-player";
-    attrs.media_artist = "Ca sĩ với nghệ danh cũng rất dài";
-    tick();
-  }, media);
-  await waitRender();
-  const mobileLayout = await mini.evaluate((node) => {
-    const title = node.querySelector(".mini-title");
-    const copy = node.querySelector(".mini-copy").getBoundingClientRect();
-    const actions = node.querySelector(".mini-actions").getBoundingClientRect();
-    const style = getComputedStyle(title);
-    return {
-      title: title.textContent,
-      titleHeight: title.getBoundingClientRect().height,
-      lineHeight: parseFloat(style.lineHeight),
-      clipped: title.scrollWidth > title.clientWidth + 1,
-      actionsBelowCopy: actions.top >= copy.bottom - 1,
-    };
-  });
-  assert.equal(mobileLayout.title, "Một bài hát có tên rất dài để kiểm tra bố cục mini-player");
-  assert.equal(mobileLayout.clipped, false, "Mobile mini-player wraps the full song title without clipping");
-  assert(mobileLayout.titleHeight > mobileLayout.lineHeight * 1.5, "Long song title uses multiple lines");
-  assert.equal(mobileLayout.actionsBelowCopy, true, "Mobile mini-player moves controls below the full title and artist");
-  await page.evaluate((entity) => { states[entity].state = "off"; tick(); }, media);
-  await waitRender();
   assert.equal(await page.locator("section.mini-player").count(), 0);
-  console.log("PASS persistent mini-player keeps controls and elapsed/duration visible across sections");
+  assert.equal(await page.evaluate(() => panel.shadowRoot.querySelector(".mini-player")), null);
+  console.log("PASS mini-player bar is removed from the panel");
 }
 
 async function verifyPlaylistPicker() {
@@ -1164,7 +1109,7 @@ try {
   await verifyVoiceEditor();
   await verifyLifetimeLicense();
   await verifyCommandHistory();
-  await verifyMiniPlayer();
+  await verifyMiniPlayerRemoved();
   await verifyPlaylistPicker();
   await verifyChat();
   await verifyReminders();
@@ -1183,7 +1128,6 @@ try {
         imageWidth: panel.shadowRoot.querySelector(".hero-media").clientWidth,
         imageHeight: panel.shadowRoot.querySelector(".hero-media").clientHeight,
         columns: getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length,
-        mini: (() => { const node = panel.shadowRoot.querySelector(".mini-player"); if (!node) return null; const rect = node.getBoundingClientRect(); return {left: rect.left, right: rect.right, panelLeft: panel.getBoundingClientRect().left, panelRight: panel.getBoundingClientRect().right}; })(),
         overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, .panel-accordion, .panel-accordion__copy, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
           const rect = node.getBoundingClientRect();
           return rect.width && (rect.right > panel.getBoundingClientRect().right + 1 || rect.left < -1);
@@ -1194,7 +1138,6 @@ try {
       assert.deepEqual(result.overflow, [], `Overflow ${width}`);
       assert.equal(result.columns, width > 1100 ? 4 : width > 620 ? 2 : 1);
       assert(result.imageWidth <= 180 && result.imageHeight <= 200, `Compact speaker image ${width} ${theme}`);
-      assert(result.mini && result.mini.left >= result.mini.panelLeft - 1 && result.mini.right <= result.mini.panelRight + 1, `Mini player inside panel ${width} ${theme}`);
       metrics.push({viewport: width, ...result});
       if ([390, 1440].includes(width)) {
         await page.waitForTimeout(1000);
@@ -1211,7 +1154,6 @@ try {
   await page.setViewportSize({width: 1300, height: 900});
   await page.evaluate(() => { document.querySelector("#sidebar").style.display = "block"; });
   assert.equal(await page.evaluate(() => getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length), 2);
-  assert(await page.evaluate(() => { const node = panel.shadowRoot.querySelector(".mini-player"); const rect = node.getBoundingClientRect(); const panelRect = panel.getBoundingClientRect(); return rect.left >= panelRect.left - 1 && rect.right <= panelRect.right + 1; }), "Mini player follows panel width with HA sidebar");
   console.log("PASS responsive layout follows actual panel width with HA sidebar");
 
   await page.locator('[data-action="theme"]').selectOption("auto");

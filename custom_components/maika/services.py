@@ -458,12 +458,6 @@ async def _async_add_current_to_favorites(
     hass: HomeAssistant, call: ServiceCall
 ) -> None:
     speaker = _resolve_speaker(hass, call.data)
-    favorite_playlist_id = getattr(speaker.client, "favorite_playlist_id", None)
-    if not favorite_playlist_id:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="maika_favorites_unavailable",
-        )
     payload = _favorite_song_payload(
         _playback_attributes(speaker.entry, speaker.serial_number)
     )
@@ -473,7 +467,15 @@ async def _async_add_current_to_favorites(
             translation_key="maika_favorite_no_track",
         )
     try:
+        favorite_playlist_id = await speaker.client.async_resolve_favorite_playlist_id()
+        if not favorite_playlist_id:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="maika_favorites_unavailable",
+            )
         await speaker.client.async_add_song_to_playlist(favorite_playlist_id, **payload)
+    except ServiceValidationError:
+        raise
     except MaikaApiError as err:
         raise HomeAssistantError(
             translation_domain=DOMAIN,

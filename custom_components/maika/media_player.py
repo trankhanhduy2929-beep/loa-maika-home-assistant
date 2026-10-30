@@ -390,7 +390,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             if self._cloud_cast_enabled:
                 children.append(await self._async_browse_sources(None))
             children.append(await self._async_browse_nct_root())
-            children.append(self._content_store_root())
+            children.append(await self._content_store_root())
             return BrowseMedia(
                 media_class=MediaClass.DIRECTORY,
                 media_content_type=_MEDIA_ROOT,
@@ -405,9 +405,9 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             translation_key="maika_queue_invalid_selection",
         )
 
-    def _content_store_root(self) -> BrowseMedia:
+    async def _content_store_root(self) -> BrowseMedia:
         children = []
-        if getattr(self.coordinator.client, "favorite_playlist_id", None):
+        if await self._resolve_favorite_playlist_id():
             children.append(
                 BrowseMedia(
                     media_class=MediaClass.DIRECTORY,
@@ -457,7 +457,7 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             )
         try:
             if media_content_id == _MEDIA_CS_ROOT:
-                return self._content_store_root()
+                return await self._content_store_root()
             if media_content_id == _MEDIA_CS_CHANNELS:
                 return await self._async_browse_cs_channels()
             if media_content_id == _MEDIA_CS_CATEGORIES:
@@ -797,17 +797,39 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             else None,
         )
 
+    async def _resolve_favorite_playlist_id(
+        self, *, force: bool = False
+    ) -> int | str | None:
+        if not force:
+            cached = getattr(self.coordinator.client, "favorite_playlist_id", None)
+            if cached:
+                return cached
+        resolver = getattr(
+            self.coordinator.client, "async_resolve_favorite_playlist_id", None
+        )
+        if resolver is None:
+            return None
+        return await resolver(force=force)
+
     async def _async_browse_favorites(self) -> BrowseMedia:
-        playlist_id = getattr(self.coordinator.client, "favorite_playlist_id", None)
-        if not playlist_id:
-            raise BrowseError(
-                translation_domain=DOMAIN,
-                translation_key="maika_favorites_unavailable",
-            )
         try:
+            playlist_id = await self._resolve_favorite_playlist_id()
+            if not playlist_id:
+                raise BrowseError(
+                    translation_domain=DOMAIN,
+                    translation_key="maika_favorites_unavailable",
+                )
             songs = await self.coordinator.client.async_list_all_playlist_songs(
                 playlist_id
             )
+            if not songs:
+                fallback_id = await self._resolve_favorite_playlist_id(force=True)
+                if fallback_id and fallback_id != playlist_id:
+                    songs = await self.coordinator.client.async_list_all_playlist_songs(
+                        fallback_id
+                    )
+        except BrowseError:
+            raise
         except MaikaApiError as err:
             raise BrowseError(
                 translation_domain=DOMAIN,

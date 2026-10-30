@@ -132,6 +132,33 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
         await self.client.async_list_all_playlist_songs(42, max_pages=2)
         self.assertEqual(self.client._async_request_json.await_count, 2)
 
+    async def test_list_playlists_and_resolve_favorite_by_title(self):
+        self.client._favorite_playlist_id = None
+        self.client._async_request_json.return_value = {
+            "data": [
+                {"listKey": "7", "title": "Playlist khác"},
+                {"listKey": "favorite-list", "title": "Bài hát yêu thích"},
+            ]
+        }
+        playlists = await self.client.async_list_playlists()
+        self.assertEqual(len(playlists), 2)
+        self.client._async_request_json.assert_awaited_once_with(
+            "GET",
+            f"{self.users}/v1/playlist",
+            params={"page": 1, "limit": 1000, "order_by": "oldest"},
+        )
+
+        playlist_id = await self.client.async_resolve_favorite_playlist_id()
+        self.assertEqual(playlist_id, "favorite-list")
+        self.assertEqual(self.client.favorite_playlist_id, "favorite-list")
+
+    async def test_resolve_favorite_returns_none_when_no_title_matches(self):
+        self.client._favorite_playlist_id = None
+        self.client._async_request_json.return_value = {
+            "data": [{"listKey": "7", "title": "Playlist khác"}]
+        }
+        self.assertIsNone(await self.client.async_resolve_favorite_playlist_id())
+
     async def test_add_song_to_playlist_posts_app_request_shape(self):
         await self.client.async_add_song_to_playlist(
             42,
@@ -151,8 +178,7 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "song_name": "Bài hát",
                 "song_url": "https://cdn/song.mp3",
                 "lyric": "https://cdn/lyric.lrc",
-                "source": "nct",
-                "status": 1,
+                "status": 0,
                 "imageURL": "https://cdn/cover.jpg",
             },
         )

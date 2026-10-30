@@ -220,6 +220,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             async_cast_media=AsyncMock(),
             async_set_volume=AsyncMock(),
             favorite_playlist_id=None,
+            async_resolve_favorite_playlist_id=AsyncMock(return_value=None),
             async_list_all_playlist_songs=AsyncMock(return_value=[]),
         )
         self.coordinator = SimpleNamespace(
@@ -1431,6 +1432,56 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             error.exception.translation_key, "maika_content_store_invalid_selection"
         )
+
+    async def test_favorites_resolve_missing_playlist_id_by_title(self):
+        self.client.async_resolve_favorite_playlist_id.return_value = "favorite-list"
+        self.client.async_list_all_playlist_songs.return_value = [
+            {
+                "songKey": "Track0001",
+                "song": "Bài yêu thích",
+                "url": "https://cdn/fav.mp3",
+            }
+        ]
+        content_root = await self.player.async_browse_media(
+            "maika_cs_root", "maika_cs_root"
+        )
+        self.assertEqual(content_root.children[0].media_content_id, "maika_favorite")
+        favorites = await self.player.async_browse_media(
+            "maika_favorite", "maika_favorite"
+        )
+        self.client.async_resolve_favorite_playlist_id.assert_awaited()
+        self.client.async_list_all_playlist_songs.assert_awaited_once_with(
+            "favorite-list"
+        )
+        self.assertEqual(favorites.children[0].media_content_id, "https://cdn/fav.mp3")
+
+    async def test_favorites_retry_empty_cached_playlist_by_title(self):
+        self.client.favorite_playlist_id = 42
+        self.client.async_resolve_favorite_playlist_id.return_value = "favorite-list"
+        self.client.async_list_all_playlist_songs.side_effect = [
+            [],
+            [
+                {
+                    "songKey": "Track0001",
+                    "song": "Bài yêu thích",
+                    "url": "https://cdn/fav.mp3",
+                }
+            ],
+        ]
+        favorites = await self.player.async_browse_media(
+            "maika_favorite", "maika_favorite"
+        )
+        self.client.async_resolve_favorite_playlist_id.assert_awaited_once_with(
+            force=True
+        )
+        self.assertEqual(
+            [
+                call.args[0]
+                for call in self.client.async_list_all_playlist_songs.await_args_list
+            ],
+            [42, "favorite-list"],
+        )
+        self.assertEqual(favorites.children[0].media_content_id, "https://cdn/fav.mp3")
 
     async def test_favorites_require_playlist_and_surface_failures(self):
         with self.assertRaises(BrowseError) as error:

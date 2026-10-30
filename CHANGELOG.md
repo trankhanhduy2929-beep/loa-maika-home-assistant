@@ -2,6 +2,30 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.2] - 2026-10-30
+
+### Changed
+
+- Bỏ thanh mini-player cố định ở góc dưới panel theo yêu cầu. Điều khiển
+  phát/tạm dừng, bài trước/sau, thời gian và thư viện vẫn nằm trong mục
+  **Điều khiển MAIKA**.
+- Khi login không trả `favorite_playlist_id`, integration tự tìm playlist
+  **Bài hát yêu thích** qua `GET /v1/playlist` và dùng ID đó cho thư viện và
+  service thêm bài yêu thích. Nếu danh sách tải về rỗng, integration thử lại
+  bằng playlist yêu thích tìm theo tên.
+
+### Fixed
+
+- Gửi đúng payload thêm bài như app 3.2.3: bỏ `source` mặc định `nct` và dùng
+  `status=0` thay vì `status=1`. Payload sai trước đây có thể làm playlist yêu
+  thích trên app MAIKA không tải đúng.
+
+### Tests
+
+- Thêm kiểm thử tìm playlist yêu thích theo tên, fallback khi thiếu ID và
+  payload thêm bài.
+- Browser test xác nhận panel không còn render mini-player.
+
 ## [1.29.1] - 2026-10-30
 
 ### Fixed
