@@ -754,6 +754,44 @@ async function verifyCommandHistory() {
   console.log("PASS command history merged into the chat section with live sensor attributes and snapshot fallback");
 }
 
+async function verifyMiniPlayer() {
+  await page.setViewportSize({width: 1440, height: 1000});
+  await load();
+  const mini = page.locator("section.mini-player");
+  const media = await page.evaluate(() => panel._entity("media_player"));
+  assert.equal(await mini.count(), 1);
+  assert.equal(await mini.locator(".mini-title").innerText(), "Nhạc nhẹ buổi sáng");
+  assert.equal(await mini.locator(".mini-artist").innerText(), "Ca sĩ thử nghiệm");
+  const initialTime = await mini.locator(".mini-time").innerText();
+  assert.match(initialTime, /^0:\d{2} \/ 3:35$/);
+  await page.evaluate(() => {
+    const attrs = states[panel._entity("media_player")].attributes;
+    attrs.media_position = 42;
+    attrs.media_position_updated_at = new Date(Date.now() - 10000).toISOString();
+    panel._syncMiniPlayerClock();
+  });
+  const advancedTime = await mini.locator(".mini-time").innerText();
+  assert.match(advancedTime, /^0:5[0-4] \/ 3:35$/);
+  await page.locator('[data-action="jump"][data-section="settings"]').click();
+  await waitRender();
+  assert.equal(await mini.isVisible(), true);
+  const box = await mini.boundingBox();
+  const viewport = page.viewportSize();
+  assert(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, "Mini player stays inside the viewport");
+  await mini.locator('[data-action="library"]').click();
+  await page.locator("dialog.library").locator(".pl-item").first().waitFor();
+  await page.locator('[data-action="library-close"]').click();
+  await page.waitForFunction(() => !document.querySelector("maika-panel").shadowRoot.querySelector("dialog.library")?.open);
+  assert.equal(await mini.locator('[data-action="library"]').evaluate((node) => node === node.getRootNode().activeElement), true);
+  await page.evaluate(() => { window.calls.length = 0; });
+  await mini.locator('[data-action="playpause"]').click();
+  await page.waitForFunction((entity) => window.calls.some((call) => call.domain === "media_player" && call.service === "media_play_pause" && call.data.entity_id === entity), media);
+  await page.evaluate((entity) => { states[entity].state = "off"; tick(); }, media);
+  await waitRender();
+  assert.equal(await page.locator("section.mini-player").count(), 0);
+  console.log("PASS persistent mini-player keeps controls and elapsed/duration visible across sections");
+}
+
 async function verifyPlaylistPicker() {
   await page.setViewportSize({width: 1440, height: 1000});
   await load();
@@ -973,7 +1011,7 @@ async function verifyContentStore() {
   await load();
   await openSectionFold("media");
   const media = await page.evaluate(() => panel._entity("media_player"));
-  const opener = page.locator('[data-action="library"]');
+  const opener = page.locator('.media-now [data-action="library"]');
   const dialog = page.locator("dialog.library");
   assert.equal(await opener.count(), 1);
 
@@ -1031,7 +1069,7 @@ async function verifyNhacCuaTui() {
   await openSectionFold("media");
   const media = await page.evaluate(() => panel._entity("media_player"));
   const dialog = page.locator("dialog.library");
-  await page.locator('[data-action="library"]').click();
+  await page.locator('.media-now [data-action="library"]').click();
   await dialog.getByRole("button", {name: "NhạcCủaTui"}).click();
   await dialog.getByRole("button", {name: "Bài hát mới"}).waitFor();
   assert.equal(await page.evaluate(() => window.browseCalls.at(-1).media_content_id), "maika_nct_root");
@@ -1049,7 +1087,7 @@ async function verifyNhacCuaTuiSearch() {
   await openSectionFold("media");
   const media = await page.evaluate(() => panel._entity("media_player"));
   const dialog = page.locator("dialog.library");
-  await page.locator('[data-action="library"]').click();
+  await page.locator('.media-now [data-action="library"]').click();
   const input = dialog.getByRole("searchbox", {name: "Tìm bài hát trên NhạcCủaTui"});
   await dialog.getByRole("button", {name: "NhạcCủaTui"}).waitFor();
   await input.fill("sơn tùng");
@@ -1079,6 +1117,7 @@ try {
   await verifyVoiceEditor();
   await verifyLifetimeLicense();
   await verifyCommandHistory();
+  await verifyMiniPlayer();
   await verifyPlaylistPicker();
   await verifyChat();
   await verifyReminders();
@@ -1097,6 +1136,7 @@ try {
         imageWidth: panel.shadowRoot.querySelector(".hero-media").clientWidth,
         imageHeight: panel.shadowRoot.querySelector(".hero-media").clientHeight,
         columns: getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length,
+        mini: (() => { const node = panel.shadowRoot.querySelector(".mini-player"); if (!node) return null; const rect = node.getBoundingClientRect(); return {left: rect.left, right: rect.right, panelLeft: panel.getBoundingClientRect().left, panelRight: panel.getBoundingClientRect().right}; })(),
         overflow: [...panel.shadowRoot.querySelectorAll(".card, .row, .panel-accordion, .panel-accordion__copy, input, select, textarea"), ...panel.shadowRoot.querySelector("maika-voice-editor").shadowRoot.querySelectorAll(".box, input, select, button")].filter((node) => {
           const rect = node.getBoundingClientRect();
           return rect.width && (rect.right > panel.getBoundingClientRect().right + 1 || rect.left < -1);
@@ -1107,6 +1147,7 @@ try {
       assert.deepEqual(result.overflow, [], `Overflow ${width}`);
       assert.equal(result.columns, width > 1100 ? 4 : width > 620 ? 2 : 1);
       assert(result.imageWidth <= 180 && result.imageHeight <= 200, `Compact speaker image ${width} ${theme}`);
+      assert(result.mini && result.mini.left >= result.mini.panelLeft - 1 && result.mini.right <= result.mini.panelRight + 1, `Mini player inside panel ${width} ${theme}`);
       metrics.push({viewport: width, ...result});
       if ([390, 1440].includes(width)) {
         await page.waitForTimeout(1000);
@@ -1123,6 +1164,7 @@ try {
   await page.setViewportSize({width: 1300, height: 900});
   await page.evaluate(() => { document.querySelector("#sidebar").style.display = "block"; });
   assert.equal(await page.evaluate(() => getComputedStyle(panel.shadowRoot.querySelector(".stage")).gridTemplateColumns.split(" ").length), 2);
+  assert(await page.evaluate(() => { const node = panel.shadowRoot.querySelector(".mini-player"); const rect = node.getBoundingClientRect(); const panelRect = panel.getBoundingClientRect(); return rect.left >= panelRect.left - 1 && rect.right <= panelRect.right + 1; }), "Mini player follows panel width with HA sidebar");
   console.log("PASS responsive layout follows actual panel width with HA sidebar");
 
   await page.locator('[data-action="theme"]').selectOption("auto");
@@ -1165,11 +1207,11 @@ try {
   await page.locator('[data-action="device"][data-serial="SERIAL-0-0"]').click();
   assert.equal(await page.locator(".hero-copy h1").innerText(), "Loa phòng ngủ");
   assert.equal(await cast.inputValue(), "");
-  await page.locator('[data-action="playpause"]').click();
+  await page.locator('[data-card="media"] [data-action="playpause"]').click();
   assert(await page.evaluate(() => calls.some((call) => call.service === "media_play_pause" && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));
   console.log("PASS cast service payload and correct device despite unrelated entity names");
 
-  const seek = page.locator('[data-field="seek"]');
+  const seek = page.locator('[data-card="media"] [data-field="seek"]');
   assert.equal(await seek.count(), 1);
   await seek.fill("120");
   assert(await page.evaluate(() => calls.some((call) => call.service === "media_seek" && Math.round(call.data.seek_position) === 120 && call.data.entity_id === snapshot.entries[0].device_entities["SERIAL-0-0"].media_player[0])));

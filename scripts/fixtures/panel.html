@@ -101,7 +101,7 @@
           let counter = 0;
           for (const [key, value] of Object.entries(entities)) {
             const id = `${domain}.arbitrary_${account}_${speaker}_${counter++}`;
-            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", supported_features: 152127, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString(), maika_song_key: "key-second", maika_queue_item_id: browseSong("b")} : {};
+            const attributes = domain === "media_player" ? {volume_level: .42 + speaker * .2, is_volume_muted: false, media_title: "Nhạc nhẹ buổi sáng", media_artist: "Ca sĩ thử nghiệm", media_album_name: "Album thử nghiệm", media_content_id: "https://media.example.test/nhac-nhe.mp3", entity_picture: "https://smarthomekit.vn/wp-content/uploads/2021/12/olli-maika-2.jpg", supported_features: 152127, media_duration: 215, media_position: 42, media_position_updated_at: new Date().toISOString(), maika_song_key: "key-second", maika_queue_item_id: browseSong("b")} : {};
             if (domain === "select") attributes.options = [value, "Tuỳ chọn khác"];
             states[id] = {entity_id: id, state: key === "speaker_name" ? name : value, attributes};
             entry.entity_keys[id] = key;

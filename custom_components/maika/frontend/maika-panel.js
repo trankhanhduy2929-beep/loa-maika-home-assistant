@@ -222,9 +222,10 @@ class MaikaPanel extends HTMLElement {
     this._csDialog = null;
     this._csToken = 0;
     this._csBusy = false;
-    this._csReturnFocus = false;
+    this._csReturnFocus = null;
     this._chatTimer = null;
     this._chatPoll = null;
+    this._playbackTimer = null;
     this._reminders = null;
     this._remindersBusy = false;
     this._remindersToken = 0;
@@ -268,6 +269,7 @@ class MaikaPanel extends HTMLElement {
     window.addEventListener("storage", this._onStorage);
     document.addEventListener("visibilitychange", this._onVisibility);
     this._onVisibility();
+    this._startPlaybackClock();
     if (this._stage) {
       this._themeMode = this._storedThemeMode();
       this._applyTheme();
@@ -291,6 +293,7 @@ class MaikaPanel extends HTMLElement {
     if (this._chatTimer !== null) clearTimeout(this._chatTimer);
     this._chatTimer = null;
     this._stopChatPoll();
+    this._stopPlaybackClock();
   }
 
   set hass(value) {
@@ -506,6 +509,7 @@ class MaikaPanel extends HTMLElement {
       button:disabled { opacity: .55; cursor: wait; }
       [data-sec] { scroll-margin-top: var(--toolbar-offset); }
 
+      .stage[data-mini-player] { padding-bottom: calc(142px + env(safe-area-inset-bottom, 0px)); }
       .stage {
         max-width: 1560px;
         min-width: 0;
@@ -833,6 +837,48 @@ class MaikaPanel extends HTMLElement {
       .now-act svg { width: 17px; height: 17px; fill: currentColor; }
       .now-act--fav { color: var(--pink); }
       .now-act--fav:hover:not(:disabled) { background: rgba(255, 158, 196, .16); }
+
+      .mini-player {
+        position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px));
+        z-index: 8; width: min(560px, calc(100% - 32px)); padding: 10px 12px;
+        display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 8px 12px;
+        border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 20px;
+        background: var(--surface); background-image: linear-gradient(145deg, var(--surface-2), transparent 68%);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, .24), inset 0 1px 0 var(--glass-sheen);
+        animation: rise .24s var(--ease);
+      }
+      @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .mini-player { background: linear-gradient(145deg, var(--glass-sheen), transparent 45%), var(--glass-surface); backdrop-filter: blur(18px) saturate(130%); -webkit-backdrop-filter: blur(18px) saturate(130%); }
+      }
+      .mini-art { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; position: relative; flex: none; color: var(--accent); background: var(--surface-3); }
+      .mini-art svg { width: 22px; height: 22px; fill: currentColor; }
+      .mini-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+      .mini-body { min-width: 0; display: grid; gap: 5px; }
+      .mini-copy { min-width: 0; display: grid; gap: 1px; }
+      .mini-title { font-size: .88rem; font-weight: 680; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mini-artist { font-size: .74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mini-progress { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .mini-progress input[type="range"] { height: 24px; flex: 1 1 auto; }
+      .mini-progress input[type="range"]::-webkit-slider-thumb { width: 18px; height: 18px; }
+      .mini-progress input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; }
+      .mini-time { flex: none; color: var(--muted); font-size: .72rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+      .mini-actions { display: flex; align-items: center; gap: 4px; }
+      .mini-btn { width: 36px; height: 36px; border-radius: 11px; border: 1px solid var(--line); background: var(--surface-2); color: var(--accent); display: grid; place-items: center; cursor: pointer; transition: transform .15s var(--ease), background .15s var(--ease); }
+      .mini-btn:hover { transform: translateY(-1px); background: var(--surface-3); }
+      .mini-btn:active { transform: scale(.94); }
+      .mini-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .mini-btn svg { width: 17px; height: 17px; fill: currentColor; }
+      .mini-btn--main { background: linear-gradient(145deg, var(--brand-start), var(--brand-end)); color: var(--brand-ink); border: none; }
+      @container (max-width: 560px) {
+        .stage[data-mini-player] { padding-bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
+        .mini-player { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom, 0px)); width: auto; grid-template-columns: 40px minmax(0, 1fr) auto; padding: 9px 10px; gap: 7px 10px; }
+        .mini-art { width: 40px; height: 40px; }
+        .mini-actions { display: grid; grid-template-columns: repeat(2, 36px); }
+      }
+      @media (pointer: coarse) {
+        .mini-btn { width: 44px; height: 44px; }
+        .mini-actions { gap: 5px; }
+      }
 
       dialog.playlist, dialog.library { width: min(560px, 92vw); max-width: 100%; margin: auto; padding: 0; border: 0; background: transparent; color: var(--text); }
       dialog.playlist::backdrop, dialog.library::backdrop { background: rgba(12, 6, 2, .58); }
@@ -1490,6 +1536,95 @@ class MaikaPanel extends HTMLElement {
       return this._tile({icon, color: tone, label, value, tone: ok ? tone : "c-bad"});
     });
     return h("div", {class: "tiles"}, tiles);
+  }
+
+  _miniPlayer() {
+    const media = this._entity("media_player");
+    const state = this._state(media);
+    if (!media || !state || UNKNOWN.has(state.state)) return null;
+    const attrs = state.attributes || {};
+    const hasMedia = Boolean(attrs.media_title || attrs.media_artist || attrs.media_content_id);
+    if (!["playing", "paused", "buffering"].includes(state.state) && !(state.state === "idle" && hasMedia)) return null;
+
+    const playing = state.state === "playing";
+    const duration = Number(attrs.media_duration);
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const current = hasDuration ? Math.min(this._playbackPosition(attrs, playing), duration) : this._playbackPosition(attrs, playing);
+    const seekable = (Number(attrs.supported_features) || 0) & 2;
+    const title = attrs.media_title || this._speakerName();
+    const artist = attrs.media_artist || attrs.media_album_name || this._activityLabel(this._speakerActivity());
+    const art = h("div", {class: "mini-art", "aria-hidden": "true"}, [svgIcon(ICONS.music)]);
+    if (attrs.entity_picture) {
+      const image = h("img", {src: attrs.entity_picture, alt: "", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer"});
+      image.addEventListener("error", () => image.remove());
+      art.append(image);
+    }
+    const time = h("span", {class: "mini-time", text: hasDuration ? `${fmtClock(current)} / ${fmtClock(duration)}` : fmtClock(current)});
+    let range = null;
+    if (hasDuration) {
+      const max = Math.max(1, Math.round(duration));
+      range = h("input", {type: "range", min: "0", max: String(max), step: "1", value: String(Math.round(current)), class: "mini-range", "aria-label": "Vị trí phát", "aria-valuetext": `${fmtClock(current)} / ${fmtClock(duration)}`, disabled: !seekable, dataset: {field: "seek", entity: media, duration: String(duration)}});
+      range.style.setProperty("--p", `${(current / duration) * 100}%`);
+    }
+    const button = (icon, action, label, extra) => h("button", {
+      class: ["mini-btn", extra].filter(Boolean).join(" "),
+      type: "button",
+      dataset: {action, entity: media},
+      "aria-label": label,
+      title: label,
+    }, [svgIcon(ICONS[icon])]);
+    return h("section", {class: "mini-player", "aria-label": `Đang phát trên ${this._speakerName()}`}, [
+      art,
+      h("div", {class: "mini-body"}, [
+        h("div", {class: "mini-copy"}, [
+          h("span", {class: "mini-title", text: title, title}),
+          h("span", {class: "mini-artist", text: artist}),
+        ]),
+        h("div", {class: "mini-progress"}, [
+          range,
+          time,
+        ]),
+      ]),
+      h("div", {class: "mini-actions"}, [
+        button("prev", "prev", "Bài trước"),
+        button(playing ? "pause" : "play", "playpause", playing ? "Tạm dừng" : "Phát nhạc", "mini-btn--main"),
+        button("next", "next", "Bài tiếp theo"),
+        button("library", "library", "Mở thư viện giải trí"),
+      ]),
+    ]);
+  }
+
+  _syncMiniPlayerClock() {
+    const node = this.shadowRoot.querySelector(".mini-player");
+    if (!node || !this.isConnected || document.hidden) return;
+    const media = this._entity("media_player");
+    const state = this._state(media);
+    if (!state?.attributes) return;
+    const attrs = state.attributes;
+    const playing = state.state === "playing";
+    const duration = Number(attrs.media_duration);
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const current = hasDuration ? Math.min(this._playbackPosition(attrs, playing), duration) : this._playbackPosition(attrs, playing);
+    const time = node.querySelector(".mini-time");
+    if (time) time.textContent = hasDuration ? `${fmtClock(current)} / ${fmtClock(duration)}` : fmtClock(current);
+    const range = node.querySelector(".mini-range");
+    if (range && !range.matches(":active") && range !== this.shadowRoot.activeElement && hasDuration) {
+      const max = Math.max(1, Math.round(duration));
+      range.max = String(max);
+      range.value = String(Math.min(Math.round(current), max));
+      range.setAttribute("aria-valuetext", `${fmtClock(current)} / ${fmtClock(duration)}`);
+      range.style.setProperty("--p", `${(current / duration) * 100}%`);
+    }
+  }
+
+  _startPlaybackClock() {
+    this._stopPlaybackClock();
+    this._playbackTimer = window.setInterval(() => this._syncMiniPlayerClock(), 1000);
+  }
+
+  _stopPlaybackClock() {
+    if (this._playbackTimer !== null) clearInterval(this._playbackTimer);
+    this._playbackTimer = null;
   }
 
   _mediaSection(delay) {
@@ -2175,7 +2310,7 @@ class MaikaPanel extends HTMLElement {
     return dialog;
   }
 
-  _openContentStore() {
+  _openContentStore(opener = null) {
     const media = this._entity("media_player");
     if (!media) return;
     const state = this._state(media);
@@ -2185,7 +2320,7 @@ class MaikaPanel extends HTMLElement {
     }
     if (this._csDialog?.open) return;
     this._csToken += 1;
-    this._csReturnFocus = true;
+    this._csReturnFocus = opener;
     this._csSearchDraft = "";
     const root = {type: "maika_cs_root", id: "maika_cs_root", title: "Thư viện giải trí"};
     this._cs = {status: "loading", items: [], entity: media, serial: this._activeSerial(), stack: [root], title: root.title};
@@ -2207,9 +2342,10 @@ class MaikaPanel extends HTMLElement {
     this._cs = null;
     this._csBusy = false;
     this._csSearchDraft = "";
-    if (!this._csReturnFocus) return;
-    this._csReturnFocus = false;
-    const opener = this.shadowRoot.querySelector('[data-action="library"]');
+    const previousOpener = this._csReturnFocus;
+    this._csReturnFocus = null;
+    if (!previousOpener) return;
+    const opener = previousOpener.isConnected ? previousOpener : this.shadowRoot.querySelector('[data-action="library"]');
     if (opener?.isConnected) opener.focus();
   }
 
@@ -2891,6 +3027,8 @@ class MaikaPanel extends HTMLElement {
         ["settings", this._setupSection(120)],
       );
       for (const card of cards.slice(3)) this._foldSection(card[1], card[0]);
+      const mini = this._miniPlayer();
+      if (mini) cards.push(["nowplaying", mini]);
     }
     const previous = new Map([...this._stage.children].map((card) => [card.dataset.card, card]));
     let cursor = this._stage.firstElementChild;
@@ -2910,6 +3048,7 @@ class MaikaPanel extends HTMLElement {
       previous.delete(section);
     }
     for (const card of previous.values()) { card.remove(); structureChanged = true; }
+    this._stage.toggleAttribute("data-mini-player", Boolean(this._stage.querySelector(".mini-player")));
     this._stage.setAttribute("aria-busy", String(this._loading || this._busy));
     this._syncRangeFills();
     this._syncVoiceEditor();
@@ -2973,7 +3112,7 @@ class MaikaPanel extends HTMLElement {
         const state = this._hass?.states?.[id];
         if (state) {
           const attrs = state.attributes || {};
-          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title, attrs.supported_features, attrs.media_position, attrs.media_duration, attrs.media_position_updated_at, attrs.maika_song_key, attrs.maika_queue_item_id];
+          states[id] = [state.state, attrs.options, attrs.volume_level, attrs.is_volume_muted, attrs.media_title, attrs.supported_features, attrs.media_position, attrs.media_duration, attrs.media_position_updated_at, attrs.media_artist, attrs.media_album_name, attrs.media_content_id, attrs.entity_picture, attrs.maika_song_key, attrs.maika_queue_item_id];
         }
       }
     }
@@ -2998,10 +3137,11 @@ class MaikaPanel extends HTMLElement {
 
   _maybeUpdate() {
     const signature = this._signature();
-    if (signature === this._lastSignature) { this._syncVoiceEditor(); this._syncPlaylistCurrent(); return; }
+    if (signature === this._lastSignature) { this._syncVoiceEditor(); this._syncPlaylistCurrent(); this._syncMiniPlayerClock(); return; }
     this._lastSignature = signature;
     this._render();
     this._syncPlaylistCurrent();
+    this._syncMiniPlayerClock();
   }
 
   _syncVoiceEditor() {
@@ -3242,7 +3382,7 @@ class MaikaPanel extends HTMLElement {
     }
 
     if (action === "library") {
-      this._openContentStore();
+      this._openContentStore(target);
       return;
     }
 

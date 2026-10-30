@@ -95,6 +95,17 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - **Lịch sử câu lệnh** giờ được lưu xuống HA `Store`
   (`maika.command_history.<entry_id>`) và khôi phục sau khi khởi động lại.
 
+## Mini-player từ v1.29.0
+
+- Khi loa đang phát hoặc tạm dừng, panel hiện thanh mini-player cố định ở góc
+  dưới. Thanh này giữ nguyên khi cuộn trang hoặc chuyển giữa các mục.
+- Có ảnh bìa (nếu loa trả về), tên bài, ca sĩ, thời gian `0:30 / 3:00`, thanh
+  tua và các nút bài trước, phát/tạm dừng, bài tiếp theo.
+- Nút thư viện mở lại **Thư viện giải trí** để chọn bài khác mà không cần quay
+  lại mục **Điều khiển MAIKA**. Đóng thư viện sẽ trả focus về nút đã mở.
+- Thời gian tự cập nhật mỗi giây khi tab đang hiển thị; thanh tua chỉ bật khi
+  loa hỗ trợ tua. Mini-player ẩn khi loa tắt, mất kết nối hoặc không còn bài.
+
 ## Giao diện sáng / tối và điều hướng
 
 - Từ `1.11.1`, panel giới hạn chiều cao theo vùng nhìn ngay cả khi khung HA
@@ -123,7 +134,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
    bài trên loa), nút icon thư viện mở hộp thoại **Thư viện giải trí** (Content
    Store), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
    thanh thời gian kéo tua (khi loa báo thời lượng), form cast URL MP3/AAC qua
-   cloud.
+   cloud. Mini-player cố định ở góc dưới giữ các điều khiển và thời gian phát
+   khi người dùng cuộn hoặc chuyển mục.
 3. **Thiết bị**: một tab gồm năm accordion mở/đóng bằng nút mũi tên:
    - **Trạng thái loa** (mở sẵn): 6 tile — trực tuyến, Wi-Fi, âm lượng, đang
      phát, cuộc gọi, yêu thích.

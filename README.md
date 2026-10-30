@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.28.0**.
+Bản hiện tại: **v1.29.0**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -37,6 +37,8 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Có thể phát MP3 MAIKA tích hợp hoặc URL MP3 riêng theo chế độ ưu tiên để che
   câu trả lời mặc định của loa, hoặc chỉ phát sau khi HASS thành công.
 - Chọn bài trong danh sách bài trên loa ngay trong panel, kể cả khi tắt cast cloud.
+- Mini-player cố định khi chuyển mục: phát/tạm dừng, bài trước/sau, mở nhanh
+  thư viện và thời gian `0:30 / 3:00`.
 - Duyệt **Thư viện giải trí MAIKA** (kênh/radio, thể loại, nội dung nổi bật) trong trình duyệt media của Home Assistant hoặc ngay trong panel.
 - Duyệt và phát **Bài hát yêu thích** của tài khoản MAIKA qua cast cloud, ngay trong Thư viện giải trí; danh sách tải đủ các trang playlist.
 - Bấm nút trái tim cạnh bài đang phát trong panel hoặc gọi service `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào playlist yêu thích của tài khoản.
@@ -76,6 +78,8 @@ Panel vẫn mở được khi key hết hạn hoặc tài khoản chưa kết n�
 thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tài khoản, tải lại
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
+
+Bản `1.29.0` thêm mini-player cố định với điều khiển phát và thời gian phát dạng `0:30 / 3:00`, giữ nguyên khi cuộn hoặc chuyển mục.
 
 Bản `1.28.0` thêm nút trái tim cạnh bài đang phát và service `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào **Bài hát yêu thích**.
 
@@ -229,13 +233,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.28.0
+## File phát hành v1.29.0
 
-- `maika.zip` và `maika-v1.28.0-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.28.0` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.28.0-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.29.0-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.29.0` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.29.0-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.28.0-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.29.0-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

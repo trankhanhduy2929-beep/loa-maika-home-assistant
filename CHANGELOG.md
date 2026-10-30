@@ -2,6 +2,22 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.0] - 2026-10-30
+
+### Added
+
+- Mini-player cố định trong panel, giữ nguyên khi cuộn hoặc chuyển giữa các
+  mục. Có nút bài trước, phát/tạm dừng, bài tiếp theo và mở nhanh **Thư viện
+  giải trí**.
+- Mini-player hiển thị ảnh bìa, tên bài, ca sĩ và thời gian phát dạng
+  `0:30 / 3:00`; thanh tua cập nhật mỗi giây và cho phép tua khi loa hỗ trợ.
+
+### Tests
+
+- Browser test kiểm tra mini-player cố định qua điều hướng, cập nhật thời gian,
+  mở thư viện, trả focus và ẩn khi loa tắt.
+- Ruff, repository checks, unit test, browser test và HA compatibility pass.
+
 ## [1.28.0] - 2026-10-30
 
 ### Added
