@@ -115,8 +115,10 @@ git tag v1.8.1
 git push origin v1.8.1
 ```
 
-Workflow `release.yml` kiểm tra tag/version, tạo GitHub Release và upload các ZIP
-HACS, manual, source cùng checksum.
+Workflow `release.yml` chạy lại toàn bộ Validate, kiểm tra tương thích Home
+Assistant stable, Hassfest và HACS trước khi kiểm tra tag/version, tạo GitHub
+Release và upload các ZIP HACS, manual, source cùng checksum. Release dừng nếu
+bất kỳ job kiểm tra nào thất bại.
 
 Không di chuyển hoặc ghi đè tag `v1.6.0` vì release đó đã được công bố. Đưa bản
 vá CI/Windows lên `main`, chờ workflow Validate xanh rồi tạo tag `v1.8.1` từ

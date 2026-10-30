@@ -68,6 +68,7 @@ REQUIRED_FILES = (
     "custom_components/maika/strings.json",
     "custom_components/maika/translations/en.json",
     "custom_components/maika/translations/vi.json",
+    "scripts/check_ha_compat.py",
     "scripts/configure_licensing.py",
 )
 
