@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.4] - 2026-10-30
+
+### Fixed
+
+- Chọn bài trong danh sách trên loa tự phát ngay: integration gửi
+  `JumpCommandIssued` rồi `ResumeCommandIssued`, không cần bấm phát thêm.
+- Thanh thời gian tự chạy mỗi giây kể cả khi Home Assistant không trả
+  `media_position_updated_at`; vị trí được neo lại khi đổi bài, tua hoặc
+  chuyển trạng thái.
+- Nút trái tim luôn bấm được khi loa trực tuyến. Integration tự tìm bài đang
+  phát trong queue native qua `songKey`, tên bài hoặc queue chỉ có một bài để
+  lấy ID, URL và metadata còn thiếu.
+- Danh sách yêu thích trả mọi mã nhận diện của từng bài, tránh bỏ sót trạng
+  thái đã lưu.
+
+### Tests
+
+- Thêm kiểm thử gửi jump + resume, fallback bài hiện tại từ queue, thời gian
+  chạy khi thiếu timestamp và trái tim vẫn bấm được khi thiếu `maika_song_key`.
+
 ## [1.29.3] - 2026-10-30
 
 ### Added

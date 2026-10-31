@@ -185,6 +185,85 @@ def _playback_attributes(entry: ConfigEntry, serial_number: str) -> dict[str, An
     return attributes if isinstance(attributes, dict) else {}
 
 
+def _device_data(entry: ConfigEntry, serial_number: str) -> dict[str, Any]:
+    coordinator = getattr(entry.runtime_data, "coordinator", None)
+    devices = (getattr(coordinator, "data", None) or {}).get("devices") or {}
+    device = devices.get(serial_number)
+    return device if isinstance(device, dict) else {}
+
+
+def _song_label(*values: Any) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip().casefold()
+    return None
+
+
+def _current_song(
+    attributes: dict[str, Any], device: dict[str, Any]
+) -> dict[str, Any] | None:
+    playlist = device.get("latest_playlist")
+    if not isinstance(playlist, dict):
+        return None
+    raw_songs = playlist.get("songs")
+    songs = (
+        [song for song in raw_songs if isinstance(song, dict)]
+        if isinstance(raw_songs, list)
+        else []
+    )
+    if not songs:
+        return None
+    for field in ("item", "itemKey", "current", "currentSong", "current_song"):
+        value = playlist.get(field)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        for song in songs:
+            if song.get("songKey") == value:
+                return song
+    title = _song_label(
+        attributes.get("song"), attributes.get("title"), attributes.get("name")
+    )
+    if title is not None:
+        matches = [
+            song
+            for song in songs
+            if _song_label(song.get("song"), song.get("title"), song.get("name"))
+            == title
+        ]
+        artist = _song_label(attributes.get("artist"), attributes.get("singer"))
+        if len(matches) > 1 and artist is not None:
+            matches = [
+                song
+                for song in matches
+                if _song_label(song.get("artist"), song.get("singer")) == artist
+            ]
+        if len(matches) == 1:
+            return matches[0]
+    return songs[0] if len(songs) == 1 else None
+
+
+def _favorite_attributes(entry: ConfigEntry, serial_number: str) -> dict[str, Any]:
+    attributes = dict(_playback_attributes(entry, serial_number))
+    song = _current_song(attributes, _device_data(entry, serial_number))
+    if song is None:
+        return attributes
+    for source, target in (
+        ("songKey", "songKey"),
+        ("key", "key"),
+        ("song", "song"),
+        ("name", "name"),
+        ("artist", "artist"),
+        ("singer", "singer"),
+        ("url", "url"),
+        ("imageURL", "imageURL"),
+        ("lyric", "lyric"),
+    ):
+        value = _first_string(song.get(source))
+        if value and not _first_string(attributes.get(target)):
+            attributes[target] = value
+    return attributes
+
+
 def _favorite_song_payload(attributes: dict[str, Any]) -> dict[str, Any]:
     image = attributes.get("image")
     image_url = _first_string(
@@ -459,7 +538,7 @@ async def _async_add_current_to_favorites(
 ) -> None:
     speaker = _resolve_speaker(hass, call.data)
     payload = _favorite_song_payload(
-        _playback_attributes(speaker.entry, speaker.serial_number)
+        _favorite_attributes(speaker.entry, speaker.serial_number)
     )
     if not payload["song_id"] or not payload["song_url"]:
         raise ServiceValidationError(

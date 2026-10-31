@@ -339,6 +339,51 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         client.async_mute_reminders.assert_not_awaited()
 
+    async def test_add_current_song_uses_queue_when_playback_lacks_key(self):
+        client = types.SimpleNamespace(
+            favorite_playlist_id=42,
+            async_resolve_favorite_playlist_id=AsyncMock(return_value=42),
+            async_add_song_to_playlist=AsyncMock(return_value={}),
+        )
+        entry = make_entry(client=client)
+        device = entry.runtime_data.coordinator.data["devices"]["SN1"]
+        device["current_playback"] = {
+            "payload": {
+                "playbackAttributes": {
+                    "title": "Bài từ queue",
+                    "artist": "Ca sĩ queue",
+                }
+            }
+        }
+        device["latest_playlist"] = {
+            "songs": [
+                {
+                    "songKey": "queue-key",
+                    "song": "Bài từ queue",
+                    "artist": "Ca sĩ queue",
+                    "url": "https://cdn/queue.mp3",
+                },
+                {
+                    "songKey": "other-key",
+                    "song": "Bài khác",
+                    "artist": "Ca sĩ khác",
+                    "url": "https://cdn/other.mp3",
+                },
+            ]
+        }
+        await self.module["_async_add_current_to_favorites"](
+            FakeHass([entry]), types.SimpleNamespace(data={"serial_number": "SN1"})
+        )
+        client.async_add_song_to_playlist.assert_awaited_once_with(
+            42,
+            singer="Ca sĩ queue",
+            song_id="queue-key",
+            song_name="Bài từ queue",
+            song_url="https://cdn/queue.mp3",
+            lyric="",
+            image_url="",
+        )
+
     async def test_add_current_song_uses_favorite_playlist(self):
         client = types.SimpleNamespace(
             favorite_playlist_id=42,

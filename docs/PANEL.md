@@ -77,8 +77,9 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 - Nút trái tim trên hàng bài đang phát gọi service
   `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào playlist yêu
   thích của tài khoản. Từ `1.29.3`, panel tải danh sách yêu thích để tô trạng
-  thái đã lưu và nhận thêm `mediaId`/ID số; bài cast từ URL bên ngoài không có
-  đủ thông tin để lưu.
+  thái đã lưu và nhận thêm `mediaId`/ID số. Từ `1.29.4`, nút luôn bấm được khi
+  loa trực tuyến; integration tự đối chiếu queue native để bù ID, tên, ca sĩ và
+  URL còn thiếu. Bài cast từ URL bên ngoài không có đủ thông tin vẫn báo lỗi.
 - Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
   Content Store (`maika_cs_*`): kênh → thể loại → media → tập/bài, thể loại và
   nội dung nổi bật. Từ `1.29.1`, mỗi kênh mở thành các thư mục thể loại thay vì
@@ -129,7 +130,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
    Store), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
    thanh tiến trình có thời gian đã phát/tổng thời lượng, kéo tua khi loa báo
    thời lượng và hỗ trợ seek, form cast URL MP3/AAC qua cloud. Từ `1.29.2`,
-   panel không còn thanh mini-player cố định ở góc dưới.
+   panel không còn thanh mini-player cố định ở góc dưới. Từ `1.29.4`, thời gian
+   đã phát tự chạy mỗi giây kể cả khi thiếu timestamp vị trí.
 3. **Thiết bị**: một tab gồm năm accordion mở/đóng bằng nút mũi tên:
    - **Trạng thái loa** (mở sẵn): 6 tile — trực tuyến, Wi-Fi, âm lượng, đang
      phát, cuộc gọi, yêu thích.
@@ -197,8 +199,9 @@ Mục **Bản quyền** và **Cấu hình loa** dùng chung cho tài khoản/Hom
   sách bài (`latest_playlist`) do loa cung cấp, kể cả khi tắt cloud cast. Danh
   sách hiển thị bài đang phát, trạng thái đang tải/trống/mất kết nối và nút thử
   lại khi đọc lỗi. Chọn một bài gửi `media_player.play_media` kiểu `maika_song`;
-  hộp thoại đóng khi xong, có thể đóng bằng phím Esc, và danh sách tự vô hiệu
-  nếu dữ liệu của loa khác về sau. Không tự dựng playlist từ lịch sử hay câu nói.
+  từ `1.29.4`, loa nhận jump rồi resume nên phát ngay, không cần bấm thêm. Hộp
+  thoại đóng khi xong, có thể đóng bằng phím Esc, và danh sách tự vô hiệu nếu
+  dữ liệu của loa khác về sau. Không tự dựng playlist từ lịch sử hay câu nói.
 - **Tải lại integration**: bấm nút trong **Thiết lập → Cấu hình loa** nếu cần nạp lại thủ công.
 - **Mất mạng**: thông báo lỗi hiển thị trên đầu panel; bấm nút làm mới để thử
   lại. Dữ liệu đã tải trước đó vẫn hiện để tham khảo.

@@ -352,13 +352,8 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         for field in ("duration", "time"):
             if (seconds := self._duration_seconds(attributes.get(field))) is not None:
                 return seconds
-        key = self._favorite_song_id()
-        if key is None:
-            return None
-        _, songs = self._native_playlist()
-        for song in songs:
-            if str(song.get("songKey") or "") != key:
-                continue
+        song = self._current_native_song()
+        if song is not None:
             for field in ("time", "duration"):
                 if (seconds := self._duration_seconds(song.get(field))) is not None:
                     return seconds
@@ -967,6 +962,54 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             else []
         )
 
+    @staticmethod
+    def _song_label(*values: Any) -> str | None:
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                return value.strip().casefold()
+        return None
+
+    def _current_native_song(self) -> dict[str, Any] | None:
+        """Return the best queue entry matching the current playback."""
+        playlist, songs = self._native_playlist()
+        if not songs:
+            return None
+        for field in ("item", "itemKey", "current", "currentSong", "current_song"):
+            key = self._valid_song_key(playlist.get(field))
+            if key is None:
+                continue
+            for song in songs:
+                if self._valid_song_key(song.get("songKey")) == key:
+                    return song
+        attributes = self._playback_attributes
+        title = self._song_label(
+            attributes.get("song"),
+            attributes.get("title"),
+            attributes.get("name"),
+        )
+        if title is not None:
+            matches = [
+                song
+                for song in songs
+                if self._song_label(
+                    song.get("song"), song.get("title"), song.get("name")
+                )
+                == title
+            ]
+            artist = self._song_label(
+                attributes.get("artist"), attributes.get("singer")
+            )
+            if len(matches) > 1 and artist is not None:
+                matches = [
+                    song
+                    for song in matches
+                    if self._song_label(song.get("artist"), song.get("singer"))
+                    == artist
+                ]
+            if len(matches) == 1:
+                return matches[0]
+        return songs[0] if len(songs) == 1 else None
+
     def _queue_revision(self, playlist: dict[str, Any]) -> str:
         songs = playlist.get("songs")
         keys = (
@@ -1007,16 +1050,17 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
     def _favorite_song_id(self) -> str | None:
         """Return the best MAIKA song identifier used by the favorite API."""
         attributes = self._playback_attributes
-        for field in ("key", "songKey", "mediaId", "media_id", "id"):
-            value = attributes.get(field)
-            if isinstance(value, bool) or value is None:
-                continue
-            text = str(value).strip()
-            if not text or len(text) > _MAX_SONG_KEY_BYTES:
-                continue
-            if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in text):
-                continue
-            return text
+        for source in (attributes, self._current_native_song() or {}):
+            for field in ("key", "songKey", "mediaId", "media_id", "id"):
+                value = source.get(field)
+                if isinstance(value, bool) or value is None:
+                    continue
+                text = str(value).strip()
+                if not text or len(text) > _MAX_SONG_KEY_BYTES:
+                    continue
+                if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in text):
+                    continue
+                return text
         return None
 
     @staticmethod
@@ -1397,6 +1441,9 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         try:
             await self.coordinator.client.async_playback_command(
                 self.serial_number, "JumpCommandIssued", song_key=key
+            )
+            await self.coordinator.client.async_playback_command(
+                self.serial_number, "ResumeCommandIssued"
             )
         except MaikaApiError as err:
             raise HomeAssistantError(

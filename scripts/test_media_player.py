@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from enum import IntFlag, StrEnum
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 from urllib.parse import quote, unquote
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -269,6 +269,15 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.coordinator.data["devices"][serial] = {**device, **changes}
         self.player._handle_coordinator_update()
 
+    def assert_jump_and_resume(self, serial, key):
+        self.assertEqual(
+            self.client.async_playback_command.await_args_list,
+            [
+                call(serial, "JumpCommandIssued", song_key=key),
+                call(serial, "ResumeCommandIssued"),
+            ],
+        )
+
     def advance(self, seconds):
         Clock.current += timedelta(seconds=seconds)
 
@@ -496,9 +505,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         await player.async_play_media(
             "maika_song", playlist.children[1].media_content_id
         )
-        self.client.async_playback_command.assert_awaited_once_with(
-            "speaker-one", "JumpCommandIssued", song_key="key-two"
-        )
+        self.assert_jump_and_resume("speaker-one", "key-two")
         self.coordinator.async_schedule_playback_refresh.assert_called_once_with(
             "speaker-one"
         )
@@ -691,9 +698,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(one.media_content_id, repeated_one.media_content_id)
         self.assertTrue(all(child.can_play for child in result.children))
         await self.player.async_play_media("maika_song", repeated_one.media_content_id)
-        self.client.async_playback_command.assert_awaited_once_with(
-            "speaker-one", "JumpCommandIssued", song_key="key-one"
-        )
+        self.assert_jump_and_resume("speaker-one", "key-one")
 
     async def test_revision_tracks_speaker_list_source_and_order_not_metadata(self):
         playlist = self.native_playlist()
@@ -756,9 +761,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unquote(encoded), key)
         self.assertLessEqual(len(child.media_content_id), 1607)
         await self.player.async_play_media("maika_song", child.media_content_id)
-        self.client.async_playback_command.assert_awaited_once_with(
-            "speaker-one", "JumpCommandIssued", song_key=key
-        )
+        self.assert_jump_and_resume("speaker-one", key)
         self.native_playlist([{"songKey": "á" * 256, "song": "Bound"}])
         longest = (await self.browse_playlist()).children[0]
         self.assertTrue(longest.can_play)
@@ -778,9 +781,7 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
             extra={"metadata": {"title": "Injected"}, "song_key": "arbitrary"},
             command="Reset",
         )
-        self.client.async_playback_command.assert_awaited_once_with(
-            "speaker-one", "JumpCommandIssued", song_key="key-two"
-        )
+        self.assert_jump_and_resume("speaker-one", "key-two")
         self.coordinator.async_refresh_live.assert_awaited_once_with(
             "speaker-one", required_fields=("latest_playlist",)
         )
@@ -1174,6 +1175,26 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             self.player.extra_state_attributes, {"maika_favorite_song_id": "321"}
         )
+
+    async def test_favorite_and_duration_fall_back_to_current_queue_song(self):
+        self.native_playlist(
+            [
+                {"songKey": "key-one", "song": "Bài duy nhất", "time": "3:35"},
+                {"songKey": "key-two", "song": "Bài khác", "time": "4:00"},
+            ]
+        )
+        current = deepcopy(self.player.device["current_playback"])
+        current["payload"].pop("durationInMilliseconds")
+        current["payload"]["playbackAttributes"] = {
+            "title": "Bài duy nhất",
+            "artist": "Ca sĩ A",
+        }
+        self.update_device("speaker-one", {"current_playback": current})
+        self.assertEqual(
+            self.player.extra_state_attributes,
+            {"maika_favorite_song_id": "key-one"},
+        )
+        self.assertEqual(self.player.media_duration, 215)
 
     async def test_duration_falls_back_to_current_queue_song_time(self):
         current = deepcopy(self.player.device["current_playback"])

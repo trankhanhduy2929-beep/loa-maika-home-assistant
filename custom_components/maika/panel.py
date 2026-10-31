@@ -500,20 +500,14 @@ class MaikaPanelFavoritesView(MaikaPanelMixin, HomeAssistantView):
         for song in songs:
             if not isinstance(song, dict):
                 continue
-            value = next(
-                (
-                    song.get(field)
-                    for field in ("songKey", "key", "id", "mediaId", "media_id")
-                    if song.get(field) is not None
-                ),
-                None,
-            )
-            if isinstance(value, bool) or value is None:
-                continue
-            text = str(value).strip()
-            if text and text not in seen:
-                seen.add(text)
-                song_ids.append(text)
+            for field in ("songKey", "key", "id", "mediaId", "media_id"):
+                value = song.get(field)
+                if isinstance(value, bool) or value is None:
+                    continue
+                text = str(value).strip()
+                if text and text not in seen:
+                    seen.add(text)
+                    song_ids.append(text)
         return self.json({"song_ids": song_ids})
 
 

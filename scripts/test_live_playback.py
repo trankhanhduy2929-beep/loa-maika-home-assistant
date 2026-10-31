@@ -309,18 +309,29 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         result = await player.async_browse_media("maika_playlist", "maika_playlist")
         self.assertEqual(len(result.children), 1)
         await player.async_play_media("maika_song", result.children[0].media_content_id)
-        self.client.async_playback_command.assert_awaited_once_with(
-            "one", "JumpCommandIssued", song_key="track-a"
+        self.assertEqual(
+            self.client.async_playback_command.await_args_list,
+            [
+                call("one", "JumpCommandIssued", song_key="track-a"),
+                call("one", "ResumeCommandIssued"),
+            ],
         )
         self.assertEqual(
-            self.client.async_send_command.await_args_list[-1],
-            call(
-                "JumpCommandIssued",
-                "PlaybackController",
-                {"deviceId": "one", "songKey": "track-a"},
-            ),
+            self.client.async_send_command.await_args_list[-2:],
+            [
+                call(
+                    "JumpCommandIssued",
+                    "PlaybackController",
+                    {"deviceId": "one", "songKey": "track-a"},
+                ),
+                call(
+                    "ResumeCommandIssued",
+                    "PlaybackController",
+                    {"deviceId": "one"},
+                ),
+            ],
         )
-        self.assertEqual(self.client.async_send_command.await_count, 3)
+        self.assertEqual(self.client.async_send_command.await_count, 4)
 
     async def test_queue_refresh_counts_only_new_reports_for_the_same_speaker(self):
         player = self.player()

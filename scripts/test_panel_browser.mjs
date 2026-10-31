@@ -788,6 +788,29 @@ async function verifyPlaylistPicker() {
   assert.equal(await favoriteButton.getAttribute("aria-label"), "Thêm bài đang phát vào Bài hát yêu thích");
   assert.equal(await favoriteButton.getAttribute("aria-pressed"), "false");
   assert.equal(await favoriteButton.isDisabled(), false);
+  await page.evaluate(() => {
+    const attrs = states[panel._entity("media_player")].attributes;
+    window.savedSongKey = attrs.maika_song_key;
+    delete attrs.maika_song_key;
+    delete attrs.maika_favorite_song_id;
+    tick();
+  });
+  await waitRender();
+  assert.equal(await favoriteButton.isDisabled(), false, "Heart stays clickable while the service resolves the current queue song");
+  await page.evaluate(() => {
+    states[panel._entity("media_player")].attributes.maika_song_key = window.savedSongKey;
+    delete window.savedSongKey;
+    tick();
+  });
+  await waitRender();
+  await page.evaluate(() => {
+    const attrs = states[panel._entity("media_player")].attributes;
+    panel._progressAnchors.clear();
+    attrs.media_position = 42;
+    attrs.media_position_updated_at = new Date().toISOString();
+    tick();
+  });
+  await waitRender();
   const progress = page.locator(".media .progress");
   assert.equal(await progress.count(), 1);
   assert.match(await progress.locator('[data-role="current"]').innerText(), /^0:4[23]$/);
@@ -1292,6 +1315,21 @@ try {
   assert.equal(await seek.inputValue(), "88");
   assert.equal(await seek.getAttribute("max"), "300");
   console.log("PASS live position/duration changes refresh the timeline without a title or state change");
+
+  await page.evaluate(() => {
+    const state = states[panel._entity("media_player")];
+    state.state = "playing";
+    state.attributes.media_position = 42;
+    state.attributes.media_duration = 215;
+    state.attributes.media_position_updated_at = null;
+    tick();
+  });
+  await waitRender();
+  const firstClock = await page.locator('[data-role="current"]').first().textContent();
+  await page.waitForTimeout(2200);
+  const nextClock = await page.locator('[data-role="current"]').first().textContent();
+  assert.notEqual(nextClock, firstClock, "Playback clock advances without media_position_updated_at");
+  console.log("PASS playback clock advances in realtime without a timestamp");
 
   await page.locator('[data-action="jump"][data-section="settings"]').click();
   await page.waitForTimeout(600);

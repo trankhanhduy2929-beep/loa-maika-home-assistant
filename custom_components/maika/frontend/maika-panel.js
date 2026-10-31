@@ -210,6 +210,7 @@ class MaikaPanel extends HTMLElement {
     this._favoriteSongs = new Map();
     this._favoritesToken = 0;
     this._progressTimer = null;
+    this._progressAnchors = new Map();
     this._message = null;
     this._draft = {};
     this._loaded = false;
@@ -1550,8 +1551,8 @@ class MaikaPanel extends HTMLElement {
         dataset: {action: "favorite-track"},
         "aria-pressed": String(favorited),
         "aria-label": favorited ? "Bài đang phát đã có trong Bài hát yêu thích" : "Thêm bài đang phát vào Bài hát yêu thích",
-        title: favorited ? "Bài đang phát đã có trong Bài hát yêu thích" : favoriteId ? "Thêm bài đang phát vào Bài hát yêu thích" : "Bài đang phát không có thông tin để lưu vào yêu thích",
-        disabled: !online || !favoriteId || this._favoriting || favorited,
+        title: favorited ? "Bài đang phát đã có trong Bài hát yêu thích" : "Thêm bài đang phát vào Bài hát yêu thích",
+        disabled: !online || this._favoriting || favorited,
       }, [svgIcon(ICONS.heart)]),
       h("button", {
         class: "now-act",
@@ -2444,12 +2445,26 @@ class MaikaPanel extends HTMLElement {
     return btn;
   }
 
-  _playbackPosition(attrs, playing) {
+  _playbackPosition(attrs, playing, entity = "") {
     let current = Number(attrs.media_position);
     if (!Number.isFinite(current)) current = 0;
     const updatedAt = attrs.media_position_updated_at ? Date.parse(attrs.media_position_updated_at) : NaN;
-    if (playing && Number.isFinite(updatedAt)) current += Math.max(0, (Date.now() - updatedAt) / 1000);
-    return Math.max(0, current);
+    if (!entity) {
+      if (playing && Number.isFinite(updatedAt)) current += Math.max(0, (Date.now() - updatedAt) / 1000);
+      return Math.max(0, current);
+    }
+    if (!playing) {
+      this._progressAnchors.delete(entity);
+      return Math.max(0, current);
+    }
+    const signature = [attrs.media_position, attrs.media_content_id, attrs.media_title, attrs.media_artist, attrs.entity_picture].join("|");
+    let anchor = this._progressAnchors.get(entity);
+    if (!anchor || anchor.signature !== signature) {
+      const startedAt = Number.isFinite(updatedAt) ? Math.min(updatedAt, Date.now()) : Date.now();
+      anchor = {signature, position: current, startedAt};
+      this._progressAnchors.set(entity, anchor);
+    }
+    return Math.max(0, anchor.position + (Date.now() - anchor.startedAt) / 1000);
   }
 
   _progressRow(attrs, entity, playing) {
@@ -2458,7 +2473,7 @@ class MaikaPanel extends HTMLElement {
     if (!state || UNKNOWN.has(state.state)) return null;
     const duration = Number(attrs.media_duration);
     const hasDuration = Number.isFinite(duration) && duration > 0;
-    const position = this._playbackPosition(attrs, playing);
+    const position = this._playbackPosition(attrs, playing, entity);
     const active = playing || state.state === "paused" || attrs.media_position !== undefined || hasDuration;
     if (!active) return null;
     const current = hasDuration ? Math.min(position, duration) : position;
@@ -2520,6 +2535,9 @@ class MaikaPanel extends HTMLElement {
 
   _syncProgressClock() {
     if (document.hidden) return;
+    for (const entity of [...this._progressAnchors.keys()]) {
+      if (this._state(entity)?.state !== "playing") this._progressAnchors.delete(entity);
+    }
     for (const row of this.shadowRoot.querySelectorAll(".progress[data-progress]")) {
       const entity = row.dataset.progress;
       const state = this._state(entity);
@@ -2528,7 +2546,7 @@ class MaikaPanel extends HTMLElement {
       const playing = state.state === "playing";
       const duration = Number(attrs.media_duration);
       const hasDuration = Number.isFinite(duration) && duration > 0;
-      const position = this._playbackPosition(attrs, playing);
+      const position = this._playbackPosition(attrs, playing, entity);
       const current = hasDuration ? Math.min(position, duration) : position;
       const percent = hasDuration ? Math.max(0, Math.min(100, (current / duration) * 100)) : 0;
       const currentText = row.querySelector('[data-role="current"]');
@@ -3745,6 +3763,8 @@ class MaikaPanel extends HTMLElement {
         const songs = this._favoriteSongs.get(entryId) || new Set();
         songs.add(favoriteId);
         this._favoriteSongs.set(entryId, songs);
+      } else {
+        this._loadFavoriteSongs();
       }
       this._notify("ok", "Đã thêm bài đang phát vào Bài hát yêu thích.");
     } catch (err) {
