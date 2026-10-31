@@ -1164,6 +1164,27 @@ class PlaybackTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assert_no_playback()
 
+    async def test_favorite_identifier_falls_back_to_media_id_and_numeric_id(self):
+        payload = self.player.device["current_playback"]["payload"]
+        payload["playbackAttributes"] = {"mediaId": "media-one", "song": "Song"}
+        self.assertEqual(
+            self.player.extra_state_attributes, {"maika_favorite_song_id": "media-one"}
+        )
+        payload["playbackAttributes"] = {"id": 321, "song": "Song"}
+        self.assertEqual(
+            self.player.extra_state_attributes, {"maika_favorite_song_id": "321"}
+        )
+
+    async def test_duration_falls_back_to_current_queue_song_time(self):
+        current = deepcopy(self.player.device["current_playback"])
+        current["payload"].pop("durationInMilliseconds")
+        current["payload"]["playbackAttributes"] = {"key": "key-one"}
+        self.update_device("speaker-one", {"current_playback": current})
+        self.native_playlist([{"songKey": "key-one", "time": "3:35"}])
+        self.assertEqual(self.player.media_duration, 215)
+        self.native_playlist([{"songKey": "key-one", "time": "215000"}])
+        self.assertEqual(self.player.media_duration, 215)
+
     async def test_queue_attributes_follow_revision_without_exposing_playlist(self):
         playlist = self.native_playlist()
         self.player.device["current_playback"]["payload"]["playbackAttributes"] = {

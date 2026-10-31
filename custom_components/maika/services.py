@@ -467,7 +467,9 @@ async def _async_add_current_to_favorites(
             translation_key="maika_favorite_no_track",
         )
     try:
-        favorite_playlist_id = await speaker.client.async_resolve_favorite_playlist_id()
+        favorite_playlist_id = await speaker.client.async_resolve_favorite_playlist_id(
+            force=True
+        )
         if not favorite_playlist_id:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,

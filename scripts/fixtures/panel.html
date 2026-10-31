@@ -148,6 +148,7 @@
         await new Promise((resolve) => setTimeout(resolve, 40));
         if (failApi) throw new Error("Thử mất kết nối");
         if (method === "GET" && path === "maika/panel/audio") return {url_path: "/maika_media", files: [{path: "mp3/maika.mp3", name: "maika.mp3", root: "mp3"}, {path: "www/thanh-cong.mp3", name: "thanh-cong.mp3", root: "www"}]};
+        if (method === "GET" && path.startsWith("maika/panel/favorites")) return {song_ids: [...(window.favoriteSongIds || [])]};
         if (method === "GET" && path.startsWith("maika/panel/reminders")) return {reminders: window.reminders.map((item) => ({...item}))};
         if (method === "POST" && path === "maika/panel/reminders") {
           if (data.action === "create") {

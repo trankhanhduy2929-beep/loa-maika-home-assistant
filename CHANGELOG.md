@@ -2,6 +2,31 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.3] - 2026-10-30
+
+### Added
+
+- Panel **Điều khiển MAIKA** luôn hiển thị thanh tiến trình phát với thời gian
+  đã phát và tổng thời lượng khi có metadata. Thời gian tự nhích mỗi giây;
+  thanh kéo tua chỉ xuất hiện khi loa báo thời lượng và media player hỗ trợ
+  seek.
+- Tự lấy thời lượng bài đang phát từ `durationInMilliseconds` hoặc từ trường
+  `time`/`duration` của bài tương ứng trong queue native.
+
+### Fixed
+
+- Nút trái tim nhận thêm `mediaId`/`media_id` và ID số, không còn bị vô hiệu
+  khi bài đang phát thiếu `key` hoặc `songKey`.
+- Panel tải danh sách bài yêu thích từ MAIKA để tô trạng thái trái tim và tự
+  chuyển sang **đã lưu** sau khi thêm bài, tránh thêm trùng.
+- Khi thêm bài yêu thích, integration luôn đối chiếu lại playlist theo tên và
+  bỏ ID cache cũ nếu playlist đó không còn trong tài khoản.
+
+### Tests
+
+- Thêm kiểm thử fallback thời lượng từ queue, nhận diện `mediaId`/ID số, xóa
+  ID yêu thích cache cũ và trạng thái trái tim trong browser test.
+
 ## [1.29.2] - 2026-10-30
 
 ### Changed

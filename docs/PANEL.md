@@ -76,8 +76,9 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   đang gõ.
 - Nút trái tim trên hàng bài đang phát gọi service
   `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào playlist yêu
-  thích của tài khoản. Nút chỉ bật khi bài đang phát có `maika_song_key`; bài
-  cast từ URL bên ngoài không có đủ thông tin để lưu.
+  thích của tài khoản. Từ `1.29.3`, panel tải danh sách yêu thích để tô trạng
+  thái đã lưu và nhận thêm `mediaId`/ID số; bài cast từ URL bên ngoài không có
+  đủ thông tin để lưu.
 - Nút icon **Thư viện giải trí** trên hàng bài đang phát mở hộp thoại duyệt
   Content Store (`maika_cs_*`): kênh → thể loại → media → tập/bài, thể loại và
   nội dung nổi bật. Từ `1.29.1`, mỗi kênh mở thành các thư mục thể loại thay vì
@@ -126,8 +127,9 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
 2. **Điều khiển MAIKA**: media player đang phát gì (bấm tên bài để mở danh sách
    bài trên loa), nút icon thư viện mở hộp thoại **Thư viện giải trí** (Content
    Store), nút trước – phát/tạm dừng – dừng – sau, mute, thanh âm lượng,
-   thanh thời gian kéo tua (khi loa báo thời lượng), form cast URL MP3/AAC qua
-   cloud. Từ `1.29.2`, panel không còn thanh mini-player cố định ở góc dưới.
+   thanh tiến trình có thời gian đã phát/tổng thời lượng, kéo tua khi loa báo
+   thời lượng và hỗ trợ seek, form cast URL MP3/AAC qua cloud. Từ `1.29.2`,
+   panel không còn thanh mini-player cố định ở góc dưới.
 3. **Thiết bị**: một tab gồm năm accordion mở/đóng bằng nút mũi tên:
    - **Trạng thái loa** (mở sẵn): 6 tile — trực tuyến, Wi-Fi, âm lượng, đang
      phát, cuộc gọi, yêu thích.

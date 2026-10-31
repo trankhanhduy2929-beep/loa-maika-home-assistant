@@ -361,6 +361,7 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
         await self.module["_async_add_current_to_favorites"](
             FakeHass([entry]), types.SimpleNamespace(data={"serial_number": "SN1"})
         )
+        client.async_resolve_favorite_playlist_id.assert_awaited_once_with(force=True)
         client.async_add_song_to_playlist.assert_awaited_once_with(
             42,
             singer="Ca sĩ",

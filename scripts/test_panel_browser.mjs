@@ -786,7 +786,13 @@ async function verifyPlaylistPicker() {
   const favoriteButton = page.locator('.media-now [data-action="favorite-track"]');
   assert.equal(await favoriteButton.count(), 1);
   assert.equal(await favoriteButton.getAttribute("aria-label"), "Thêm bài đang phát vào Bài hát yêu thích");
+  assert.equal(await favoriteButton.getAttribute("aria-pressed"), "false");
   assert.equal(await favoriteButton.isDisabled(), false);
+  const progress = page.locator(".media .progress");
+  assert.equal(await progress.count(), 1);
+  assert.match(await progress.locator('[data-role="current"]').innerText(), /^0:4[23]$/);
+  assert.equal(await progress.locator('[data-role="total"]').innerText(), "3:35");
+  assert.match(await progress.locator('input[data-field="seek"]').getAttribute("aria-valuetext"), /^0:4[23] \/ 3:35$/);
   await page.evaluate(() => { window.calls.length = 0; });
   await favoriteButton.click();
   await page.waitForFunction(() => window.calls.some((call) => call.service === "add_current_to_favorites"));
@@ -794,7 +800,9 @@ async function verifyPlaylistPicker() {
     await page.evaluate(() => window.calls.find((call) => call.service === "add_current_to_favorites")),
     {domain: "maika", service: "add_current_to_favorites", data: {serial_number: serial}},
   );
-  console.log("PASS current-song heart dispatches one MAIKA favorite service call");
+  await page.waitForFunction(() => window.panel.shadowRoot.querySelector('.media-now [data-action="favorite-track"]')?.getAttribute("aria-pressed") === "true");
+  assert.equal(await favoriteButton.isDisabled(), true);
+  console.log("PASS current-song heart saves to MAIKA favorites and reflects saved state");
   await open();
   await rows.first().waitFor();
   assert.equal(await rows.count(), 2);

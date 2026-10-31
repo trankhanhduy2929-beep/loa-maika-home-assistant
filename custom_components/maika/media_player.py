@@ -237,11 +237,16 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
             ),
             None,
         )
-        if key is None:
-            return {}
-        result = {"maika_song_key": key}
+        favorite_id = self._favorite_song_id()
+        result: dict[str, str] = {}
+        if key is not None:
+            result["maika_song_key"] = key
+        if favorite_id is not None and favorite_id != key:
+            result["maika_favorite_song_id"] = favorite_id
+        if not result:
+            return result
         playlist, songs = self._native_playlist()
-        if any(song.get("songKey") == key for song in songs):
+        if key is not None and any(song.get("songKey") == key for song in songs):
             result["maika_queue_item_id"] = self._queue_item_id(
                 self._queue_revision(playlist), key
             )
@@ -326,18 +331,38 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
 
     @property
     def media_duration(self) -> float | None:
-        """Return total track length in seconds when the speaker reports it."""
+        """Return total track length in seconds from playback or queue metadata."""
         payload = self._current_playback.get("payload")
-        if not isinstance(payload, dict):
+        if isinstance(payload, dict):
+            for field in ("durationInMilliseconds", "durationInMillis"):
+                if (
+                    seconds := self._duration_seconds(
+                        payload.get(field), milliseconds=True
+                    )
+                ) is not None:
+                    return seconds
+        attributes = self._playback_attributes
+        for field in ("durationInMilliseconds", "durationInMillis"):
+            if (
+                seconds := self._duration_seconds(
+                    attributes.get(field), milliseconds=True
+                )
+            ) is not None:
+                return seconds
+        for field in ("duration", "time"):
+            if (seconds := self._duration_seconds(attributes.get(field))) is not None:
+                return seconds
+        key = self._favorite_song_id()
+        if key is None:
             return None
-        value = payload.get("durationInMilliseconds")
-        if value is None:
-            value = payload.get("durationInMillis")
-        try:
-            seconds = float(value) / 1000.0
-        except (TypeError, ValueError):
-            return None
-        return seconds if math.isfinite(seconds) and seconds > 0 else None
+        _, songs = self._native_playlist()
+        for song in songs:
+            if str(song.get("songKey") or "") != key:
+                continue
+            for field in ("time", "duration"):
+                if (seconds := self._duration_seconds(song.get(field))) is not None:
+                    return seconds
+        return None
 
     async def async_set_volume_level(self, volume: float) -> None:
         """Set speaker playback volume."""
@@ -978,6 +1003,56 @@ class MaikaMediaPlayer(MaikaCommandEntity, MediaPlayerEntity):
         except UnicodeEncodeError:
             return None
         return value if len(encoded) <= _MAX_SONG_KEY_BYTES else None
+
+    def _favorite_song_id(self) -> str | None:
+        """Return the best MAIKA song identifier used by the favorite API."""
+        attributes = self._playback_attributes
+        for field in ("key", "songKey", "mediaId", "media_id", "id"):
+            value = attributes.get(field)
+            if isinstance(value, bool) or value is None:
+                continue
+            text = str(value).strip()
+            if not text or len(text) > _MAX_SONG_KEY_BYTES:
+                continue
+            if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in text):
+                continue
+            return text
+        return None
+
+    @staticmethod
+    def _duration_seconds(value: Any, *, milliseconds: bool = False) -> float | None:
+        """Convert MAIKA duration formats to seconds."""
+        if isinstance(value, bool) or value is None:
+            return None
+        seconds: float
+        if isinstance(value, (int, float)):
+            seconds = float(value)
+            if milliseconds or seconds > 10_000:
+                seconds /= 1000.0
+        elif isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            if ":" in text:
+                parts = text.split(":")
+                if len(parts) > 3:
+                    return None
+                try:
+                    seconds = 0.0
+                    for part in parts:
+                        seconds = seconds * 60 + float(part)
+                except ValueError:
+                    return None
+            else:
+                try:
+                    seconds = float(text)
+                except ValueError:
+                    return None
+                if milliseconds or seconds > 10_000:
+                    seconds /= 1000.0
+        else:
+            return None
+        return seconds if math.isfinite(seconds) and seconds > 0 else None
 
     @staticmethod
     def _queue_item_id(revision: str, key: str) -> str:

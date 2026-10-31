@@ -148,6 +148,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
     for view in (
         MaikaPanelStateView(hass),
+        MaikaPanelFavoritesView(hass),
         MaikaPanelLicenseView(hass),
         MaikaPanelOptionsView(hass),
         MaikaPanelActionView(hass),
@@ -466,6 +467,54 @@ class MaikaPanelStateView(MaikaPanelMixin, HomeAssistantView):
                 },
             }
         )
+
+
+class MaikaPanelFavoritesView(MaikaPanelMixin, HomeAssistantView):
+    """Return the current account's favorite song identifiers."""
+
+    url = "/api/maika/panel/favorites"
+    name = "api:maika:panel:favorites"
+
+    async def get(self, request: web.Request) -> web.Response:
+        entry = _entry_by_id(self.hass, request.query.get("entry_id"))
+        if entry is None:
+            return self.json_message("entry_not_found", 404)
+        runtime = getattr(entry, "runtime_data", None)
+        coordinator = getattr(runtime, "coordinator", None)
+        client = getattr(coordinator, "client", None)
+        if client is None:
+            return self.json_message("entry_not_ready", 503)
+        try:
+            playlist_id = await client.async_resolve_favorite_playlist_id(force=True)
+            songs = (
+                await client.async_list_all_playlist_songs(
+                    playlist_id, limit=1000, order_by="oldest", max_pages=10
+                )
+                if playlist_id is not None
+                else []
+            )
+        except MaikaApiError:
+            return self.json_message("favorites_unavailable", 502)
+        song_ids: list[str] = []
+        seen: set[str] = set()
+        for song in songs:
+            if not isinstance(song, dict):
+                continue
+            value = next(
+                (
+                    song.get(field)
+                    for field in ("songKey", "key", "id", "mediaId", "media_id")
+                    if song.get(field) is not None
+                ),
+                None,
+            )
+            if isinstance(value, bool) or value is None:
+                continue
+            text = str(value).strip()
+            if text and text not in seen:
+                seen.add(text)
+                song_ids.append(text)
+        return self.json({"song_ids": song_ids})
 
 
 class MaikaPanelLicenseView(MaikaPanelMixin, HomeAssistantView):

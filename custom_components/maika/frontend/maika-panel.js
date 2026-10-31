@@ -207,6 +207,9 @@ class MaikaPanel extends HTMLElement {
     this._openSections = new Set();
     this._busy = false;
     this._favoriting = false;
+    this._favoriteSongs = new Map();
+    this._favoritesToken = 0;
+    this._progressTimer = null;
     this._message = null;
     this._draft = {};
     this._loaded = false;
@@ -268,6 +271,7 @@ class MaikaPanel extends HTMLElement {
     window.addEventListener("storage", this._onStorage);
     document.addEventListener("visibilitychange", this._onVisibility);
     this._onVisibility();
+    this._startProgressClock();
     if (this._stage) {
       this._themeMode = this._storedThemeMode();
       this._applyTheme();
@@ -291,6 +295,7 @@ class MaikaPanel extends HTMLElement {
     if (this._chatTimer !== null) clearTimeout(this._chatTimer);
     this._chatTimer = null;
     this._stopChatPoll();
+    this._stopProgressClock();
   }
 
   set hass(value) {
@@ -833,6 +838,7 @@ class MaikaPanel extends HTMLElement {
       .now-act svg { width: 17px; height: 17px; fill: currentColor; }
       .now-act--fav { color: var(--pink); }
       .now-act--fav:hover:not(:disabled) { background: rgba(255, 158, 196, .16); }
+      .now-act--on { background: rgba(255, 158, 196, .22); border-color: rgba(255, 158, 196, .46); }
 
       dialog.playlist, dialog.library { width: min(560px, 92vw); max-width: 100%; margin: auto; padding: 0; border: 0; background: transparent; color: var(--text); }
       dialog.playlist::backdrop, dialog.library::backdrop { background: rgba(12, 6, 2, .58); }
@@ -907,16 +913,21 @@ class MaikaPanel extends HTMLElement {
       .slider { display: flex; align-items: center; gap: 12px; }
       .slider .ico svg { width: 18px; height: 18px; fill: var(--blue); }
       .slider .val { min-width: 44px; text-align: right; font-size: .84rem; font-weight: 650; color: var(--muted); }
-      .slider--seek { flex-wrap: wrap; row-gap: 8px; }
-      .slider--seek input[type="range"] { flex: 1 1 130px; }
-      .slider--seek .sbtn {
-        flex: none; min-width: 50px; height: 40px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line);
+      .progress { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+      .progress__time { min-width: 36px; font-size: .8rem; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--muted); }
+      .progress__time--total { text-align: right; }
+      .progress input[type="range"] { flex: 1 1 150px; height: 36px; }
+      .progress__track { flex: 1 1 150px; height: 8px; border-radius: 999px; background: var(--surface-3); overflow: hidden; position: relative; }
+      .progress__track i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--brand-start), var(--brand-end)); transition: width .35s linear; }
+      .progress__track[data-live] i { width: 30%; animation: playback-slide 1.8s ease-in-out infinite; }
+      .progress .sbtn {
+        flex: none; min-width: 50px; height: 38px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line);
         background: var(--surface-2); color: var(--text); font-size: .78rem; font-weight: 680; cursor: pointer;
         transition: transform .14s var(--ease), background .16s var(--ease), border-color .16s var(--ease);
       }
-      .slider--seek .sbtn:hover { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); transform: translateY(-1px); }
-      .slider--seek .sbtn:active { transform: scale(.93); }
-      .slider--seek .sbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .progress .sbtn:hover { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); transform: translateY(-1px); }
+      .progress .sbtn:active { transform: scale(.93); }
+      .progress .sbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       input[type="range"] {
         -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 44px; border-radius: 999px;
         background: linear-gradient(90deg, var(--accent) var(--p, 0%), var(--surface-3) var(--p, 0%)) center / 100% 8px no-repeat;
@@ -1078,6 +1089,7 @@ class MaikaPanel extends HTMLElement {
       @keyframes speaker-float { 0%, 100% { transform: translateY(1px); } 50% { transform: translateY(-3px); } }
       @keyframes sound-wave { 0%, 100% { transform: scaleY(.28); } 50% { transform: scaleY(1); } }
       @keyframes glass-sweep { 0%, 15% { transform: translateX(-120%); opacity: 0; } 30% { opacity: .65; } 60%, 100% { transform: translateX(300%); opacity: 0; } }
+      @keyframes playback-slide { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(420%); } }
       @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.99); } to { opacity: 1; transform: none; } }
       @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
       @keyframes pulse { from { transform: scale(.6); opacity: .7; } to { transform: scale(1.6); opacity: 0; } }
@@ -1513,6 +1525,8 @@ class MaikaPanel extends HTMLElement {
 
     const online = Boolean(state) && !UNKNOWN.has(state.state);
     const title = attrs.media_title || this._speakerName();
+    const favoriteId = String(attrs.maika_favorite_song_id || attrs.maika_song_key || "");
+    const favorited = this._isFavoriteSong(favoriteId);
     const now = h("div", {class: "media-now", "data-playing": activity === "playing"}, [
       h("div", {class: "ico"}, [svgIcon(playing ? ICONS.pause : ICONS.play)]),
       h("div", {class: "media-now__body"}, [
@@ -1531,12 +1545,13 @@ class MaikaPanel extends HTMLElement {
         h("div", {class: "s", text: this._activityLabel(activity)}),
       ]),
       h("button", {
-        class: "now-act now-act--fav",
+        class: `now-act now-act--fav${favorited ? " now-act--on" : ""}`,
         type: "button",
         dataset: {action: "favorite-track"},
-        "aria-label": "Thêm bài đang phát vào Bài hát yêu thích",
-        title: attrs.maika_song_key ? "Thêm bài đang phát vào Bài hát yêu thích" : "Bài đang phát không có thông tin để lưu vào yêu thích",
-        disabled: !online || !attrs.maika_song_key || this._favoriting,
+        "aria-pressed": String(favorited),
+        "aria-label": favorited ? "Bài đang phát đã có trong Bài hát yêu thích" : "Thêm bài đang phát vào Bài hát yêu thích",
+        title: favorited ? "Bài đang phát đã có trong Bài hát yêu thích" : favoriteId ? "Thêm bài đang phát vào Bài hát yêu thích" : "Bài đang phát không có thông tin để lưu vào yêu thích",
+        disabled: !online || !favoriteId || this._favoriting || favorited,
       }, [svgIcon(ICONS.heart)]),
       h("button", {
         class: "now-act",
@@ -1565,7 +1580,7 @@ class MaikaPanel extends HTMLElement {
       h("span", {class: "val", text: `${volume}%`}),
     ]);
 
-    const seek = this._seekRow(attrs, media, playing);
+    const seek = this._progressRow(attrs, media, playing);
 
     const form = h("form", {class: "field", dataset: {form: "cast"}}, [
       h("label", {text: "Phát âm thanh qua cloud (URL MP3/AAC)"}),
@@ -2437,22 +2452,104 @@ class MaikaPanel extends HTMLElement {
     return Math.max(0, current);
   }
 
-  _seekRow(attrs, entity, playing) {
-    const features = Number(attrs.supported_features) || 0;
-    if ((features & 2) !== 2 || !entity) return null;
+  _progressRow(attrs, entity, playing) {
+    if (!entity) return null;
+    const state = this._state(entity);
+    if (!state || UNKNOWN.has(state.state)) return null;
     const duration = Number(attrs.media_duration);
     const hasDuration = Number.isFinite(duration) && duration > 0;
-    const current = hasDuration ? Math.min(this._playbackPosition(attrs, playing), duration) : this._playbackPosition(attrs, playing);
-    const items = [this._seekButton(-30, current, duration, entity, "Tua lại 30 giây")];
-    if (hasDuration) {
+    const position = this._playbackPosition(attrs, playing);
+    const active = playing || state.state === "paused" || attrs.media_position !== undefined || hasDuration;
+    if (!active) return null;
+    const current = hasDuration ? Math.min(position, duration) : position;
+    const percent = hasDuration ? Math.max(0, Math.min(100, (current / duration) * 100)) : 0;
+    const canSeek = (Number(attrs.supported_features) || 0) & 2 && hasDuration;
+    const currentText = h("span", {class: "progress__time", dataset: {role: "current"}, text: fmtClock(current)});
+    const totalText = h("span", {class: "progress__time progress__time--total", dataset: {role: "total"}, text: hasDuration ? fmtClock(duration) : "--:--"});
+    let control;
+    if (canSeek) {
       const max = Math.max(1, Math.round(duration));
-      const range = h("input", {type: "range", min: "0", max: String(max), step: "1", value: String(Math.round(current)), "aria-label": "Vị trí phát", "aria-valuetext": `${fmtClock(current)} / ${fmtClock(duration)}`, dataset: {field: "seek", entity, duration: String(duration)}});
-      range.style.setProperty("--p", `${(current / duration) * 100}%`);
-      items.push(range);
-      items.push(h("span", {class: "val", text: `${fmtClock(current)} / ${fmtClock(duration)}`}));
+      control = h("input", {type: "range", min: "0", max: String(max), step: "1", value: String(Math.round(current)), "aria-label": "Vị trí phát", "aria-valuetext": `${fmtClock(current)} / ${fmtClock(duration)}`, dataset: {field: "seek", entity, duration: String(duration)}});
+      control.style.setProperty("--p", `${percent}%`);
+    } else {
+      control = h("div", {class: "progress__track", role: "progressbar", "aria-label": "Tiến trình phát", "aria-valuemin": "0", "aria-valuemax": hasDuration ? String(Math.round(duration)) : "100", "aria-valuenow": hasDuration ? String(Math.round(current)) : "0", "aria-valuetext": hasDuration ? `${fmtClock(current)} / ${fmtClock(duration)}` : `Đã phát ${fmtClock(current)}`});
+      const fill = h("i");
+      if (hasDuration) fill.style.width = `${percent}%`;
+      else control.dataset.live = "true";
+      control.append(fill);
     }
-    items.push(this._seekButton(30, current, duration, entity, "Tua tới 30 giây"));
-    return h("div", {class: "slider slider--seek"}, items);
+    const items = [currentText, control, totalText];
+    if (canSeek) {
+      items.push(this._seekButton(-30, current, duration, entity, "Tua lại 30 giây"));
+      items.push(this._seekButton(30, current, duration, entity, "Tua tới 30 giây"));
+    }
+    return h("div", {class: "progress", dataset: {progress: entity}, "data-playing": String(playing)}, items);
+  }
+
+  _loadFavoriteSongs() {
+    const entry = this._entry();
+    if (!entry?.entry_id) return;
+    const entryId = entry.entry_id;
+    const token = ++this._favoritesToken;
+    this._hass.callApi("GET", `${API}/favorites?entry_id=${encodeURIComponent(entryId)}`).then(
+      (result) => {
+        if (token !== this._favoritesToken || this._entry()?.entry_id !== entryId) return;
+        this._favoriteSongs.set(entryId, new Set((result?.song_ids || []).map(String)));
+        this._lastSignature = "";
+        this._maybeUpdate();
+      },
+      () => {}
+    );
+  }
+
+  _isFavoriteSong(songId) {
+    const entryId = this._entry()?.entry_id;
+    return Boolean(songId && entryId && this._favoriteSongs.get(entryId)?.has(songId));
+  }
+
+  _startProgressClock() {
+    if (this._progressTimer !== null) return;
+    this._progressTimer = window.setInterval(() => this._syncProgressClock(), 1000);
+  }
+
+  _stopProgressClock() {
+    if (this._progressTimer === null) return;
+    window.clearInterval(this._progressTimer);
+    this._progressTimer = null;
+  }
+
+  _syncProgressClock() {
+    if (document.hidden) return;
+    for (const row of this.shadowRoot.querySelectorAll(".progress[data-progress]")) {
+      const entity = row.dataset.progress;
+      const state = this._state(entity);
+      if (!state) continue;
+      const attrs = state.attributes || {};
+      const playing = state.state === "playing";
+      const duration = Number(attrs.media_duration);
+      const hasDuration = Number.isFinite(duration) && duration > 0;
+      const position = this._playbackPosition(attrs, playing);
+      const current = hasDuration ? Math.min(position, duration) : position;
+      const percent = hasDuration ? Math.max(0, Math.min(100, (current / duration) * 100)) : 0;
+      const currentText = row.querySelector('[data-role="current"]');
+      const totalText = row.querySelector('[data-role="total"]');
+      if (currentText) currentText.textContent = fmtClock(current);
+      if (totalText) totalText.textContent = hasDuration ? fmtClock(duration) : "--:--";
+      const range = row.querySelector('input[data-field="seek"]');
+      if (range && this.shadowRoot.activeElement !== range) {
+        range.value = String(Math.round(current));
+        range.style.setProperty("--p", `${percent}%`);
+        range.setAttribute("aria-valuetext", `${fmtClock(current)} / ${fmtClock(duration)}`);
+      }
+      const track = row.querySelector(".progress__track");
+      if (track) {
+        track.setAttribute("aria-valuemax", hasDuration ? String(Math.round(duration)) : "100");
+        track.setAttribute("aria-valuenow", hasDuration ? String(Math.round(current)) : "0");
+        track.setAttribute("aria-valuetext", hasDuration ? `${fmtClock(current)} / ${fmtClock(duration)}` : `Đã phát ${fmtClock(current)}`);
+        const fill = track.querySelector("i");
+        if (fill && hasDuration) fill.style.width = `${percent}%`;
+      }
+    }
   }
 
   _seekButton(delta, position, duration, entity, label) {
@@ -3036,6 +3133,7 @@ class MaikaPanel extends HTMLElement {
       const snapshot = await this._hass.callApi("GET", API);
       this._snapshot = snapshot;
       if (this._activeIndex >= (snapshot.entries || []).length) this._activeIndex = 0;
+      this._loadFavoriteSongs();
     } catch (err) {
       this._message = {type: "error", text: `Không tải được dữ liệu panel: ${this._errorText(err)}`};
     }
@@ -3335,6 +3433,7 @@ class MaikaPanel extends HTMLElement {
       this._activeSection = "overview";
       this._lastSignature = "";
       this._maybeUpdate();
+      this._loadFavoriteSongs();
       return;
     }
 
@@ -3634,11 +3733,19 @@ class MaikaPanel extends HTMLElement {
       this._notify("error", "Chưa chọn loa MAIKA.");
       return;
     }
+    const entryId = this._entry()?.entry_id;
+    const attrs = this._state(this._entity("media_player"))?.attributes || {};
+    const favoriteId = String(attrs.maika_favorite_song_id || attrs.maika_song_key || "");
     this._favoriting = true;
     this._lastSignature = "";
     this._maybeUpdate();
     try {
       await this._hass.callService("maika", "add_current_to_favorites", {serial_number: serial});
+      if (favoriteId && entryId) {
+        const songs = this._favoriteSongs.get(entryId) || new Set();
+        songs.add(favoriteId);
+        this._favoriteSongs.set(entryId, songs);
+      }
       this._notify("ok", "Đã thêm bài đang phát vào Bài hát yêu thích.");
     } catch (err) {
       this._notify("error", `Không thêm được bài yêu thích: ${this._errorText(err)}`);

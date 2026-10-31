@@ -159,6 +159,16 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
         }
         self.assertIsNone(await self.client.async_resolve_favorite_playlist_id())
 
+    async def test_force_resolve_drops_stale_cached_favorite_id(self):
+        self.client._favorite_playlist_id = 99
+        self.client._async_request_json.return_value = {
+            "data": [{"listKey": "7", "title": "Playlist khác"}]
+        }
+        self.assertIsNone(
+            await self.client.async_resolve_favorite_playlist_id(force=True)
+        )
+        self.assertIsNone(self.client.favorite_playlist_id)
+
     async def test_add_song_to_playlist_posts_app_request_shape(self):
         await self.client.async_add_song_to_playlist(
             42,

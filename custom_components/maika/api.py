@@ -358,31 +358,44 @@ class MaikaApiClient:
             return []
         return [playlist for playlist in data if isinstance(playlist, dict)]
 
+    @staticmethod
+    def _playlist_id(playlist: dict[str, Any]) -> int | str | None:
+        """Return the API identifier for a playlist entry."""
+        candidate = _first_text(
+            playlist.get("listKey"),
+            playlist.get("list_key"),
+            playlist.get("id"),
+            playlist.get("playlist_id"),
+            playlist.get("key"),
+        )
+        if candidate is None:
+            return None
+        if candidate.lstrip("-").isdigit():
+            return int(candidate)
+        return candidate
+
     async def async_resolve_favorite_playlist_id(
         self, *, force: bool = False
     ) -> int | str | None:
         """Resolve the favorite playlist even when login omits its ID."""
-        if self._favorite_playlist_id and not force:
+        if self._favorite_playlist_id is not None and not force:
             return self._favorite_playlist_id
-        for playlist in await self.async_list_playlists():
+        playlists = await self.async_list_playlists()
+        for playlist in playlists:
             title = _normalize_playlist_title(
                 _first_text(playlist.get("title"), playlist.get("name"))
             )
             if not _is_favorite_playlist_title(title):
                 continue
-            candidate = _first_text(
-                playlist.get("listKey"),
-                playlist.get("list_key"),
-                playlist.get("id"),
-                playlist.get("playlist_id"),
-                playlist.get("key"),
-            )
-            if candidate is None:
-                continue
-            if candidate.lstrip("-").isdigit():
-                candidate = int(candidate)
-            self._favorite_playlist_id = candidate
-            return candidate
+            if (candidate := self._playlist_id(playlist)) is not None:
+                self._favorite_playlist_id = candidate
+                return candidate
+        cached = self._favorite_playlist_id
+        if cached is not None and any(
+            self._playlist_id(playlist) == cached for playlist in playlists
+        ):
+            return cached
+        self._favorite_playlist_id = None
         return None
 
     async def async_list_playlist_songs(
