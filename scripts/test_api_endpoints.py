@@ -194,6 +194,25 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_message_history_uses_v2_app_query_and_filters(self):
+        self.client._async_request_json.return_value = {
+            "data": [{"id": "1"}, None, "bad"]
+        }
+        history = await self.client.async_get_message_history(
+            "speaker-one", limit=5, page=2, newest=False
+        )
+        self.assertEqual(history, [{"id": "1"}])
+        self.client._async_request_json.assert_awaited_once_with(
+            "GET",
+            f"{self.users}/v2/user/message-history",
+            params={
+                "limit": 5,
+                "page": 2,
+                "device_id": "speaker-one",
+                "newest": "false",
+            },
+        )
+
     async def test_list_reminders_uses_get_and_returns_groups(self):
         self.client._async_request_json.return_value = {
             "data": [{"listReminders": []}, None, "bad"]

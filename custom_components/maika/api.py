@@ -1285,6 +1285,30 @@ class MaikaApiClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MaikaConnectionError("Unable to chat with MAIKA") from err
 
+    async def async_get_message_history(
+        self,
+        serial_number: str,
+        *,
+        limit: int = 10,
+        page: int = 0,
+        newest: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Return recent speaker chat exchanges from the app account API."""
+        response = await self._async_request_json(
+            "GET",
+            f"{USERS_BASE_URL}/v2/user/message-history",
+            params={
+                "limit": limit,
+                "page": page,
+                "device_id": serial_number,
+                "newest": str(bool(newest)).lower(),
+            },
+        )
+        data = response.get("data") if isinstance(response, dict) else None
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
     async def async_nct_json(
         self,
         path: str,

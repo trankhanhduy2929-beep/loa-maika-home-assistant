@@ -63,6 +63,7 @@ from .voice_success_audio import (
 _LOGGER = logging.getLogger(__name__)
 _LIVE_FIELDS = ("volume", "mute", "current_playback", "latest_playlist")
 _PLAYBACK_REFRESH_DELAYS = (0, 1, 2)
+_CHAT_HISTORY_DELAYS = (0, 1, 2, 4, 8)
 
 type CoordinatorData = dict[str, Any]
 
@@ -101,6 +102,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._chat_log: list[dict[str, Any]] = []
         self._chat_pending_serial: str | None = None
         self._chat_sequence = 0
+        self._chat_history_seen: set[str] = set()
         self._chat_ai_tasks: set[asyncio.Task[Any]] = set()
         self._license_reminder_date: str | None = None
         self._voice_command_sequence = 0
@@ -361,14 +363,38 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._append_chat("user", message, serial_number)
         self._chat_pending_serial = serial_number
         self._chat_sequence += 1
-        task = self.entry.async_create_background_task(
-            self.hass,
+        self._schedule_chat_reply(
             self._async_capture_ai_reply(serial_number, message, self._chat_sequence),
             "MAIKA AI chat reply",
         )
+        self._schedule_chat_reply(
+            self._async_capture_history_reply(
+                serial_number, message, self._chat_sequence
+            ),
+            "MAIKA chat history reply",
+        )
+        return {"ok": True, "chat": self.chat_log}
+
+    @callback
+    def _schedule_chat_reply(self, coroutine: Any, name: str) -> None:
+        task = self.entry.async_create_background_task(self.hass, coroutine, name)
         self._chat_ai_tasks.add(task)
         task.add_done_callback(self._chat_ai_tasks.discard)
-        return {"ok": True, "chat": self.chat_log}
+
+    def _chat_reply_still_needed(self, serial_number: str, sequence: int) -> bool:
+        return (
+            not self._stopping
+            and self._chat_pending_serial == serial_number
+            and self._chat_sequence == sequence
+        )
+
+    def _apply_chat_reply(self, serial_number: str, sequence: int, reply: str) -> bool:
+        if not reply or not self._chat_reply_still_needed(serial_number, sequence):
+            return False
+        self._chat_pending_serial = None
+        self._append_chat("assistant", reply, serial_number)
+        self._publish_last_voice_command()
+        return True
 
     async def _async_capture_ai_reply(
         self, serial_number: str, message: str, sequence: int
@@ -379,16 +405,71 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         except MaikaApiError:
             _LOGGER.debug("Unable to fetch MAIKA AI chat reply", exc_info=True)
             return
-        if (
-            self._stopping
-            or not reply
-            or self._chat_pending_serial != serial_number
-            or self._chat_sequence != sequence
-        ):
-            return
-        self._chat_pending_serial = None
-        self._append_chat("assistant", reply, serial_number)
-        self._publish_last_voice_command()
+        self._apply_chat_reply(serial_number, sequence, reply)
+
+    @staticmethod
+    def _history_exchange(item: dict[str, Any]) -> tuple[str | None, str | None]:
+        data = item.get("data")
+        if not isinstance(data, dict):
+            return None, None
+        header = data.get("header")
+        raw_speech = None
+        if isinstance(header, dict):
+            for key in ("rawSpeech", "raw_speech"):
+                value = header.get(key)
+                if isinstance(value, str) and value.strip():
+                    raw_speech = value.strip()
+                    break
+        response = data.get("response")
+        reply = None
+        if isinstance(response, dict):
+            items = response.get("items")
+            if isinstance(items, list):
+                for entry in items:
+                    if not isinstance(entry, dict):
+                        continue
+                    simple = entry.get("simpleResponse")
+                    if not isinstance(simple, dict):
+                        continue
+                    for key in ("displayText", "textToSpeech", "ssml"):
+                        value = simple.get(key)
+                        if isinstance(value, str) and value.strip():
+                            reply = value.strip()
+                            break
+                    if reply is not None:
+                        break
+        return raw_speech, reply
+
+    async def _async_capture_history_reply(
+        self, serial_number: str, message: str, sequence: int
+    ) -> None:
+        """Read the real speaker reply from the app's message history."""
+        expected = normalize_voice_phrase(message)
+        for delay in _CHAT_HISTORY_DELAYS:
+            if delay:
+                await asyncio.sleep(delay)
+            if not self._chat_reply_still_needed(serial_number, sequence):
+                return
+            try:
+                history = await self.client.async_get_message_history(serial_number)
+            except MaikaApiError:
+                _LOGGER.debug("Unable to read MAIKA chat history", exc_info=True)
+                continue
+            for item in history:
+                raw_speech, reply = self._history_exchange(item)
+                if not reply or not raw_speech:
+                    continue
+                if normalize_voice_phrase(raw_speech) != expected:
+                    continue
+                identity = str(item.get("id") or "").strip()
+                if identity and identity in self._chat_history_seen:
+                    continue
+                if identity:
+                    self._chat_history_seen.add(identity)
+                    if len(self._chat_history_seen) > 256:
+                        self._chat_history_seen.clear()
+                if self._apply_chat_reply(serial_number, sequence, reply):
+                    return
 
     @callback
     def _append_chat(self, role: str, text: str, serial_number: str) -> None:
@@ -740,6 +821,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             await asyncio.gather(*pending, return_exceptions=True)
         self._playback_refresh_tasks.clear()
         self._chat_ai_tasks.clear()
+        self._chat_history_seen.clear()
         try:
             async with asyncio.timeout(10), self._media_subscription_lock:
                 for serial_number in (

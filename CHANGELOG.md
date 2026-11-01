@@ -2,6 +2,23 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.7] - 2026-10-31
+
+### Fixed
+
+- Khi `content-gateway.maika.ai/api/chat` lỗi hoặc trả rỗng, integration đọc
+  `/v2/user/message-history` của tài khoản và thêm câu trả lời thật của loa vào
+  hội thoại. Nhờ đó panel vẫn hiện phản hồi dù endpoint chat AI tạm không khả
+  dụng.
+- Lịch sử được đối chiếu theo `device_id` và nội dung câu người dùng vừa gửi,
+  bỏ qua bản ghi cũ hoặc bản ghi đã dùng.
+- Giữ nguyên thứ tự ưu tiên: AI chat, lịch sử hội thoại, rồi directive TTS.
+
+### Tests
+
+- Thêm kiểm thử query `/v2/user/message-history`, lọc dữ liệu và dùng phản hồi
+  lịch sử khi endpoint AI trả rỗng.
+
 ## [1.29.6] - 2026-10-31
 
 ### Added
