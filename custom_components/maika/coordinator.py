@@ -22,6 +22,7 @@ from .api import (
     MaikaApiClient,
     MaikaApiError,
     MaikaAuthenticationError,
+    MaikaConnectionError,
     merge_current_playback,
 )
 from .audio_library import async_ensure_audio_library_paths, library_audio_url
@@ -191,6 +192,17 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             )
         except MaikaAuthenticationError as err:
             raise ConfigEntryAuthFailed from err
+        except MaikaConnectionError as err:
+            if (
+                self.data
+                and self.client.listener_connected
+                and (err.status is None or err.is_server_error)
+            ):
+                _LOGGER.warning(
+                    "MAIKA cloud REST is temporarily unavailable; keeping cached devices"
+                )
+                return self.data
+            raise UpdateFailed(str(err)) from err
         except MaikaApiError as err:
             raise UpdateFailed(str(err)) from err
 
@@ -232,10 +244,13 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._schedule_media_subscriptions()
         if self._media_subscription_task is not None:
             await asyncio.gather(self._media_subscription_task, return_exceptions=True)
-        await asyncio.gather(
+        live_results = await asyncio.gather(
             *(self.async_refresh_live(serial_number) for serial_number in devices),
             return_exceptions=True,
         )
+        for serial_number, live_result in zip(devices, live_results, strict=True):
+            if live_result is True:
+                devices[serial_number] = {**devices[serial_number], "online": True}
         self._schedule_voice_subscriptions(devices)
         if self._voice_subscription_task is not None:
             await asyncio.gather(self._voice_subscription_task, return_exceptions=True)

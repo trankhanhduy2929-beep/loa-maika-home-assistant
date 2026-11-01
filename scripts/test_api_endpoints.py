@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import io
 import runpy
 import types
@@ -257,6 +258,59 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.client._async_request_json.return_value = {"data": None}
         self.assertEqual(await self.client.async_list_playlist_songs(1), [])
         self.assertEqual(await self.client.async_list_reminders(), [])
+
+    async def test_listener_reconnects_when_handshake_never_arrives(self):
+        self.module["_STREAM_HANDSHAKE_TIMEOUT"] = 0.02
+        client = self.client
+        client._async_ensure_authenticated = AsyncMock()
+        client._access_token = "token"
+        client._client_id = "client"
+        client._session_id = "session"
+        client._connected = asyncio.Event()
+        client._listener_generation = 0
+        client._stopping = False
+        calls = []
+
+        class SlowContent:
+            async def iter_any(self):
+                await asyncio.sleep(60)
+                yield b""
+
+        class SlowResponse:
+            status = 200
+            content = SlowContent()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        class HandshakeContent:
+            async def iter_any(self):
+                yield b'$START_JSON{"session_id": "ok"}$END_JSON'
+
+        class HandshakeResponse:
+            status = 200
+            content = HandshakeContent()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        class Session:
+            def get(self, *args, **kwargs):
+                calls.append((args, kwargs))
+                return SlowResponse() if len(calls) == 1 else HandshakeResponse()
+
+        client._session = Session()
+        client._event_callback = lambda frame: setattr(client, "_stopping", True)
+        await asyncio.wait_for(client.async_listen_forever(), timeout=4)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(client.listener_generation, 1)
+        self.assertFalse(client._connected.is_set())
 
 
 def validate_api_endpoints() -> list[str]:

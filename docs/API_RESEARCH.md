@@ -189,6 +189,8 @@ Integration:
 - Dùng incremental UTF-8 decoder để không làm hỏng tiếng Việt khi byte multibyte bị chia giữa hai chunk.
 - Giữ buffer tối đa 1 MiB.
 - Tự reconnect với exponential backoff 1–60 giây.
+- Chờ frame handshake tối đa 30 giây; stream HTTP 200 nhưng im lặng bị đóng và thử lại.
+- Lỗi ngoài dự kiến không làm listener dừng vĩnh viễn; integration log và tiếp tục vòng reconnect.
 - Tự login lại khi stream nhận 401.
 - Hủy task và waiter đúng lúc unload config entry.
 

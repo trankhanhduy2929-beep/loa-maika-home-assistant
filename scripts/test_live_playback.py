@@ -101,6 +101,7 @@ def load_modules():
                     "MaikaApiClient",
                     "MaikaApiError",
                     "MaikaAuthenticationError",
+                    "MaikaConnectionError",
                     "merge_current_playback",
                 )
             },
@@ -509,6 +510,35 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
             self.client._discovered_devices["one"]["current_playback"]["payload"],
             expected,
         )
+
+    async def test_successful_live_probe_marks_speaker_online(self):
+        self.poll_devices[0]["online"] = False
+        self.poll_devices[1]["online"] = False
+        self.client.async_request_device_info = AsyncMock(
+            side_effect=lambda serial: (
+                {"device_id": serial, "volume": 45} if serial == "one" else None
+            )
+        )
+        data = await self.coordinator._async_update_data()
+        self.assertTrue(data["devices"]["one"]["online"])
+        self.assertFalse(data["devices"]["two"]["online"])
+
+    async def test_transient_rest_failure_keeps_cached_devices_while_stream_is_up(self):
+        expected = deepcopy(self.coordinator.data)
+        self.client.async_list_devices = AsyncMock(
+            side_effect=self.api["MaikaConnectionError"]("temporary outage")
+        )
+        data = await self.coordinator._async_update_data()
+        self.assertEqual(data, expected)
+        self.assertTrue(self.client.listener_connected)
+
+    async def test_rest_failure_without_stream_still_marks_update_failed(self):
+        self.client._connected.clear()
+        self.client.async_list_devices = AsyncMock(
+            side_effect=self.api["MaikaConnectionError"]("offline")
+        )
+        with self.assertRaises(self.module["UpdateFailed"]):
+            await self.coordinator._async_update_data()
 
     async def test_refresh_does_not_reapply_old_waiter_after_new_event(self):
         def command(*args):

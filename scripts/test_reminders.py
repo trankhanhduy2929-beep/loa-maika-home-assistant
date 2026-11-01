@@ -6,7 +6,7 @@ from __future__ import annotations
 import ast
 import io
 import unittest
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,17 +41,20 @@ class ReminderTests(unittest.TestCase):
         return (datetime.now(UTC) + timedelta(minutes=minutes)).isoformat()
 
     def test_build_uses_snake_case_and_app_timezone(self):
-        start = "2026-11-01T00:00:00Z"
+        start_dt = (datetime.now(UTC) + timedelta(days=2)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        local = start_dt.astimezone(timezone(timedelta(hours=7)))
         payload = self.build(
             event="  Uống thuốc  ",
-            start_at=start,
+            start_at=start_dt.isoformat(),
             serial_number=" speaker-one ",
             frequency="daily",
             alert_prior=15,
         )
         self.assertEqual(payload["event"], "Uống thuốc")
-        self.assertEqual(payload["start_date"], "2026-11-01")
-        self.assertEqual(payload["start_time"], "07:00:00")
+        self.assertEqual(payload["start_date"], local.date().isoformat())
+        self.assertEqual(payload["start_time"], local.strftime("%H:%M:%S"))
         self.assertEqual(payload["timezone"], "Asia/Ho_Chi_Minh")
         self.assertEqual(payload["alert_prior"], 900)
         self.assertEqual(payload["devices"], ["speaker-one"])
@@ -62,13 +65,15 @@ class ReminderTests(unittest.TestCase):
         self.assertEqual(payload["frequency"], "daily")
 
     def test_build_accepts_naive_local_time_and_custom_tts(self):
+        local = datetime.now(UTC).astimezone(timezone(timedelta(hours=7)))
+        start = (local + timedelta(days=2)).strftime("%Y-%m-%dT08:30")
         payload = self.build(
             event="Họp",
-            start_at="2026-11-01T08:30",
+            start_at=start,
             serial_number="speaker-one",
             custom_tts="Sắp đến giờ họp",
         )
-        self.assertEqual(payload["start_date"], "2026-11-01")
+        self.assertEqual(payload["start_date"], start[:10])
         self.assertEqual(payload["start_time"], "08:30:00")
         self.assertEqual(payload["custom_tts"], "Sắp đến giờ họp")
 

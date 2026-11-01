@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.5] - 2026-10-31
+
+### Fixed
+
+- Event stream `/connect` không còn dừng vĩnh viễn khi gặp lỗi ngoài dự kiến.
+  Listener bắt lỗi, log lại và tiếp tục reconnect thay vì để entity mất kết nối
+  tới khi tải lại integration.
+- Chờ handshake tối đa 30 giây; nếu cloud mở HTTP 200 nhưng không gửi frame kết
+  nối, integration đóng stream và thử lại với backoff 1–60 giây.
+- Khi REST tạm lỗi kết nối hoặc HTTP 5xx trong lúc event stream vẫn sống,
+  coordinator giữ dữ liệu loa đã có thay vì đánh dấu toàn bộ entity
+  `unavailable`.
+- Phản hồi `GetDeviceInfo` thành công đánh dấu loa đang online, sửa trạng thái
+  **Mất kết nối** sai dù loa vẫn trả lời Home Assistant.
+
+### Tests
+
+- Thêm kiểm thử listener reconnect sau handshake timeout, giữ cache khi REST
+  lỗi tạm thời, vẫn báo lỗi khi stream cũng mất và cập nhật online từ live probe.
+
 ## [1.29.4] - 2026-10-30
 
 ### Fixed

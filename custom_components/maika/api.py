@@ -42,6 +42,7 @@ STREAM_TIMEOUT = aiohttp.ClientTimeout(
     sock_connect=30,
     sock_read=180,
 )
+_STREAM_HANDSHAKE_TIMEOUT = 30.0
 
 _FRAME_START = "$START_JSON"
 _FRAME_END = "$END_JSON"
@@ -1103,16 +1104,30 @@ class MaikaApiClient:
                             f"MAIKA event stream returned HTTP {response.status}"
                         )
 
-                    retry_delay = 1
                     buffer = ""
                     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-                    async for chunk in response.content.iter_any():
+                    chunks = response.content.iter_any().__aiter__()
+                    handshake_received = False
+                    while True:
+                        try:
+                            if handshake_received:
+                                chunk = await chunks.__anext__()
+                            else:
+                                chunk = await asyncio.wait_for(
+                                    chunks.__anext__(),
+                                    timeout=_STREAM_HANDSHAKE_TIMEOUT,
+                                )
+                        except StopAsyncIteration:
+                            break
                         if self._stopping:
                             return
                         buffer += decoder.decode(chunk)
                         frames, buffer = self._extract_frames(buffer)
                         for frame in frames:
                             self._handle_stream_frame(frame)
+                        if not handshake_received and self._connected.is_set():
+                            handshake_received = True
+                            retry_delay = 1
             except asyncio.CancelledError:
                 raise
             except MaikaAuthenticationError:
@@ -1127,6 +1142,10 @@ class MaikaApiClient:
                 self._connected.clear()
                 if not self._stopping:
                     _LOGGER.debug("MAIKA event stream disconnected: %s", err)
+            except Exception:
+                self._connected.clear()
+                if not self._stopping:
+                    _LOGGER.exception("Unexpected MAIKA event stream failure")
 
             self._connected.clear()
 
