@@ -30,7 +30,7 @@ Gói ZIP chứa base APK, split ABI `armeabi_v7a`, split density `mdpi`, icon v�
 | `https://users.iviet.com` | Login, danh sách loa, detail loa, cập nhật setting, danh sách giọng |
 | `https://chatbot.iviet.com` | Gửi command và nhận stream event |
 | `https://smarthome.iviet.com` | Linking/sync nhà thông minh; chỉ dùng trong nghiên cứu, không dùng bởi integration |
-| `https://content-gateway.maika.ai` | Chat/TTS của ứng dụng; không dùng bởi integration |
+| `https://content-gateway.maika.ai` | Chat AI (`/api/chat`) và TTS của ứng dụng; integration dùng `/api/chat` từ `1.29.6`, không dùng TTS |
 
 Tất cả kết nối trong integration dùng HTTPS thông qua shared `aiohttp` session của Home Assistant.
 
@@ -227,6 +227,12 @@ Integration chỉ xử lý `rawSpeech` khi:
 4. Message chưa được xử lý trong cửa sổ dedupe 5 phút.
 
 Câu không khớp rule vẫn cập nhật sensor nhưng không gọi service entity hoặc gửi lệnh audio tới loa.
+
+## Chat AI
+
+APK dùng `POST https://content-gateway.maika.ai/api/chat` cho màn hình chat AI. Request JSON gồm `message`, `enable_search` (mặc định `false`) và `session_id` dạng `<user_id>_<install_id>`. Header dùng `Authorization: Bearer <access_token>`, `device-type: android`, `version-info: 3.2.3`, `timezone`, `language-code`.
+
+Response là body text stream, không phải JSON từng dòng; app đọc từng chunk UTF-8 và nối vào câu trả lời đang hiển thị. Từ `1.29.6`, integration gọi endpoint này sau khi gửi `Recognize`, dùng `session_id` ổn định `<user_id>_<client_id>` và thêm câu trả lời hoàn chỉnh vào chat log. Nếu endpoint lỗi, integration quay lại bắt directive TTS như trước.
 
 ## Nghiên cứu TTS
 

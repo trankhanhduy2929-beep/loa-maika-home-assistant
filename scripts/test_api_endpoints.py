@@ -259,6 +259,47 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.client.async_list_playlist_songs(1), [])
         self.assertEqual(await self.client.async_list_reminders(), [])
 
+    async def test_ai_chat_streams_original_app_endpoint(self):
+        client = self.client
+        client._async_ensure_authenticated = AsyncMock()
+        client._access_token = "token"
+        client._user_id = 7
+        client._client_id = "client"
+        calls = []
+
+        class Content:
+            async def iter_any(self):
+                yield b"Xin "
+                yield b"ch\xc3\xa0o"
+
+        class Response:
+            status = 200
+            content = Content()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        class Session:
+            def post(self, url, **kwargs):
+                calls.append((url, kwargs))
+                return Response()
+
+        client._session = Session()
+        reply = await client.async_chat_ai("Chào MAIKA", session_id="7_client")
+        self.assertEqual(reply, "Xin chào")
+        self.assertEqual(len(calls), 1)
+        url, kwargs = calls[0]
+        self.assertEqual(url, f"{self.module['CONTENT_GATEWAY_BASE_URL']}/api/chat")
+        self.assertEqual(
+            kwargs["json"],
+            {"message": "Chào MAIKA", "enable_search": False, "session_id": "7_client"},
+        )
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer token")
+        self.assertEqual(kwargs["headers"]["device-type"], "android")
+
     async def test_listener_reconnects_when_handshake_never_arrives(self):
         self.module["_STREAM_HANDSHAKE_TIMEOUT"] = 0.02
         client = self.client

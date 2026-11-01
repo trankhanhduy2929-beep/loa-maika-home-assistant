@@ -2,6 +2,22 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.6] - 2026-10-31
+
+### Added
+
+- Mục **Trò chuyện** lấy câu trả lời văn bản của MAIKA từ endpoint
+  `POST https://content-gateway.maika.ai/api/chat` giống app gốc, thay vì chỉ
+  chờ directive TTS. Câu trả lời được thêm vào hội thoại sau khi gửi câu lệnh.
+- Giữ luồng gửi `Recognize` tới loa; phản hồi TTS vẫn là phương án dự phòng nếu
+  endpoint chat AI lỗi. Nếu AI trả lời trước, directive TTS trùng sau đó bị bỏ
+  qua để không tạo hai bong bóng.
+
+### Tests
+
+- Thêm kiểm thử stream `/api/chat`, header xác thực, body request và việc dùng
+  phản hồi AI một lần trước khi TTS đến muộn.
+
 ## [1.29.5] - 2026-10-31
 
 ### Fixed

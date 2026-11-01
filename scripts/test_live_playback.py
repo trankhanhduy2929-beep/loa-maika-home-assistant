@@ -176,6 +176,7 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         )
         self.client.async_get_device = AsyncMock(return_value={})
         self.client.async_get_tts_voices = AsyncMock(return_value=[])
+        self.client.async_chat_ai = AsyncMock(return_value="")
 
     async def asyncTearDown(self):
         self.client.async_send_command.side_effect = None
@@ -1084,6 +1085,26 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         log = self.coordinator.chat_log
         self.assertEqual(log[-1]["role"], "assistant")
         self.assertEqual(log[-1]["text"], "Đã bật đèn")
+
+    async def test_chat_uses_app_ai_reply_and_ignores_late_tts(self):
+        self.client.async_send_voice_text = AsyncMock()
+        self.client.async_chat_ai = AsyncMock(return_value="Phản hồi từ MAIKA")
+        result = await self.coordinator.async_send_chat("one", "xin chào")
+        self.assertTrue(result["ok"])
+        for _ in range(20):
+            if len(self.coordinator.chat_log) >= 2:
+                break
+            await asyncio.sleep(0)
+        log = self.coordinator.chat_log
+        self.assertEqual([turn["role"] for turn in log], ["user", "assistant"])
+        self.assertEqual(log[-1]["text"], "Phản hồi từ MAIKA")
+        frame = {
+            "header": {"namespace": "TextToSpeech", "name": "Speak"},
+            "response": {"items": [{"simpleResponse": {"displayText": "TTS trùng"}}]},
+        }
+        self.client._handle_stream_frame(frame)
+        self.assertEqual(len(self.coordinator.chat_log), 2)
+        self.assertEqual(self.coordinator.chat_log[-1]["text"], "Phản hồi từ MAIKA")
 
     async def test_chat_send_rejects_unknown_speaker_and_empty_message(self):
         self.client.async_send_voice_text = AsyncMock()

@@ -65,10 +65,11 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   đúng luồng app gốc: panel gọi `POST /api/maika/panel/chat`, coordinator gửi
   một event `Recognize` (`SpeechRecognizer`, `rawSpeech`) tới
   `chatbot.iviet.com/stream` với header `device-id`/`olli-session-id` trỏ đúng
-  loa. Hội thoại hiện câu lệnh đã gửi (bong bóng bên phải) và phản hồi
-  `TextToSpeech`/`SpeechSynthesizer` của loa (bong bóng bên trái). Sau khi gửi,
-  panel tự nạp lại nhanh để bắt phản hồi; lượt chat tối đa 500 ký tự và giữ 50
-  lượt gần nhất.
+  loa. Từ `1.29.6`, coordinator đồng thời gọi `POST /api/chat` của
+  `content-gateway.maika.ai` và thêm câu trả lời văn bản của MAIKA vào hội thoại
+  như app gốc; phản hồi `TextToSpeech`/`SpeechSynthesizer` chỉ dùng dự phòng khi
+  endpoint AI lỗi. Sau khi gửi, panel tự nạp lại nhanh để bắt phản hồi; lượt
+  chat tối đa 500 ký tự và giữ 50 lượt gần nhất.
 - **Gộp lịch sử vào hội thoại (v1.20.1)**: mục riêng **Lịch sử** được bỏ, các
   câu lệnh MAIKA nghe qua micro nay nằm chung dòng thời gian với chat, có kèm
   nhãn kết quả. Khi mục **Trò chuyện** đang mở, panel tự làm mới mỗi 4 giây để

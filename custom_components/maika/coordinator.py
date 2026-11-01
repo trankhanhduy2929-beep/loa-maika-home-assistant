@@ -100,6 +100,8 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._history_save_task: asyncio.Task[Any] | None = None
         self._chat_log: list[dict[str, Any]] = []
         self._chat_pending_serial: str | None = None
+        self._chat_sequence = 0
+        self._chat_ai_tasks: set[asyncio.Task[Any]] = set()
         self._license_reminder_date: str | None = None
         self._voice_command_sequence = 0
         self._stream_frame_count = 0
@@ -358,7 +360,35 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             return {"ok": False, "error": "send_failed"}
         self._append_chat("user", message, serial_number)
         self._chat_pending_serial = serial_number
+        self._chat_sequence += 1
+        task = self.entry.async_create_background_task(
+            self.hass,
+            self._async_capture_ai_reply(serial_number, message, self._chat_sequence),
+            "MAIKA AI chat reply",
+        )
+        self._chat_ai_tasks.add(task)
+        task.add_done_callback(self._chat_ai_tasks.discard)
         return {"ok": True, "chat": self.chat_log}
+
+    async def _async_capture_ai_reply(
+        self, serial_number: str, message: str, sequence: int
+    ) -> None:
+        """Append the textual AI reply used by the MAIKA app chat screen."""
+        try:
+            reply = await self.client.async_chat_ai(message)
+        except MaikaApiError:
+            _LOGGER.debug("Unable to fetch MAIKA AI chat reply", exc_info=True)
+            return
+        if (
+            self._stopping
+            or not reply
+            or self._chat_pending_serial != serial_number
+            or self._chat_sequence != sequence
+        ):
+            return
+        self._chat_pending_serial = None
+        self._append_chat("assistant", reply, serial_number)
+        self._publish_last_voice_command()
 
     @callback
     def _append_chat(self, role: str, text: str, serial_number: str) -> None:
@@ -701,6 +731,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             *self._playback_refresh_tasks.values(),
             self._media_subscription_task,
             self._voice_subscription_task,
+            *self._chat_ai_tasks,
         ]
         pending = [task for task in tasks if task is not None and not task.done()]
         for task in pending:
@@ -708,6 +739,7 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
         self._playback_refresh_tasks.clear()
+        self._chat_ai_tasks.clear()
         try:
             async with asyncio.timeout(10), self._media_subscription_lock:
                 for serial_number in (

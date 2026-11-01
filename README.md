@@ -6,7 +6,7 @@
 
 
 Custom integration **không chính thức** để kết nối loa MAIKA với Home Assistant qua cloud MAIKA.
-Bản hiện tại: **v1.29.5**.
+Bản hiện tại: **v1.29.6**.
 
 Từ bản `1.6.0`, integration dùng activation server riêng để cấp quyền cho từng
 Home Assistant. Mã cài đặt được tạo từ hash của Home Assistant instance ID,
@@ -42,7 +42,7 @@ integration, không xóa thiết bị và không cần nhập lại license key.
 - Bấm nút trái tim cạnh bài đang phát trong panel hoặc gọi service `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào playlist yêu thích của tài khoản.
 - Xem, tạo và xóa **nhắc hẹn** phát trên loa (một lần hoặc lặp lại, báo trước, lời đọc TTS tùy chọn) trong mục **Nhắc hẹn** của panel hoặc bằng service Home Assistant.
 - Duyệt, tìm kiếm và phát **NhạcCủaTui** ngay trên mục MAIKA và trong thư viện giải trí: bài hát mới, top thịnh hành, tìm theo tên bài/ca sĩ; phát link bài NhạcCủaTui bằng `media_player.play_media`.
-- Gõ câu lệnh **trò chuyện với loa** từ panel; integration gửi event `Recognize` tới đúng loa và hiện phản hồi của loa.
+- Gõ câu lệnh **trò chuyện với loa** từ panel; integration gửi event `Recognize` tới đúng loa và hiện câu trả lời văn bản của MAIKA như app gốc, có phản hồi TTS dự phòng.
 - **Lịch sử câu lệnh được lưu lại** qua các lần khởi động lại Home Assistant.
 - Duyệt các nguồn audio Home Assistant trực tiếp từ giao diện media player.
 - Tắt hoặc bật lại micro vật lý.
@@ -77,7 +77,7 @@ thay key; dữ liệu và cài đặt cũ được giữ nguyên. Thêm/xóa tà
 và đăng nhập lại vẫn dùng chức năng chuẩn của Home Assistant. Chi tiết xem
 [docs/PANEL.md](docs/PANEL.md).
 
-Bản `1.29.5` sửa integration tự kết nối lại khi event stream gặp lỗi, giữ dữ liệu loa khi REST tạm lỗi và tránh báo **Mất kết nối** sai. Bản `1.29.4` cho chọn bài là phát ngay, thanh thời gian chạy thời gian thực và nút trái tim luôn bấm được khi loa trực tuyến. Bản `1.29.3` thêm thanh tiến trình phát có thời gian, nhận diện bài yêu thích đang phát và đồng bộ trạng thái trái tim với playlist MAIKA. Bản `1.29.2` bỏ thanh mini-player dưới panel, tự tìm playlist **Bài hát yêu thích** khi login thiếu ID và gửi payload thêm bài giống app MAIKA 3.2.3. Bản `1.29.1` sửa offset khi đổi bài, cập nhật ngay bài mới từ thư viện/yêu thích/NhạcCủaTui, hiển thị thể loại Content Store thành thư mục và tách lịch sử nhắc hẹn.
+Bản `1.29.6` thêm câu trả lời văn bản của MAIKA trong mục **Trò chuyện** qua endpoint AI của app gốc, vẫn giữ phản hồi TTS làm dự phòng. Bản `1.29.5` sửa integration tự kết nối lại khi event stream gặp lỗi, giữ dữ liệu loa khi REST tạm lỗi và tránh báo **Mất kết nối** sai. Bản `1.29.4` cho chọn bài là phát ngay, thanh thời gian chạy thời gian thực và nút trái tim luôn bấm được khi loa trực tuyến. Bản `1.29.3` thêm thanh tiến trình phát có thời gian, nhận diện bài yêu thích đang phát và đồng bộ trạng thái trái tim với playlist MAIKA. Bản `1.29.2` bỏ thanh mini-player dưới panel, tự tìm playlist **Bài hát yêu thích** khi login thiếu ID và gửi payload thêm bài giống app MAIKA 3.2.3. Bản `1.29.1` sửa offset khi đổi bài, cập nhật ngay bài mới từ thư viện/yêu thích/NhạcCủaTui, hiển thị thể loại Content Store thành thư mục và tách lịch sử nhắc hẹn.
 
 Bản `1.28.0` thêm nút trái tim cạnh bài đang phát và service `maika.add_current_to_favorites` để lưu bài MAIKA hiện tại vào **Bài hát yêu thích**.
 
@@ -231,13 +231,13 @@ Tải `maika-manual.zip` từ GitHub Release, giải nén vào `/config` và ki�
 
 Sau đó restart Home Assistant.
 
-## File phát hành v1.29.5
+## File phát hành v1.29.6
 
-- `maika.zip` và `maika-v1.29.5-hacs.zip`: gói nội dung integration để lưu trữ;
-  HACS `1.29.5` tải từng tệp nên không dùng các asset này.
-- `maika-manual.zip` và `maika-v1.29.5-manual.zip`: cài thủ công vào `/config`.
+- `maika.zip` và `maika-v1.29.6-hacs.zip`: gói nội dung integration để lưu trữ;
+  HACS `1.29.6` tải từng tệp nên không dùng các asset này.
+- `maika-manual.zip` và `maika-v1.29.6-manual.zip`: cài thủ công vào `/config`.
 - `SHA256SUMS.txt`: checksum SHA-256 của toàn bộ ZIP cài đặt.
-- `loa-maika-home-assistant-v1.29.5-github-source.zip`: source sạch để bàn giao.
+- `loa-maika-home-assistant-v1.29.6-github-source.zip`: source sạch để bàn giao.
 
 ## Cấu hình
 

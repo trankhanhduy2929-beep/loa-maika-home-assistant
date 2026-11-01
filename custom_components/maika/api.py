@@ -24,6 +24,7 @@ from .const import (
     APP_TIMEZONE,
     APP_VERSION,
     CHATBOT_BASE_URL,
+    CONTENT_GATEWAY_BASE_URL,
     CONTENT_STORE_GRAPHQL_URL,
     DEVICE_DISCOVERY_FIELDS,
     DEVICE_INFO_FIELDS,
@@ -1231,6 +1232,58 @@ class MaikaApiClient:
                 status=status,
             )
         return payload
+
+    async def async_chat_ai(
+        self,
+        message: str,
+        *,
+        session_id: str | None = None,
+        retry_auth: bool = True,
+    ) -> str:
+        """Stream MAIKA's AI chat reply using the original app endpoint."""
+        text = message.strip()
+        if not text:
+            return ""
+        await self._async_ensure_authenticated()
+        session = session_id or f"{self._user_id or 0}_{self._client_id}"
+        try:
+            async with self._session.post(
+                f"{CONTENT_GATEWAY_BASE_URL}/api/chat",
+                json={
+                    "message": text,
+                    "enable_search": False,
+                    "session_id": session,
+                },
+                headers=self._rest_headers(include_authorization=True),
+                timeout=STREAM_TIMEOUT,
+            ) as response:
+                if response.status == 401 and retry_auth:
+                    await response.read()
+                    self._clear_authentication()
+                    return await self.async_chat_ai(
+                        text, session_id=session, retry_auth=False
+                    )
+                if response.status in (401, 403):
+                    await response.read()
+                    raise MaikaAuthenticationError(
+                        "MAIKA AI chat authentication failed"
+                    )
+                if response.status >= 400:
+                    await response.read()
+                    raise MaikaConnectionError(
+                        f"MAIKA AI chat returned HTTP {response.status}",
+                        status=response.status,
+                    )
+                decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+                chunks: list[str] = []
+                async for chunk in response.content.iter_any():
+                    chunks.append(decoder.decode(chunk))
+                chunks.append(decoder.decode(b"", final=True))
+                return "".join(chunks).strip()
+        except MaikaApiError:
+            raise
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise MaikaConnectionError("Unable to chat with MAIKA") from err
 
     async def async_nct_json(
         self,
