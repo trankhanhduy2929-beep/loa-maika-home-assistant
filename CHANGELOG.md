@@ -2,6 +2,26 @@
 
 Các thay đổi đáng chú ý của dự án được ghi tại đây.
 
+## [1.29.8] - 2026-11-01
+
+### Fixed
+
+- Tách hoàn toàn việc nhận phản hồi chat khỏi luồng lệnh giọng nói. Khung
+  `speakerConversationResponse` không còn bị ghi nhận nhầm là câu trả lời chat,
+  và lỗi khi lấy phản hồi chat không thể làm dừng callback của event stream.
+- Hai request chat (`/api/chat`, `/v2/user/message-history`) không còn tự động
+  xóa token và đăng nhập lại khi gặp HTTP 401. Trước đây việc này có thể làm
+  xáo trộn phiên cloud đang dùng cho loa và lệnh giọng nói.
+- Chat không còn gọi `_publish_last_voice_command()` sau mỗi phản hồi, nên
+  không ghi đè lịch sử hay trạng thái chẩn đoán của lệnh giọng nói.
+
+### Tests
+
+- Thêm kiểm thử lệnh giọng nói vẫn chạy khi đang chờ phản hồi chat và khung hội
+  thoại của loa không bị chèn vào lịch sử chat.
+- Kiểm thử các request chat dùng `retry_auth=False` để không tác động phiên
+  đăng nhập của integration.
+
 ## [1.29.7] - 2026-10-31
 
 ### Fixed

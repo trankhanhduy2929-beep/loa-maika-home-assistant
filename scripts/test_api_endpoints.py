@@ -211,6 +211,7 @@ class ApiEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "device_id": "speaker-one",
                 "newest": "false",
             },
+            retry_auth=False,
         )
 
     async def test_list_reminders_uses_get_and_returns_groups(self):

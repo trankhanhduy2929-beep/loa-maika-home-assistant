@@ -67,7 +67,8 @@ Các tuỳ chọn cũ tự tiếp tục được dùng, không cần nhập lạ
   `chatbot.iviet.com/stream` với header `device-id`/`olli-session-id` trỏ đúng
   loa. Từ `1.29.6`, coordinator đồng thời gọi `POST /api/chat` của
   `content-gateway.maika.ai` và thêm câu trả lời văn bản của MAIKA vào hội thoại
-  như app gốc. Từ `1.29.7`, nếu endpoint AI lỗi hoặc trả rỗng, integration đọc
+  như app gốc. Từ `1.29.8`, request chat không tự đăng nhập lại và không ghi
+  đè lịch sử lệnh giọng nói. Từ `1.29.7`, nếu endpoint AI lỗi hoặc trả rỗng, integration đọc
   `/v2/user/message-history` để lấy câu trả lời thật của loa; directive
   `TextToSpeech`/`SpeechSynthesizer` là lớp dự phòng cuối. Sau khi gửi, panel tự
   nạp lại nhanh để bắt phản hồi; lượt chat tối đa 500 ký tự và giữ 50 lượt gần

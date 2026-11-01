@@ -1099,6 +1099,7 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         log = self.coordinator.chat_log
         self.assertEqual([turn["role"] for turn in log], ["user", "assistant"])
         self.assertEqual(log[-1]["text"], "Phản hồi từ MAIKA")
+        self.client.async_chat_ai.assert_awaited_with("xin chào", retry_auth=False)
         frame = {
             "header": {"namespace": "TextToSpeech", "name": "Speak"},
             "response": {"items": [{"simpleResponse": {"displayText": "TTS trùng"}}]},
@@ -1131,7 +1132,57 @@ class LivePlaybackTests(unittest.IsolatedAsyncioTestCase):
         log = self.coordinator.chat_log
         self.assertEqual([turn["role"] for turn in log], ["user", "assistant"])
         self.assertEqual(log[-1]["text"], "Đã bật đèn")
-        self.client.async_get_message_history.assert_awaited_with("one")
+        self.client.async_get_message_history.assert_awaited_with(
+            "one", retry_auth=False
+        )
+
+    async def test_chat_capture_never_intercepts_voice_conversation_frames(self):
+        self.entry.options.update(
+            {
+                "enable_voice_command_sensor": True,
+                "voice_command_rules": "bật đèn | light.demo | turn_on",
+            }
+        )
+        self.hass.states = SimpleNamespace(
+            get=lambda entity_id: SimpleNamespace(state="off")
+        )
+        self.hass.services = SimpleNamespace(
+            has_service=lambda *args: True, async_call=AsyncMock()
+        )
+        self.module["ATTR_ENTITY_ID"] = "entity_id"
+        self.module["STATE_UNAVAILABLE"] = "unavailable"
+        self.module["Context"] = SimpleNamespace
+        self.module["has_voice_success_audio"] = lambda options: False
+        self.module["resolve_voice_success_audio_timing"] = lambda options: (
+            "after_success"
+        )
+        rule = self.module["parse_voice_command_rules"](
+            "bật đèn | light.demo | turn_on"
+        )[0]
+        self.coordinator._voice_command_rules = {rule.normalized_phrase: rule}
+        self.client.async_send_voice_text = AsyncMock()
+        self.coordinator._chat_pending_serial = "one"
+        frame = {
+            "header": {
+                "type": "speakerConversationResponse",
+                "namespace": "TextToSpeech",
+                "rawSpeech": "bật đèn",
+                "messageId": "voice-with-chat-pending",
+            },
+            "response": {"items": [{"simpleResponse": {"displayText": "Đã bật đèn"}}]},
+        }
+        self.client._handle_stream_frame(frame)
+        await self.tasks[-1]
+        self.hass.services.async_call.assert_awaited_once()
+        self.assertEqual(
+            self.hass.services.async_call.call_args.args[:3],
+            ("light", "turn_on", {"entity_id": "light.demo"}),
+        )
+        self.assertTrue(self.coordinator.data["last_voice_command"]["executed"])
+        self.assertNotIn(
+            "Đã bật đèn",
+            [turn["text"] for turn in self.coordinator.chat_log],
+        )
 
     async def test_chat_send_rejects_unknown_speaker_and_empty_message(self):
         self.client.async_send_voice_text = AsyncMock()

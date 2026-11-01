@@ -393,7 +393,6 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             return False
         self._chat_pending_serial = None
         self._append_chat("assistant", reply, serial_number)
-        self._publish_last_voice_command()
         return True
 
     async def _async_capture_ai_reply(
@@ -401,8 +400,8 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
     ) -> None:
         """Append the textual AI reply used by the MAIKA app chat screen."""
         try:
-            reply = await self.client.async_chat_ai(message)
-        except MaikaApiError:
+            reply = await self.client.async_chat_ai(message, retry_auth=False)
+        except Exception:  # background chat errors must never break the stream
             _LOGGER.debug("Unable to fetch MAIKA AI chat reply", exc_info=True)
             return
         self._apply_chat_reply(serial_number, sequence, reply)
@@ -451,8 +450,10 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
             if not self._chat_reply_still_needed(serial_number, sequence):
                 return
             try:
-                history = await self.client.async_get_message_history(serial_number)
-            except MaikaApiError:
+                history = await self.client.async_get_message_history(
+                    serial_number, retry_auth=False
+                )
+            except Exception:  # a failed history poll is non-fatal
                 _LOGGER.debug("Unable to read MAIKA chat history", exc_info=True)
                 continue
             for item in history:
@@ -490,6 +491,8 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         """Attach a spoken assistant reply to the pending chat turn."""
         if not self._chat_pending_serial:
             return
+        if str(header.get("type", "")).casefold() == "speakerconversationresponse":
+            return
         namespace = str(header.get("namespace", "")).casefold()
         if namespace not in ("texttospeech", "speechsynthesizer"):
             return
@@ -499,7 +502,6 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         serial_number = self._chat_pending_serial
         self._chat_pending_serial = None
         self._append_chat("assistant", text, serial_number)
-        self._publish_last_voice_command()
 
     @classmethod
     def _extract_speech_text(cls, frame: dict[str, Any]) -> str | None:
@@ -682,7 +684,10 @@ class MaikaDataUpdateCoordinator(DataUpdateCoordinator[CoordinatorData]):
         if not isinstance(header, dict):
             return
 
-        self._maybe_capture_assistant_reply(header, frame)
+        try:
+            self._maybe_capture_assistant_reply(header, frame)
+        except Exception:  # chat capture must never block voice commands
+            _LOGGER.debug("Unable to capture MAIKA chat reply", exc_info=True)
 
         if (
             str(header.get("name", "")).casefold() == "deviceinfo"

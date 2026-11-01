@@ -234,6 +234,8 @@ APK dùng `POST https://content-gateway.maika.ai/api/chat` cho màn hình chat A
 
 Response là body text stream, không phải JSON từng dòng; app đọc từng chunk UTF-8 và nối vào câu trả lời đang hiển thị. Từ `1.29.6`, integration gọi endpoint này sau khi gửi `Recognize`, dùng `session_id` ổn định `<user_id>_<client_id>` và thêm câu trả lời hoàn chỉnh vào chat log.
 
+Từ `1.29.8`, hai request chat dùng `retry_auth=False` để không xóa token hay đăng nhập lại khi gặp 401, tránh tác động tới event stream và lệnh giọng nói.
+
 Từ `1.29.7`, nếu endpoint AI lỗi hoặc trả rỗng, integration gọi `GET https://users.iviet.com/v2/user/message-history?limit=10&page=0&device_id=<serial>&newest=true`, đối chiếu `data[].data.header.rawSpeech` với câu vừa gửi rồi lấy `data[].data.response.items[].simpleResponse.displayText`. Đây là nguồn câu trả lời thật của loa; directive TTS vẫn là lớp dự phòng cuối.
 
 ## Nghiên cứu TTS

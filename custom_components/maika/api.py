@@ -1292,6 +1292,7 @@ class MaikaApiClient:
         limit: int = 10,
         page: int = 0,
         newest: bool = True,
+        retry_auth: bool = False,
     ) -> list[dict[str, Any]]:
         """Return recent speaker chat exchanges from the app account API."""
         response = await self._async_request_json(
@@ -1303,6 +1304,7 @@ class MaikaApiClient:
                 "device_id": serial_number,
                 "newest": str(bool(newest)).lower(),
             },
+            retry_auth=retry_auth,
         )
         data = response.get("data") if isinstance(response, dict) else None
         if not isinstance(data, list):
